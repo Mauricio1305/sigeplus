@@ -1,0 +1,5 @@
+{
+  "name": "Sige Plus",
+  "description": "Sistema SaaS completo para gestão de pequenas empresas com módulos de estoque, financeiro, vendas e multi-tenant.",
+  "requestFramePermissions": []
+}

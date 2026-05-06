@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@layer base {
+  @media print {
+    @page {
+      margin: 1cm;
+    }
+    
+    body {
+      background: white !important;
+      color: black !important;
+    }
+
+    /* Hide elements not needed for print */
+    .print\:hidden {
+      display: none !important;
+    }
+
+    /* Ensure content is visible and takes full width */
+    .print\:block {
+      display: block !important;
+    }
+
+    .print\:w-full {
+      width: 100% !important;
+    }
+
+    .print\:p-0 {
+      padding: 0 !important;
+    }
+
+    .print\:m-0 {
+      margin: 0 !important;
+    }
+
+    .print\:shadow-none {
+      box-shadow: none !important;
+    }
+
+    .print\:border-0 {
+      border: 0 !important;
+    }
+
+    /* Fix for scrolling containers in print */
+    * {
+      overflow: visible !important;
+      height: auto !important;
+    }
+  }
+}
