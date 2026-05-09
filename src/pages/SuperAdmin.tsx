@@ -14,10 +14,41 @@ export const SuperAdmin = () => {
   const [editingCompany, setEditingCompany] = useState<any>(null);
   const [isNewPlanModalOpen, setIsNewPlanModalOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<number | null>(null);
-  const [newPlan, setNewPlan] = useState({ nome: '', valor_mensal: 0, limite_usuarios: 1, stripe_price_id: '' });
+  const [newPlan, setNewPlan] = useState({ 
+    nome: '', 
+    valor_mensal: 0, 
+    limite_usuarios: 1, 
+    stripe_price_id: '',
+    modulos: [] as string[]
+  });
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const availableModules = [
+    { id: 'financeiro', label: 'Financeiro' },
+    { id: 'vendas', label: 'Vendas' },
+    { id: 'pdv', label: 'PDV' },
+    { id: 'estoque', label: 'Estoque' },
+    { id: 'cadastros', label: 'Cadastros' },
+    { id: 'configuracoes', label: 'Configurações' }
+  ];
+
+  const handleModuleToggle = (moduleId: string, isEditing: boolean) => {
+    if (isEditing) {
+      const currentModules = editingPlan.modulos || [];
+      const newModules = currentModules.includes(moduleId)
+        ? currentModules.filter((m: string) => m !== moduleId)
+        : [...currentModules, moduleId];
+      setEditingPlan({ ...editingPlan, modulos: newModules });
+    } else {
+      const currentModules = newPlan.modulos || [];
+      const newModules = currentModules.includes(moduleId)
+        ? currentModules.filter((m: string) => m !== moduleId)
+        : [...currentModules, moduleId];
+      setNewPlan({ ...newPlan, modulos: newModules });
+    }
+  };
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -228,7 +259,7 @@ export const SuperAdmin = () => {
         )}
       </AnimatePresence>
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Painel SuperAdmin</h1>
+        <h1 className="text-3xl font-bold text-slate-900">Gestão do SaaS</h1>
         <div className="flex bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
           <button 
             onClick={() => setActiveTab('companies')}
@@ -357,6 +388,14 @@ export const SuperAdmin = () => {
                     Limite: <span className="font-bold text-slate-900">{p.limite_usuarios === 9999 ? 'Ilimitado' : `${p.limite_usuarios} usuários`}</span>
                   </p>
                   <p className="text-slate-400 text-[10px] mt-1 font-mono">ID Stripe: {p.stripe_price_id || 'Não configurado'}</p>
+                  <div className="mt-4 flex flex-wrap gap-1">
+                    {(p.modulos || []).map((m: string) => (
+                      <span key={m} className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded uppercase font-bold">
+                        {m}
+                      </span>
+                    ))}
+                    {(p.modulos || []).length === 0 && <span className="text-[10px] text-slate-400 italic">Nenhum módulo</span>}
+                  </div>
                 </div>
                 <div className="mt-6 flex gap-2">
                   <button 
@@ -439,6 +478,24 @@ export const SuperAdmin = () => {
                   * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-slate-100 px-1 rounded text-indigo-600">price_...</code> e <strong>NÃO</strong> o ID do Produto (<code className="bg-slate-100 px-1 rounded text-red-500">prod_...</code>).
                 </p>
               </FormField>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-slate-700">Módulos Inclusos</label>
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  {availableModules.map(mod => (
+                    <label key={mod.id} className="flex items-center gap-2 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                        checked={(newPlan.modulos || []).includes(mod.id)}
+                        onChange={() => handleModuleToggle(mod.id, false)}
+                      />
+                      <span className="text-sm text-slate-600 group-hover:text-indigo-600 transition-colors">{mod.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold mt-4 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">Cadastrar Plano</button>
             </form>
           </motion.div>
@@ -506,6 +563,24 @@ export const SuperAdmin = () => {
                   * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-slate-100 px-1 rounded text-indigo-600">price_...</code> e <strong>NÃO</strong> o ID do Produto (<code className="bg-slate-100 px-1 rounded text-red-500">prod_...</code>).
                 </p>
               </FormField>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-slate-700">Módulos Inclusos</label>
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  {availableModules.map(mod => (
+                    <label key={mod.id} className="flex items-center gap-2 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                        checked={(editingPlan.modulos || []).includes(mod.id)}
+                        onChange={() => handleModuleToggle(mod.id, true)}
+                      />
+                      <span className="text-sm text-slate-600 group-hover:text-indigo-600 transition-colors">{mod.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold mt-4 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">Salvar Alterações</button>
             </form>
           </motion.div>

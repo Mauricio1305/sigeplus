@@ -68,24 +68,29 @@ export const VendaPrint = () => {
 
   return (
     <div className="bg-white min-h-screen p-8 text-slate-900 font-sans">
-      <div className="max-w-3xl mx-auto border border-slate-200 p-8 rounded-lg shadow-sm print:shadow-none print:border-none print:p-0">
+      <div className="max-w-4xl mx-auto border border-slate-200 p-8 rounded-lg shadow-sm print:shadow-none print:border-none print:p-0">
         <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-6">
-          <div className="flex-1">
-            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{company?.nome_fantasia || user?.nome}</h2>
-            {company?.razao_social && <p className="text-sm font-bold text-slate-700">{company.razao_social}</p>}
-            <div className="mt-2 text-xs text-slate-500 space-y-0.5">
-              {company?.cnpj && <p><span className="font-bold text-slate-700">CNPJ/CPF:</span> {company.cnpj}</p>}
-              {(company?.telefone_fixo || company?.telefone_celular) && (
-                <p>
-                  <span className="font-bold text-slate-700">Fone:</span> {company.telefone_fixo} {company.telefone_fixo && company.telefone_celular ? ' / ' : ''} {company.telefone_celular}
-                </p>
-              )}
-              {company?.email && <p><span className="font-bold text-slate-700">E-mail:</span> {company.email}</p>}
-              {company?.endereco && (
-                <p>
-                  <span className="font-bold text-slate-700">Endereço:</span> {company.endereco}, {company.numero} - {company.cidade}/{company.estado} - CEP: {company.cep}
-                </p>
-              )}
+          <div className="flex-1 flex gap-4">
+            {company?.logo && (
+              <img src={company.logo} alt="Logo" className="h-20 object-contain" />
+            )}
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{company?.nome_fantasia || user?.nome}</h2>
+              {company?.razao_social && <p className="text-sm font-bold text-slate-700">{company.razao_social}</p>}
+              <div className="mt-2 text-xs text-slate-500 space-y-0.5">
+                {company?.cnpj && <p><span className="font-bold text-slate-700">CNPJ/CPF:</span> {company.cnpj}</p>}
+                {(company?.telefone_fixo || company?.telefone_celular) && (
+                  <p>
+                    <span className="font-bold text-slate-700">Fone:</span> {company.telefone_fixo} {company.telefone_fixo && company.telefone_celular ? ' / ' : ''} {company.telefone_celular}
+                  </p>
+                )}
+                {company?.email && <p><span className="font-bold text-slate-700">E-mail:</span> {company.email}</p>}
+                {company?.endereco && (
+                  <p>
+                    <span className="font-bold text-slate-700">Endereço:</span> {company.endereco}, {company.numero} - {company.cidade}/{company.estado} - CEP: {company.cep}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
           <div className="text-right shrink-0">

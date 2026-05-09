@@ -154,15 +154,89 @@ async function initDB() {
         }
       }
 
-      const tableList = ['empresas', 'pessoas', 'tipos_pagamento', 'lancamentos', 'vendas', 'vendas_itens', 'ordens_servico', 'produtos', 'movimentacoes_caixa', 'categorias_contas', 'usuarios'];
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS grupos_usuarios (
+          id INTEGER PRIMARY KEY AUTO_INCREMENT,
+          tenant_id VARCHAR(255) NOT NULL,
+          nome VARCHAR(255) NOT NULL,
+          is_master BOOLEAN DEFAULT 0,
+          permissoes JSON,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS grupos_produtos (
+          id INTEGER PRIMARY KEY AUTO_INCREMENT,
+          tenant_id VARCHAR(255) NOT NULL,
+          nome VARCHAR(255) NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
+        )
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS layouts_etiquetas (
+          id INTEGER PRIMARY KEY AUTO_INCREMENT,
+          tenant_id VARCHAR(255) NOT NULL,
+          nome VARCHAR(255) NOT NULL,
+          largura DECIMAL(10,2) DEFAULT 0,
+          altura DECIMAL(10,2) DEFAULT 0,
+          colunas INTEGER DEFAULT 1,
+          json_config JSON,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
+        )
+      `);
+
+      const tableList = ['planos', 'empresas', 'pessoas', 'tipos_pagamento', 'lancamentos', 'vendas', 'vendas_itens', 'ordens_servico', 'produtos', 'movimentacoes_caixa', 'categorias_contas', 'usuarios'];
       for (const table of tableList) {
         const [info] = await pool.query(`SHOW COLUMNS FROM ${table}`) as any[];
         const columns = (info as any[]).map((c: any) => c.Field);
         
+        if (table === 'planos') {
+          if (!columns.includes('modulos')) {
+            await pool.query("ALTER TABLE planos ADD COLUMN modulos JSON AFTER limite_usuarios");
+            console.log("Added modulos column to planos table");
+          }
+          // Always ensure NULL modulos are set to a default (helpful for existing data)
+          const defaultModules = JSON.stringify(['financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes']);
+          await pool.query("UPDATE planos SET modulos = ? WHERE modulos IS NULL", [defaultModules]);
+        }
         if (table === 'usuarios') {
           if (!columns.includes('avatar')) {
             await pool.query("ALTER TABLE usuarios ADD COLUMN avatar LONGTEXT AFTER senha");
             console.log("Added avatar column to usuarios table");
+          }
+          if (!columns.includes('grupo_id')) {
+            await pool.query('ALTER TABLE usuarios ADD COLUMN grupo_id INTEGER');
+            await pool.query('ALTER TABLE usuarios ADD FOREIGN KEY (grupo_id) REFERENCES grupos_usuarios(id) ON DELETE SET NULL');
+
+            const masterPermissoes = JSON.stringify({
+              financeiro: { acessar: true, lancar: true, editar: true, cancelar: true, estornar: true },
+              vendas: { acessar: true, lancar: true, cancelar: true, relatorios: true },
+              pdv: { acessar: true, vender: true, cancelar: true },
+              estoque: { acessar: true, editar: true, excluir: true },
+              cadastros: { acessar: true, editar: true, excluir: true },
+              configuracoes: { acessar: true, editar: true }
+            });
+
+            // Seed master groups
+            const [empresas] = await pool.query('SELECT tenant_id FROM empresas');
+            for (const emp of (empresas as any[])) {
+              const [res] = await pool.query(
+                "INSERT INTO grupos_usuarios (tenant_id, nome, is_master, permissoes) VALUES (?, 'Master', 1, ?)",
+                [emp.tenant_id, masterPermissoes]
+              ) as any[];
+              // Update grupo_id but DO NOT override perfil if it's superadmin
+              await pool.query("UPDATE usuarios SET grupo_id = ? WHERE tenant_id = ? AND perfil IN ('admin', 'superadmin')", [res.insertId, emp.tenant_id]);
+              // Also ensure admins (non-superadmins) have the correct profile name if needed
+              await pool.query("UPDATE usuarios SET perfil = 'admin' WHERE tenant_id = ? AND perfil = 'admin'", [emp.tenant_id]);
+            }
           }
         }
         if (table === 'vendas') {
@@ -174,8 +248,13 @@ async function initDB() {
           if (!columns.includes('tipo_pagamento_id')) await pool.query(`ALTER TABLE ${table} ADD COLUMN tipo_pagamento_id INTEGER`);
           if (!columns.includes('origem')) await pool.query(`ALTER TABLE ${table} ADD COLUMN origem VARCHAR(50) DEFAULT 'Venda'`);
           if (!columns.includes('categoria_id')) await pool.query(`ALTER TABLE ${table} ADD COLUMN categoria_id INTEGER`);
+          if (!columns.includes('status')) await pool.query(`ALTER TABLE ${table} ADD COLUMN status VARCHAR(20) DEFAULT 'paga'`);
+          if (!columns.includes('cancelado_em')) await pool.query(`ALTER TABLE ${table} ADD COLUMN cancelado_em TIMESTAMP NULL DEFAULT NULL`);
+          if (!columns.includes('cancelado_por')) await pool.query(`ALTER TABLE ${table} ADD COLUMN cancelado_por INTEGER`);
+          if (!columns.includes('motivo_cancelamento')) await pool.query(`ALTER TABLE ${table} ADD COLUMN motivo_cancelamento TEXT`);
         }
         if (table === 'empresas') {
+          if (!columns.includes('logo')) await pool.query("ALTER TABLE empresas ADD COLUMN logo LONGTEXT");
           if (!columns.includes('telefone_fixo')) await pool.query("ALTER TABLE empresas ADD COLUMN telefone_fixo VARCHAR(20)");
           if (!columns.includes('telefone_celular')) await pool.query("ALTER TABLE empresas ADD COLUMN telefone_celular VARCHAR(20)");
           if (!columns.includes('endereco')) await pool.query("ALTER TABLE empresas ADD COLUMN endereco TEXT");
@@ -214,11 +293,23 @@ async function initDB() {
           if (!columns.includes('local')) await pool.query(`ALTER TABLE ${table} ADD COLUMN local VARCHAR(50) DEFAULT 'Caixa'`);
           if (!columns.includes('tipo_pagamento_id')) await pool.query(`ALTER TABLE ${table} ADD COLUMN tipo_pagamento_id INTEGER`);
           if (!columns.includes('tipo')) await pool.query(`ALTER TABLE ${table} ADD COLUMN tipo VARCHAR(2) DEFAULT 'CR'`);
+          if (!columns.includes('cancelado_em')) await pool.query(`ALTER TABLE ${table} ADD COLUMN cancelado_em TIMESTAMP NULL DEFAULT NULL`);
+          if (!columns.includes('cancelado_por')) await pool.query(`ALTER TABLE ${table} ADD COLUMN cancelado_por INTEGER`);
+          if (!columns.includes('motivo_cancelamento')) await pool.query(`ALTER TABLE ${table} ADD COLUMN motivo_cancelamento TEXT`);
+          if (!columns.includes('estornado_em')) await pool.query(`ALTER TABLE ${table} ADD COLUMN estornado_em TIMESTAMP NULL DEFAULT NULL`);
+          if (!columns.includes('estornado_por')) await pool.query(`ALTER TABLE ${table} ADD COLUMN estornado_por INTEGER`);
+          if (!columns.includes('motivo_estorno')) await pool.query(`ALTER TABLE ${table} ADD COLUMN motivo_estorno TEXT`);
         }
         if (table === 'vendas' || table === 'ordens_servico') {
           if (columns.includes('cliente_id')) await pool.query(`ALTER TABLE ${table} CHANGE COLUMN cliente_id pessoa_id INTEGER`);
         }
         if (table === 'produtos') {
+          if (!columns.includes('grupo_id')) {
+            await pool.query("ALTER TABLE produtos ADD COLUMN grupo_id INTEGER");
+            await pool.query("ALTER TABLE produtos ADD FOREIGN KEY (grupo_id) REFERENCES grupos_produtos(id) ON DELETE SET NULL");
+          }
+          if (!columns.includes('foto')) await pool.query("ALTER TABLE produtos ADD COLUMN foto LONGTEXT");
+          if (!columns.includes('marca')) await pool.query("ALTER TABLE produtos ADD COLUMN marca VARCHAR(255)");
           if (!columns.includes('estoque_minimo')) await pool.query("ALTER TABLE produtos ADD COLUMN estoque_minimo DECIMAL(10, 2) DEFAULT 0");
           if (!columns.includes('ativo')) await pool.query("ALTER TABLE produtos ADD COLUMN ativo BOOLEAN DEFAULT 1");
           if (!columns.includes('codigo_barras')) await pool.query("ALTER TABLE produtos ADD COLUMN codigo_barras VARCHAR(13)");
@@ -246,17 +337,32 @@ async function initDB() {
       // Seed Plans if not exists
       const [existingPlans] = await pool.query("SELECT COUNT(*) as count FROM planos") as any[];
       if (existingPlans[0].count === 0) {
+        const defaultModules = JSON.stringify(['financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes']);
+        const startModules = JSON.stringify(['financeiro', 'vendas', 'pdv', 'cadastros']); // Restricted
+        
         const plansToSeed = [
-          ['Bronze', 49.90, 3, 'price_1T9qwJD69xPL9EMAIzuI14xh'],
-          ['Prata', 99.90, 10, 'price_1T9qwJD69xPL9EMAIzuI14xi'],
-          ['Ouro', 199.90, 9999, 'price_1T9qwJD69xPL9EMAIzuI14xj'],
-          ['System', 0.00, 9999, 'price_system']
+          ['Bronze', 49.90, 3, startModules, 'price_1T9qwJD69xPL9EMAIzuI14xh'],
+          ['Prata', 99.90, 10, defaultModules, 'price_1T9qwJD69xPL9EMAIzuI14xi'],
+          ['Ouro', 199.90, 9999, defaultModules, 'price_1T9qwJD69xPL9EMAIzuI14xj'],
+          ['System', 0.00, 9999, defaultModules, 'price_system']
         ];
         for (const plan of plansToSeed) {
-          await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (?, ?, ?, ?)", plan);
+          await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, modulos, stripe_price_id) VALUES (?, ?, ?, ?, ?)", plan);
         }
         console.log("Seeded initial plans.");
       }
+
+      // Ensure "Grupo Padrão" exists for all tenants
+      const [tenantsQuery] = await pool.query("SELECT DISTINCT tenant_id FROM empresas") as any[];
+      for (const t of tenantsQuery) {
+        const [grupos] = await pool.query("SELECT id FROM grupos_produtos WHERE tenant_id = ? AND nome = 'Grupo Padrão'", [t.tenant_id]) as any[];
+        if (grupos.length === 0) {
+          const [result] = await pool.query("INSERT INTO grupos_produtos (tenant_id, nome) VALUES (?, ?)", [t.tenant_id, 'Grupo Padrão']) as any[];
+          // update existing products without a group to this group
+          await pool.query("UPDATE produtos SET grupo_id = ? WHERE tenant_id = ? AND grupo_id IS NULL", [result.insertId, t.tenant_id]);
+        }
+      }
+
     } catch (e) {
       console.log("Migration error:", e);
     }
@@ -281,6 +387,8 @@ async function initDB() {
     if ((existingAdmin as any[]).length === 0) {
       await pool.query("INSERT INTO usuarios (tenant_id, nome, email, senha, perfil) VALUES (?, ?, ?, ?, ?)", ['system', 'Super Admin', 'admin@saas.com', hashedAdminPass, 'superadmin']);
     } else {
+      // Fix potential profile override from previous turns
+      await pool.query("UPDATE usuarios SET perfil = 'superadmin' WHERE email = 'admin@saas.com'");
       await pool.query("UPDATE usuarios SET senha = ? WHERE email = 'admin@saas.com'", [hashedAdminPass]);
     }
 
@@ -311,7 +419,6 @@ const globalLimiter = rateLimit({
   max: 300, // Limit each IP to 300 requests per window
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip as string,
 });
 
 const authLimiter = rateLimit({
@@ -320,7 +427,6 @@ const authLimiter = rateLimit({
   message: { error: "Muitas tentativas dessa IP, favor tentar novamente após uma hora." },
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => req.ip as string,
 });
 
 app.use("/api/", globalLimiter);
@@ -445,7 +551,8 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
   }
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Middleware: Auth & Multi-tenant
 const authMiddleware = (req: any, res: any, next: any) => {
@@ -459,6 +566,71 @@ const authMiddleware = (req: any, res: any, next: any) => {
   } catch (err) {
     res.status(401).json({ error: "Invalid token" });
   }
+};
+
+const planMiddleware = (module: string) => {
+  return async (req: any, res: any, next: any) => {
+    try {
+      // Superadmins bypass all restrictions
+      if (req.user.perfil === 'superadmin') return next();
+
+      // Dynamic module resolution based on type (for shared routes like sales)
+      let currentModule = module;
+      if (module === 'vendas' && req.body && req.body.tipo) {
+        if (req.body.tipo === 'os') currentModule = 'os';
+        if (req.body.tipo === 'comanda') currentModule = 'mesas';
+      } else if (module === 'vendas' && req.query && req.query.tipo) {
+        if (req.query.tipo === 'os') currentModule = 'os';
+        if (req.query.tipo === 'comanda') currentModule = 'mesas';
+      }
+
+      const { tenant_id } = req.user;
+      const [companies] = await pool.query(`
+        SELECT p.modulos 
+        FROM empresas e 
+        JOIN planos p ON e.plano_id = p.id 
+        WHERE e.tenant_id = ?
+      `, [tenant_id]) as any[];
+      
+      const company = companies[0];
+      if (!company) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      // Check Plan level
+      let requiredPlanModule = currentModule;
+      if (currentModule === 'os' || currentModule === 'mesas') requiredPlanModule = 'vendas';
+      if (currentModule === 'dashboard') requiredPlanModule = 'dashboard';
+      
+      const allowedModules = company.modulos || [];
+      const planHasModule = requiredPlanModule === 'dashboard' ? true : allowedModules.includes(requiredPlanModule);
+
+      if (!planHasModule) {
+        return res.status(403).json({ 
+          error: `O seu plano atual não possui acesso ao módulo ${requiredPlanModule}.`,
+          code: 'PLAN_RESTRICTION',
+          module: requiredPlanModule 
+        });
+      }
+
+      // Check User level (group permissions)
+      // Admins bypass user group restrictions
+      if (req.user.perfil === 'admin') return next();
+
+      const userPerms = req.user.permissoes || {};
+      
+      // We check if the user has `{currentModule}.acessar` == true
+      if (!userPerms[currentModule] || !userPerms[currentModule].acessar) {
+        return res.status(403).json({ 
+          error: `Seu usuário não possui permissão para acessar o módulo ${currentModule}. Contate o administrador.`,
+          code: 'USER_RESTRICTION',
+          module: currentModule 
+        });
+      }
+
+      next();
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  };
 };
 
 // --- AUTH ROUTES ---
@@ -545,6 +717,12 @@ app.post("/api/auth/register", async (req, res) => {
       [tenant_id, name, email, hashedPassword, 'admin']
     );
 
+    // Create default product group
+    await connection.query(
+      "INSERT INTO grupos_produtos (tenant_id, nome) VALUES (?, ?)",
+      [tenant_id, 'Grupo Padrão']
+    );
+
     await connection.commit();
     
     // Fetch the created user to return in response
@@ -613,8 +791,21 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(401).json({ error: "Credenciais inválidas" });
     }
 
-    const [companies] = await pool.query("SELECT status_assinatura, vencimento_assinatura, plano_id FROM empresas WHERE tenant_id = ?", [user.tenant_id]) as any[];
-    const company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1 };
+    const [companies] = await pool.query(`
+      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, p.modulos 
+      FROM empresas e 
+      LEFT JOIN planos p ON e.plano_id = p.id 
+      WHERE e.tenant_id = ?
+    `, [user.tenant_id]) as any[];
+    const company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1, modulos: [] };
+
+    let permissoes = {};
+    if (user.grupo_id) {
+      const [grupos] = await pool.query("SELECT permissoes FROM grupos_usuarios WHERE id = ?", [user.grupo_id]) as any[];
+      if (grupos.length > 0 && grupos[0].permissoes) {
+        permissoes = typeof grupos[0].permissoes === 'string' ? JSON.parse(grupos[0].permissoes) : grupos[0].permissoes;
+      }
+    }
 
     const token = jwt.sign(
       { 
@@ -624,7 +815,9 @@ app.post("/api/auth/login", async (req, res) => {
         nome: user.nome,
         status_assinatura: company.status_assinatura,
         vencimento_assinatura: company.vencimento_assinatura,
-        plano_id: company.plano_id
+        plano_id: company.plano_id,
+        modulos: company.modulos || [],
+        permissoes
       },
       JWT_SECRET,
       { expiresIn: "1d" }
@@ -642,7 +835,9 @@ app.post("/api/auth/login", async (req, res) => {
         avatar: user.avatar,
         status_assinatura: company.status_assinatura,
         vencimento_assinatura: company.vencimento_assinatura,
-        plano_id: company.plano_id
+        plano_id: company.plano_id,
+        modulos: company.modulos || [],
+        permissoes
       } 
     });
   } catch (err: any) {
@@ -653,19 +848,34 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.get("/api/auth/me", authMiddleware, async (req: any, res) => {
   try {
-    const [users] = await pool.query("SELECT id, tenant_id, nome, email, perfil, avatar FROM usuarios WHERE id = ?", [req.user.id]) as any[];
+    const [users] = await pool.query("SELECT id, tenant_id, nome, email, perfil, avatar, grupo_id FROM usuarios WHERE id = ?", [req.user.id]) as any[];
     const user = users[0];
     if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
 
-    const [companies] = await pool.query("SELECT status_assinatura, vencimento_assinatura, plano_id FROM empresas WHERE tenant_id = ?", [user.tenant_id]) as any[];
-    const company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1 };
+    const [companies] = await pool.query(`
+      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, p.modulos 
+      FROM empresas e 
+      LEFT JOIN planos p ON e.plano_id = p.id 
+      WHERE e.tenant_id = ?
+    `, [user.tenant_id]) as any[];
+    const company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1, modulos: [] };
+
+    let permissoes = {};
+    if (user.grupo_id) {
+      const [grupos] = await pool.query("SELECT permissoes FROM grupos_usuarios WHERE id = ?", [user.grupo_id]) as any[];
+      if (grupos.length > 0 && grupos[0].permissoes) {
+        permissoes = typeof grupos[0].permissoes === 'string' ? JSON.parse(grupos[0].permissoes) : grupos[0].permissoes;
+      }
+    }
 
     res.json({
       user: {
         ...user,
         status_assinatura: company.status_assinatura,
         vencimento_assinatura: company.vencimento_assinatura,
-        plano_id: company.plano_id
+        plano_id: company.plano_id,
+        modulos: company.modulos || [],
+        permissoes
       }
     });
   } catch (err: any) {
@@ -877,13 +1087,53 @@ app.post("/api/stripe/verify-session", authMiddleware, async (req: any, res) => 
   }
 });
 
-app.get("/api/dashboard/stats", authMiddleware, async (req: any, res) => {
+app.get("/api/dashboard/stats", authMiddleware, planMiddleware('dashboard'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
+    const { year, month } = req.query;
     
-    const [totalSalesRow] = await pool.query("SELECT SUM(valor_total) as total FROM vendas WHERE tenant_id = ? AND status = 'finalizada'", [tenant_id]) as any[];
-    const [totalReceivableRow] = await pool.query("SELECT SUM(valor) as total FROM lancamentos WHERE tenant_id = ? AND status = 'aberta' AND tipo = 'CR'", [tenant_id]) as any[];
-    const [totalPayableRow] = await pool.query("SELECT SUM(valor) as total FROM lancamentos WHERE tenant_id = ? AND status = 'aberta' AND tipo = 'CP'", [tenant_id]) as any[];
+    let dateFilterVendas = '';
+    let dateFilterLancamentos = '';
+    const queryParamsVendas: any[] = [tenant_id];
+    const queryParamsLancamentosCR: any[] = [tenant_id];
+    const queryParamsLancamentosCP: any[] = [tenant_id];
+
+    if (year) {
+      dateFilterVendas += ' AND YEAR(data_venda) = ?';
+      dateFilterLancamentos += ' AND YEAR(l.vencimento) = ?';
+      queryParamsVendas.push(year);
+      queryParamsLancamentosCR.push(year);
+      queryParamsLancamentosCP.push(year);
+    }
+    
+    if (month && month !== 'todos') {
+      dateFilterVendas += ' AND MONTH(data_venda) = ?';
+      dateFilterLancamentos += ' AND MONTH(l.vencimento) = ?';
+      queryParamsVendas.push(month);
+      queryParamsLancamentosCR.push(month);
+      queryParamsLancamentosCP.push(month);
+    }
+
+    const [totalSalesRow] = await pool.query(
+      `SELECT SUM(valor_total) as total FROM vendas WHERE tenant_id = ? AND status = 'finalizada'${dateFilterVendas}`, 
+      queryParamsVendas
+    ) as any[];
+    
+    const [totalReceivableRow] = await pool.query(`
+      SELECT SUM(l.valor - COALESCE(l.valor_pago, 0)) as total 
+      FROM lancamentos l
+      LEFT JOIN tipos_pagamento tp ON l.tipo_pagamento_id = tp.id
+      WHERE l.tenant_id = ? AND l.status IN ('aberta', 'parcial') AND l.tipo = 'CR' 
+      AND COALESCE(tp.local_lancamento, l.local, 'Receber') IN ('Receber', 'Contas a Receber')${dateFilterLancamentos}
+    `, queryParamsLancamentosCR) as any[];
+    
+    const [totalPayableRow] = await pool.query(`
+      SELECT SUM(l.valor - COALESCE(l.valor_pago, 0)) as total 
+      FROM lancamentos l
+      LEFT JOIN tipos_pagamento tp ON l.tipo_pagamento_id = tp.id
+      WHERE l.tenant_id = ? AND l.status IN ('aberta', 'parcial') AND l.tipo = 'CP' 
+      AND COALESCE(tp.local_lancamento, l.local, 'Pagar') IN ('Pagar', 'Contas a Pagar')${dateFilterLancamentos}
+    `, queryParamsLancamentosCP) as any[];
     const [lowStockRow] = await pool.query("SELECT COUNT(*) as count FROM produtos WHERE tenant_id = ? AND estoque_atual < estoque_minimo", [tenant_id]) as any[];
 
     res.json({
@@ -898,68 +1148,115 @@ app.get("/api/dashboard/stats", authMiddleware, async (req: any, res) => {
   }
 });
 
-app.get("/api/dashboard/chart-data", authMiddleware, async (req: any, res) => {
+app.get("/api/dashboard/chart-data", authMiddleware, planMiddleware('dashboard'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
+    const { year } = req.query;
+    
+    const targetYear = year || new Date().getFullYear().toString();
     
     // Get receivables by month (from lancamentos)
     const [receivablesByMonth] = await pool.query(`
       SELECT 
-        DATE_FORMAT(created_at, '%m') as month_num,
-        SUM(valor) as total 
-      FROM lancamentos 
-      WHERE tenant_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH) AND tipo = 'CR'
+        DATE_FORMAT(l.vencimento, '%m') as month_num,
+        SUM(l.valor - COALESCE(l.valor_pago, 0)) as total 
+      FROM lancamentos l
+      LEFT JOIN tipos_pagamento tp ON l.tipo_pagamento_id = tp.id
+      WHERE l.tenant_id = ? AND YEAR(l.vencimento) = ? AND l.status IN ('aberta', 'parcial') AND l.tipo = 'CR'
+      AND COALESCE(tp.local_lancamento, l.local, 'Receber') IN ('Receber', 'Contas a Receber')
       GROUP BY month_num
-    `, [tenant_id]) as any[];
+    `, [tenant_id, targetYear]) as any[];
 
     // Get expenses by month (from lancamentos)
     const [expensesByMonth] = await pool.query(`
       SELECT 
-        DATE_FORMAT(created_at, '%m') as month_num,
-        SUM(valor) as total 
-      FROM lancamentos 
-      WHERE tenant_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH) AND tipo = 'CP'
+        DATE_FORMAT(l.vencimento, '%m') as month_num,
+        SUM(l.valor - COALESCE(l.valor_pago, 0)) as total 
+      FROM lancamentos l
+      LEFT JOIN tipos_pagamento tp ON l.tipo_pagamento_id = tp.id
+      WHERE l.tenant_id = ? AND YEAR(l.vencimento) = ? AND l.status IN ('aberta', 'parcial') AND l.tipo = 'CP'
+      AND COALESCE(tp.local_lancamento, l.local, 'Pagar') IN ('Pagar', 'Contas a Pagar')
       GROUP BY month_num
-    `, [tenant_id]) as any[];
+    `, [tenant_id, targetYear]) as any[];
 
-    // Merge data for the last 6 months
-    const months = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const monthNum = (d.getMonth() + 1).toString().padStart(2, '0');
-      const monthName = d.toLocaleDateString('pt-BR', { month: 'short' });
+    const monthsData = [];
+    const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    
+    for (let i = 1; i <= 12; i++) {
+      const monthNumStr = i.toString().padStart(2, '0');
+      const receivables = (receivablesByMonth as any[]).find(s => s.month_num === monthNumStr)?.total || 0;
+      const expenses = (expensesByMonth as any[]).find(e => e.month_num === monthNumStr)?.total || 0;
       
-      const receivables = (receivablesByMonth as any[]).find(s => s.month_num === monthNum)?.total || 0;
-      const expenses = (expensesByMonth as any[]).find(e => e.month_num === monthNum)?.total || 0;
-      
-      months.push({
-        name: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+      monthsData.push({
+        name: monthNames[i - 1],
         receivables,
         expenses
       });
     }
 
-    res.json(months);
+    res.json(monthsData);
   } catch (err: any) {
     console.error("Error fetching chart data:", err);
-    // Return empty array instead of error object to prevent frontend issues
+    res.json([]);
+  }
+});
+
+app.get("/api/dashboard/top-products", authMiddleware, planMiddleware('dashboard'), async (req: any, res) => {
+  try {
+    const { tenant_id } = req.user;
+    const { year, month } = req.query;
+
+    let dateFilter = '';
+    const queryParams: any[] = [tenant_id];
+
+    if (year) {
+      dateFilter += ' AND YEAR(v.data_venda) = ?';
+      queryParams.push(year);
+    }
+    
+    if (month && month !== 'todos') {
+      dateFilter += ' AND MONTH(v.data_venda) = ?';
+      queryParams.push(month);
+    }
+    
+    // Get top 10 products
+    const [topProducts] = await pool.query(`
+      SELECT 
+        p.nome as name,
+        SUM(vi.quantidade) as qtd
+      FROM vendas_itens vi
+      JOIN vendas v ON v.id = vi.venda_id
+      JOIN produtos p ON p.id = vi.produto_id
+      WHERE v.tenant_id = ? AND v.status = 'finalizada'${dateFilter}
+      GROUP BY p.id, p.nome
+      ORDER BY qtd DESC
+      LIMIT 10
+    `, queryParams);
+
+    res.json(topProducts);
+  } catch (err: any) {
+    console.error("Error fetching top products:", err);
     res.json([]);
   }
 });
 
 // Products
-app.get("/api/products", authMiddleware, async (req: any, res) => {
-  const [products] = await pool.query("SELECT * FROM produtos WHERE tenant_id = ?", [req.user.tenant_id]);
+app.get("/api/products", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
+  const [products] = await pool.query(`
+    SELECT p.*, g.nome as grupo_nome 
+    FROM produtos p 
+    LEFT JOIN grupos_produtos g ON p.grupo_id = g.id 
+    WHERE p.tenant_id = ?
+  `, [req.user.tenant_id]);
   res.json(products);
 });
 
-app.post("/api/products", authMiddleware, async (req: any, res) => {
+app.post("/api/products", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
   try {
-    const { nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo } = req.body;
+    const { nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo, grupo_id, foto, marca } = req.body;
     await pool.query(
-      "INSERT INTO produtos (tenant_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [req.user.tenant_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo || 0, categoria, codigo_barras || null, ativo === undefined ? 1 : (ativo ? 1 : 0)]
+      "INSERT INTO produtos (tenant_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo, grupo_id, foto, marca) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [req.user.tenant_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo || 0, categoria, codigo_barras || null, ativo === undefined ? 1 : (ativo ? 1 : 0), grupo_id || null, foto || null, marca || null]
     );
     res.json({ success: true });
   } catch (error: any) {
@@ -968,17 +1265,17 @@ app.post("/api/products", authMiddleware, async (req: any, res) => {
   }
 });
 
-app.put("/api/products/:id", authMiddleware, async (req: any, res) => {
+app.put("/api/products/:id", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
   try {
     const { id } = req.params;
     const productId = parseInt(id);
-    const { nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo } = req.body;
+    const { nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo, grupo_id, foto, marca } = req.body;
     
     const [result] = await pool.query(`
       UPDATE produtos 
-      SET nome = ?, tipo = ?, unidade = ?, custo = ?, preco_venda = ?, estoque_atual = ?, estoque_minimo = ?, categoria = ?, codigo_barras = ?, ativo = ?, updated_at = CURRENT_TIMESTAMP
+      SET nome = ?, tipo = ?, unidade = ?, custo = ?, preco_venda = ?, estoque_atual = ?, estoque_minimo = ?, categoria = ?, codigo_barras = ?, ativo = ?, grupo_id = ?, foto = ?, marca = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND tenant_id = ?
-    `, [nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo || 0, categoria, codigo_barras || null, ativo ? 1 : 0, productId, req.user.tenant_id]) as any;
+    `, [nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo || 0, categoria, codigo_barras || null, ativo ? 1 : 0, grupo_id || null, foto || null, marca || null, productId, req.user.tenant_id]) as any;
     
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Produto não encontrado ou sem permissão." });
@@ -992,7 +1289,7 @@ app.put("/api/products/:id", authMiddleware, async (req: any, res) => {
 });
 
 // Pessoas (Clients/Suppliers)
-app.get("/api/pessoas", authMiddleware, async (req: any, res) => {
+app.get("/api/pessoas", authMiddleware, planMiddleware('cadastros'), async (req: any, res) => {
   const [pessoas] = await pool.query("SELECT * FROM pessoas WHERE tenant_id = ?", [req.user.tenant_id]);
   res.json(pessoas);
 });
@@ -1044,7 +1341,7 @@ app.get("/api/clients", authMiddleware, async (req: any, res) => {
 });
 
 // Sales
-app.post("/api/sales", authMiddleware, async (req: any, res) => {
+app.post("/api/sales", authMiddleware, planMiddleware('vendas'), async (req: any, res) => {
   const { pessoa_id, items, valor_total, desconto, frete, status = 'finalizada', tipo = 'venda', origem = 'Balcao', solicitacao, laudo_tecnico, pagamentos, identificacao, taxa_servico } = req.body;
   const { tenant_id, id: usuario_id } = req.user;
   
@@ -1432,7 +1729,157 @@ app.put("/api/sales/:id", authMiddleware, async (req: any, res) => {
     connection.release();
   }
 });
-app.get("/api/company/settings", authMiddleware, async (req: any, res) => {
+// --- SETTINGS: USERS & GROUPS ---
+
+app.get("/api/settings/groups", authMiddleware, async (req: any, res) => {
+  const { tenant_id } = req.user;
+  try {
+    const [groups] = await pool.query("SELECT * FROM grupos_usuarios WHERE tenant_id = ?", [tenant_id]);
+    res.json(groups);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/settings/groups", authMiddleware, async (req: any, res) => {
+  const { tenant_id } = req.user;
+  const { nome, permissoes } = req.body;
+  try {
+    const [result] = await pool.query(
+      "INSERT INTO grupos_usuarios (tenant_id, nome, permissoes) VALUES (?, ?, ?)",
+      [tenant_id, nome, JSON.stringify(permissoes)]
+    ) as any[];
+    res.json({ id: result.insertId, nome, permissoes, is_master: 0 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/settings/groups/:id", authMiddleware, async (req: any, res) => {
+  const { tenant_id } = req.user;
+  const groupId = req.params.id;
+  const { nome, permissoes } = req.body;
+
+  try {
+    const [group] = await pool.query("SELECT is_master FROM grupos_usuarios WHERE id = ? AND tenant_id = ?", [groupId, tenant_id]) as any[];
+    if (!group[0]) return res.status(404).json({ error: "Grupo não encontrado" });
+    if (group[0].is_master) return res.status(400).json({ error: "Grupo Master não pode ser alterado" });
+
+    await pool.query(
+      "UPDATE grupos_usuarios SET nome = ?, permissoes = ? WHERE id = ? AND tenant_id = ?",
+      [nome, JSON.stringify(permissoes), groupId, tenant_id]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/settings/groups/:id", authMiddleware, async (req: any, res) => {
+  const { tenant_id } = req.user;
+  const groupId = req.params.id;
+  try {
+    const [group] = await pool.query("SELECT is_master FROM grupos_usuarios WHERE id = ? AND tenant_id = ?", [groupId, tenant_id]) as any[];
+    if (!group[0]) return res.status(404).json({ error: "Grupo não encontrado" });
+    if (group[0].is_master) return res.status(400).json({ error: "Grupo Master não pode ser excluído" });
+
+    // Check if there are users in this group
+    const [users] = await pool.query("SELECT COUNT(*) as count FROM usuarios WHERE grupo_id = ?", [groupId]) as any[];
+    if (users[0].count > 0) return res.status(400).json({ error: "Não é possível excluir um grupo que possui usuários vinculados." });
+
+    await pool.query("DELETE FROM grupos_usuarios WHERE id = ? AND tenant_id = ?", [groupId, tenant_id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/settings/users", authMiddleware, planMiddleware('configuracoes'), async (req: any, res) => {
+  const { tenant_id } = req.user;
+  try {
+    const [users] = await pool.query(`
+      SELECT u.id, u.nome, u.email, u.ativo, u.perfil, u.grupo_id, g.nome as grupo_nome 
+      FROM usuarios u 
+      LEFT JOIN grupos_usuarios g ON u.grupo_id = g.id 
+      WHERE u.tenant_id = ?
+    `, [tenant_id]);
+    res.json(users);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/settings/users", authMiddleware, async (req: any, res) => {
+  const { tenant_id } = req.user;
+  const { nome, email, grupo_id } = req.body;
+  
+  try {
+    const [empresa] = await pool.query(`
+      SELECT p.limite_usuarios 
+      FROM empresas e 
+      JOIN planos p ON e.plano_id = p.id 
+      WHERE e.tenant_id = ?
+    `, [tenant_id]) as any[];
+    
+    const limit = empresa[0]?.limite_usuarios || 1;
+    const [userCount] = await pool.query("SELECT COUNT(*) as count FROM usuarios WHERE tenant_id = ?", [tenant_id]) as any[];
+    
+    if (userCount[0].count >= limit) {
+      return res.status(400).json({ error: `Seu plano atual permite até ${limit} usuários.` });
+    }
+    
+    const [exist] = await pool.query("SELECT id FROM usuarios WHERE email = ?", [email]) as any[];
+    if (exist.length > 0) return res.status(400).json({ error: "E-mail já está em uso." });
+    
+    const [group] = await pool.query("SELECT id FROM grupos_usuarios WHERE id = ? AND tenant_id = ?", [grupo_id, tenant_id]) as any[];
+    if (group.length === 0) return res.status(400).json({ error: "Grupo inválido." });
+
+    const hashedPassword = await bcrypt.hash("TempPassword123!", 10);
+    const [result] = await pool.query(
+      "INSERT INTO usuarios (tenant_id, nome, email, senha, grupo_id, perfil) VALUES (?, ?, ?, ?, ?, 'usuario')",
+      [tenant_id, nome, email, hashedPassword, grupo_id]
+    ) as any[];
+
+    if (transporter) {
+      try {
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM,
+          to: email,
+          subject: "Bem-vindo ao Sistema! Crie sua senha.",
+          text: `Olá ${nome}, Você foi cadastrado no sistema. Acesse a tela de login e utilize a opção "Esqueci minha senha" para criar sua senha de acesso.`,
+          html: `<p>Olá <strong>${nome}</strong>,</p><p>Você foi cadastrado no sistema. Acesse a tela de login e utilize a opção <strong>Esqueci minha senha</strong> para criar sua senha de acesso.</p>`,
+        });
+      } catch(e) { console.error('Error sending welcome email to new user', e); }
+    }
+
+    res.json({ id: result.insertId, nome, email, grupo_id, ativo: 1 });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/settings/users/:id", authMiddleware, async (req: any, res) => {
+  const { tenant_id } = req.user;
+  const userId = req.params.id;
+  const { nome, grupo_id, ativo } = req.body;
+
+  try {
+    const [userRow] = await pool.query("SELECT perfil FROM usuarios WHERE id = ? AND tenant_id = ?", [userId, tenant_id]) as any[];
+    if (userRow.length === 0) return res.status(404).json({ error: "Usuário não encontrado" });
+    if (userRow[0].perfil === 'superadmin') return res.status(400).json({ error: "Não é permitido alterar este usuário." });
+
+    await pool.query(
+      "UPDATE usuarios SET nome = ?, grupo_id = ?, ativo = ? WHERE id = ? AND tenant_id = ?",
+      [nome, grupo_id, ativo, userId, tenant_id]
+    );
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/company/settings", authMiddleware, planMiddleware('configuracoes'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const [companies] = await pool.query(`
@@ -1453,7 +1900,7 @@ app.put("/api/company/settings", authMiddleware, async (req: any, res) => {
   const { 
     nome_fantasia, razao_social, cnpj, email, 
     telefone_fixo, telefone_celular, endereco, 
-    numero, cep, cidade, estado 
+    numero, cep, cidade, estado, logo
   } = req.body;
 
   try {
@@ -1461,18 +1908,114 @@ app.put("/api/company/settings", authMiddleware, async (req: any, res) => {
       UPDATE empresas 
       SET nome_fantasia = ?, razao_social = ?, cnpj = ?, email = ?, 
           telefone_fixo = ?, telefone_celular = ?, endereco = ?, 
-          numero = ?, cep = ?, cidade = ?, estado = ?, 
+          numero = ?, cep = ?, cidade = ?, estado = ?, logo = ?,
           updated_at = CURRENT_TIMESTAMP 
       WHERE tenant_id = ?
     `, [
       nome_fantasia, razao_social, cnpj, email, 
       telefone_fixo, telefone_celular, endereco, 
-      numero, cep, cidade, estado, 
+      numero, cep, cidade, estado, logo,
       tenant_id
     ]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// --- ESTOQUE ROUTES ---
+
+app.get("/api/inventory/groups", authMiddleware, async (req: any, res) => {
+  try {
+    const { tenant_id } = req.user;
+    const [groups] = await pool.query("SELECT * FROM grupos_produtos WHERE tenant_id = ?", [tenant_id]);
+    res.json(groups);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/inventory/groups", authMiddleware, async (req: any, res) => {
+  try {
+    const { tenant_id } = req.user;
+    const { nome } = req.body;
+    const [result] = await pool.query("INSERT INTO grupos_produtos (tenant_id, nome) VALUES (?, ?)", [tenant_id, nome]) as any[];
+    res.json({ id: result.insertId, nome });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/inventory/groups/:id", authMiddleware, async (req: any, res) => {
+  try {
+    const { tenant_id } = req.user;
+    const { id } = req.params;
+    const { nome } = req.body;
+    await pool.query("UPDATE grupos_produtos SET nome = ? WHERE id = ? AND tenant_id = ?", [nome, id, tenant_id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/inventory/groups/:id", authMiddleware, async (req: any, res) => {
+  try {
+    const { tenant_id } = req.user;
+    const { id } = req.params;
+    await pool.query("DELETE FROM grupos_produtos WHERE id = ? AND tenant_id = ?", [id, tenant_id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/inventory/layouts", authMiddleware, async (req: any, res) => {
+  try {
+    const { tenant_id } = req.user;
+    const [layouts] = await pool.query("SELECT * FROM layouts_etiquetas WHERE tenant_id = ?", [tenant_id]);
+    res.json(layouts);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/inventory/layouts", authMiddleware, async (req: any, res) => {
+  try {
+    const { tenant_id } = req.user;
+    const { nome, largura, altura, colunas, json_config } = req.body;
+    const [result] = await pool.query(
+      "INSERT INTO layouts_etiquetas (tenant_id, nome, largura, altura, colunas, json_config) VALUES (?, ?, ?, ?, ?, ?)", 
+      [tenant_id, nome, largura, altura, colunas, JSON.stringify(json_config)]
+    ) as any[];
+    res.json({ id: result.insertId });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/inventory/layouts/:id", authMiddleware, async (req: any, res) => {
+  try {
+    const { tenant_id } = req.user;
+    const { id } = req.params;
+    const { nome, largura, altura, colunas, json_config } = req.body;
+    await pool.query(
+      "UPDATE layouts_etiquetas SET nome = ?, largura = ?, altura = ?, colunas = ?, json_config = ? WHERE id = ? AND tenant_id = ?", 
+      [nome, largura, altura, colunas, JSON.stringify(json_config), id, tenant_id]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/inventory/layouts/:id", authMiddleware, async (req: any, res) => {
+  try {
+    const { tenant_id } = req.user;
+    const { id } = req.params;
+    await pool.query("DELETE FROM layouts_etiquetas WHERE id = ? AND tenant_id = ?", [id, tenant_id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1596,14 +2139,14 @@ app.put("/api/admin/companies/:id", authMiddleware, async (req: any, res) => {
 
 app.post("/api/admin/plans", authMiddleware, async (req: any, res) => {
   if (req.user.perfil !== 'superadmin') return res.status(403).json({ error: "Forbidden" });
-  const { nome, valor_mensal, limite_usuarios, stripe_price_id } = req.body;
+  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos } = req.body;
   
   if (stripe_price_id && !stripe_price_id.startsWith('price_')) {
     return res.status(400).json({ error: "O ID do Stripe deve ser um Price ID (começar com 'price_'). Você informou um Product ID." });
   }
 
   try {
-    await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (?, ?, ?, ?)", [nome, valor_mensal, limite_usuarios, stripe_price_id]);
+    await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, stripe_price_id, modulos) VALUES (?, ?, ?, ?, ?)", [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || [])]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -1613,13 +2156,13 @@ app.post("/api/admin/plans", authMiddleware, async (req: any, res) => {
 app.put("/api/admin/plans/:id", authMiddleware, async (req: any, res) => {
   if (req.user.perfil !== 'superadmin') return res.status(403).json({ error: "Forbidden" });
   const { id } = req.params;
-  const { nome, valor_mensal, limite_usuarios, stripe_price_id } = req.body;
+  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos } = req.body;
   
   if (stripe_price_id && !stripe_price_id.startsWith('price_')) {
     return res.status(400).json({ error: "O ID do Stripe deve ser um Price ID (começar com 'price_'). Você informou um Product ID." });
   }
 
-  await pool.query("UPDATE planos SET nome = ?, valor_mensal = ?, limite_usuarios = ?, stripe_price_id = ? WHERE id = ?", [nome, valor_mensal, limite_usuarios, stripe_price_id, id]);
+  await pool.query("UPDATE planos SET nome = ?, valor_mensal = ?, limite_usuarios = ?, stripe_price_id = ?, modulos = ? WHERE id = ?", [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || []), id]);
     
   res.json({ success: true });
 });
@@ -1655,7 +2198,7 @@ app.delete("/api/admin/plans/:id", authMiddleware, async (req: any, res) => {
 });
 
 // Finance
-app.get("/api/finance/receivable", authMiddleware, async (req: any, res) => {
+app.get("/api/finance/receivable", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
   const [data] = await pool.query(`
     SELECT l.*, p.nome as cliente_nome, tp.nome as tipo_pagamento_nome, tp.local_lancamento as tp_local
     FROM lancamentos l 
@@ -1692,7 +2235,7 @@ app.get("/api/finance/movements/cartao", authMiddleware, async (req: any, res) =
   res.json(data);
 });
 
-app.get("/api/finance/payable", authMiddleware, async (req: any, res) => {
+app.get("/api/finance/payable", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
   const [data] = await pool.query(`
     SELECT l.*, p.nome as fornecedor_nome, tp.nome as tipo_pagamento_nome, tp.local_lancamento as tp_local
     FROM lancamentos l 
@@ -1704,7 +2247,7 @@ app.get("/api/finance/payable", authMiddleware, async (req: any, res) => {
 });
 
 // Sales List
-app.get("/api/sales", authMiddleware, async (req: any, res) => {
+app.get("/api/sales", authMiddleware, planMiddleware('vendas'), async (req: any, res) => {
   try {
     const [sales] = await pool.query(`
       SELECT 
@@ -1754,7 +2297,7 @@ app.get("/api/finance/sales-movements", authMiddleware, async (req: any, res) =>
 });
 
 // DRE Endpoint
-app.get("/api/finance/dre", authMiddleware, async (req: any, res) => {
+app.get("/api/finance/dre", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
   const { tenant_id } = req.user;
   const { start, end } = req.query;
 
@@ -1795,7 +2338,7 @@ app.get("/api/finance/dre", authMiddleware, async (req: any, res) => {
       SELECT COALESCE(c.nome, 'Sem Categoria') as categoria, SUM(l.valor) as total
       FROM lancamentos l
       LEFT JOIN categorias_contas c ON l.categoria_id = c.id
-      WHERE l.tenant_id = ? 
+      WHERE l.tenant_id = ? AND l.status != 'cancelada'
         AND l.tipo = 'CP' 
         AND (l.descricao IS NULL OR l.descricao NOT LIKE 'Pagamento conta #%')
         ${dateFilterLanc}
@@ -1806,7 +2349,7 @@ app.get("/api/finance/dre", authMiddleware, async (req: any, res) => {
       SELECT COALESCE(c.nome, 'Saídas Caixa (Não Categorizadas)') as categoria, SUM(m.valor) as total
       FROM movimentacoes_caixa m
       LEFT JOIN categorias_contas c ON m.categoria_id = c.id
-      WHERE m.tenant_id = ? AND m.tipo = 'saida' 
+      WHERE m.tenant_id = ? AND (m.status != 'cancelada' OR m.status IS NULL) AND m.tipo = 'saida' 
         AND m.descricao NOT LIKE 'Pagamento conta %' 
         AND m.venda_id IS NULL AND m.origem = 'Lançamento Manual'
         ${dateFilterCaixa}
@@ -1817,7 +2360,7 @@ app.get("/api/finance/dre", authMiddleware, async (req: any, res) => {
       SELECT COALESCE(c.nome, 'Outras Receitas') as categoria, SUM(l.valor) as total
       FROM lancamentos l
       LEFT JOIN categorias_contas c ON l.categoria_id = c.id
-      WHERE l.tenant_id = ? 
+      WHERE l.tenant_id = ? AND l.status != 'cancelada'
         AND l.tipo = 'CR' 
         AND l.venda_id IS NULL 
         AND (l.descricao IS NULL OR l.descricao NOT LIKE 'Recebimento conta #%')
@@ -1829,7 +2372,7 @@ app.get("/api/finance/dre", authMiddleware, async (req: any, res) => {
       SELECT COALESCE(c.nome, 'Entradas Caixa (Não Categorizadas)') as categoria, SUM(m.valor) as total
       FROM movimentacoes_caixa m
       LEFT JOIN categorias_contas c ON m.categoria_id = c.id
-      WHERE m.tenant_id = ? AND m.tipo = 'entrada' 
+      WHERE m.tenant_id = ? AND (m.status != 'cancelada' OR m.status IS NULL) AND m.tipo = 'entrada' 
         AND m.descricao NOT LIKE 'Recebimento conta %' 
         AND m.venda_id IS NULL AND m.origem = 'Lançamento Manual'
         ${dateFilterCaixa}
@@ -2158,8 +2701,87 @@ app.post("/api/finance/payable/:id/pay", authMiddleware, async (req: any, res) =
   }
 });
 
+app.post("/api/finance/movements/:table/:id/cancel", authMiddleware, async (req: any, res) => {
+  const { table, id } = req.params;
+  const { motivo } = req.body;
+  const { tenant_id, id: user_id } = req.user;
+  try {
+    const tableName = table === 'caixa' ? 'movimentacoes_caixa' : 'lancamentos';
+    const [rows] = await pool.query(`SELECT status FROM ${tableName} WHERE id = ? AND tenant_id = ?`, [id, tenant_id]) as any[];
+    if (rows.length === 0) return res.status(404).json({ error: "Lançamento não encontrado" });
+    
+    if (rows[0].status !== 'aberta') return res.status(400).json({ error: "Apenas lançamentos com status Aberta podem ser cancelados" });
+
+    await pool.query(`UPDATE ${tableName} SET status = 'cancelada', cancelado_em = NOW(), cancelado_por = ?, motivo_cancelamento = ? WHERE id = ?`, [user_id, motivo, id]);
+    res.json({ success: true, message: "Cancelado com sucesso" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao cancelar" });
+  }
+});
+
+app.post("/api/finance/movements/:table/:id/estorno", authMiddleware, async (req: any, res) => {
+  const { table, id } = req.params;
+  const { motivo } = req.body;
+  const { tenant_id, id: user_id } = req.user;
+  try {
+    const tableName = table === 'caixa' ? 'movimentacoes_caixa' : 'lancamentos';
+    const [rows] = await pool.query(`SELECT * FROM ${tableName} WHERE id = ? AND tenant_id = ?`, [id, tenant_id]) as any[];
+    if (rows.length === 0) return res.status(404).json({ error: "Lançamento não encontrado" });
+    const row = rows[0];
+    
+    if (row.status !== 'paga' && row.status !== 'parcial') return res.status(400).json({ error: "Apenas lançamentos pagos ou parcialmente pagos podem ser estornados" });
+
+    if (tableName === 'lancamentos') {
+      if (row.local === 'Banco' || row.local === 'Caixa' || row.local === 'Cartão' || row.local === 'Cartao') {
+         const isCr = row.tipo === 'CR';
+         if (row.local === 'Banco') {
+             await pool.query(
+                 `INSERT INTO movimentacoes_banco (tenant_id, lancamento_id, tipo, valor, descricao, categoria_id) VALUES (?, ?, ?, ?, ?, ?)`,
+                 [tenant_id, id, isCr ? 'saida' : 'entrada', row.valor_pago, `Estorno ref. Lançamento #${id}`, row.categoria_id]
+             );
+         } else if (row.local === 'Cartão' || row.local === 'Cartao') {
+             await pool.query(
+                 `INSERT INTO movimentacoes_cartao (tenant_id, lancamento_id, tipo, valor, descricao, categoria_id) VALUES (?, ?, ?, ?, ?, ?)`,
+                 [tenant_id, id, isCr ? 'saida' : 'entrada', row.valor_pago, `Estorno ref. Lançamento #${id}`, row.categoria_id]
+             );
+         } else if (row.local === 'Caixa') {
+             const [caixas] = await pool.query("SELECT id FROM caixa WHERE tenant_id = ? AND status = 'aberto' ORDER BY id DESC LIMIT 1", [tenant_id]) as any[];
+             if (caixas[0]) {
+                 await pool.query(
+                     `INSERT INTO movimentacoes_caixa (tenant_id, caixa_id, tipo, valor, descricao, categoria_id) VALUES (?, ?, ?, ?, ?, ?)`,
+                     [tenant_id, caixas[0].id, isCr ? 'saida' : 'entrada', row.valor_pago, `Estorno ref. Lançamento #${id}`, row.categoria_id]
+                 );
+             }
+         }
+      }
+      await pool.query(
+        `UPDATE lancamentos SET status = 'aberta', valor_pago = 0, data_pagamento = NULL, estornado_em = NOW(), estornado_por = ?, motivo_estorno = ? WHERE id = ?`,
+        [user_id, motivo, id]
+      );
+    } else {
+      const reverseCaixaTipo = row.tipo === 'entrada' ? 'saida' : 'entrada';
+      const [caixas] = await pool.query("SELECT id FROM caixa WHERE tenant_id = ? AND status = 'aberto' ORDER BY id DESC LIMIT 1", [tenant_id]) as any[];
+      if (caixas[0]) {
+         await pool.query(
+             `INSERT INTO movimentacoes_caixa (tenant_id, caixa_id, tipo, valor, descricao, origem, status) VALUES (?, ?, ?, ?, ?, 'Estorno', 'paga')`,
+             [tenant_id, caixas[0].id, reverseCaixaTipo, row.valor, `Estorno ref. Caixa #${id}`]
+         );
+      }
+      await pool.query(
+        `UPDATE movimentacoes_caixa SET status = 'aberta', estornado_em = NOW(), estornado_por = ?, motivo_estorno = ? WHERE id = ?`,
+        [user_id, motivo, id] 
+      );
+    }
+    res.json({ success: true, message: "Estornado com sucesso" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Erro ao estornar" });
+  }
+});
+
 // Cashier Management
-app.get("/api/finance/cashier/current", authMiddleware, async (req: any, res) => {
+app.get("/api/finance/cashier/current", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
   const [caixas] = await pool.query("SELECT * FROM caixa WHERE tenant_id = ? AND status = 'aberto' ORDER BY id DESC LIMIT 1", [req.user.tenant_id]) as any[];
   res.json(caixas[0] || null);
 });

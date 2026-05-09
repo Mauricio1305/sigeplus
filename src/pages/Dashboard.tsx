@@ -18,12 +18,21 @@ import { formatMoney } from '../utils/format';
 export const Dashboard = () => {
   const [stats, setStats] = useState<any>(null);
   const [chartData, setChartData] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<any[]>([]);
   const token = useAuthStore(state => state.token);
+
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<string>(currentYear.toString());
+  const [selectedMonth, setSelectedMonth] = useState<string>('todos');
+
+  // Generate an array of years, e.g., from 5 years ago to 1 year in the future
+  const years = Array.from({ length: 7 }, (_, i) => currentYear - 5 + i);
 
   useEffect(() => {
     const headers = { 'Authorization': `Bearer ${token}` };
+    const params = new URLSearchParams({ year: selectedYear, month: selectedMonth }).toString();
     
-    fetch('/api/dashboard/stats', { headers })
+    fetch(`/api/dashboard/stats?${params}`, { headers })
       .then(res => {
         if (res.status === 401) {
           useAuthStore.getState().logout();
@@ -33,7 +42,7 @@ export const Dashboard = () => {
       })
       .then(setStats);
 
-    fetch('/api/dashboard/chart-data', { headers })
+    fetch(`/api/dashboard/chart-data?${params}`, { headers })
       .then(res => {
         if (res.status === 401) {
           useAuthStore.getState().logout();
@@ -53,7 +62,18 @@ export const Dashboard = () => {
         console.error("Error fetching chart data:", err);
         setChartData([]);
       });
-  }, [token]);
+
+    fetch(`/api/dashboard/top-products?${params}`, { headers })
+      .then(res => {
+        if (res.ok) return res.json();
+        return [];
+      })
+      .then(data => {
+        if (Array.isArray(data)) setTopProducts(data);
+      })
+      .catch(err => console.error("Error fetching top products:", err));
+
+  }, [token, selectedYear, selectedMonth]);
 
   if (!stats) return <div className="p-8 text-slate-500">Carregando dashboard...</div>;
 
@@ -62,10 +82,44 @@ export const Dashboard = () => {
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-500">Visão geral do seu negócio hoje.</p>
+          <p className="text-slate-500">Visão geral do seu negócio.</p>
         </div>
-        <div className="bg-white px-4 py-2 rounded-xl border border-slate-200 text-sm font-medium text-slate-600">
-          {new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })}
+        <div className="flex gap-3">
+          <div className="bg-white px-3 py-2 rounded-xl border border-slate-200 flex items-center gap-2">
+            <span className="text-sm font-medium text-slate-500">Mês:</span>
+            <select 
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+              className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer"
+            >
+              <option value="todos">Todos</option>
+              <option value="01">Janeiro</option>
+              <option value="02">Fevereiro</option>
+              <option value="03">Março</option>
+              <option value="04">Abril</option>
+              <option value="05">Maio</option>
+              <option value="06">Junho</option>
+              <option value="07">Julho</option>
+              <option value="08">Agosto</option>
+              <option value="09">Setembro</option>
+              <option value="10">Outubro</option>
+              <option value="11">Novembro</option>
+              <option value="12">Dezembro</option>
+            </select>
+          </div>
+          
+          <div className="bg-white px-3 py-2 rounded-xl border border-slate-200 flex items-center gap-2">
+            <span className="text-sm font-medium text-slate-500">Ano:</span>
+            <select 
+              value={selectedYear}
+              onChange={e => setSelectedYear(e.target.value)}
+              className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer"
+            >
+              {years.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -96,15 +150,15 @@ export const Dashboard = () => {
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-bold mb-6 text-slate-900">Recebíveis Mensais</h3>
+          <h3 className="text-lg font-bold mb-6 text-slate-900">Top 10 Produtos/Serviços mais vendidos</h3>
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+              <BarChart data={topProducts} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f1f5f9" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                <YAxis dataKey="name" type="category" width={120} axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 12, width: 110, wordWrap: 'break-word' }} />
                 <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                <Bar name="A Receber" dataKey="receivables" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+                <Bar name="Quantidade" dataKey="qtd" fill="#4f46e5" radius={[0, 4, 4, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </div>

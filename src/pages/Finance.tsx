@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, Search, Edit2, AlertCircle, TrendingUp, DollarSign, FileText, Package } from 'lucide-react';
+import { Plus, X, Search, Edit2, AlertCircle, TrendingUp, DollarSign, FileText, Package, MoreVertical } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney } from '../utils/format';
@@ -35,6 +35,11 @@ export const Finance = () => {
   const [filterOrderNumber, setFilterOrderNumber] = useState('');
   const [filterStatus, setFilterStatus] = useState('todos');
   const [filterPerson, setFilterPerson] = useState('');
+  const [openActionMenuId, setOpenActionMenuId] = useState<string | null>(null);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [estornoModalOpen, setEstornoModalOpen] = useState(false);
+  const [actionReason, setActionReason] = useState('');
+  const [actionTarget, setActionTarget] = useState<{ id: string, table: 'caixa' | 'lancamentos' } | null>(null);
 
   const token = useAuthStore(state => state.token);
 
@@ -51,6 +56,83 @@ export const Finance = () => {
   };
 
   useEffect(fetchData, [token]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!(event.target as Element).closest('.action-menu-container')) {
+        setOpenActionMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleActionRequest = async (type: 'cancel' | 'estorno') => {
+    if (!actionTarget || !actionReason.trim()) return;
+    try {
+      const res = await fetch(`/api/finance/movements/${actionTarget.table}/${actionTarget.id}/${type}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ motivo: actionReason })
+      });
+      if (res.ok) {
+        setCancelModalOpen(false);
+        setEstornoModalOpen(false);
+        setActionReason('');
+        fetchData();
+      } else {
+        const errorData = await res.json();
+        alert(`Erro: ${errorData.error || 'Falha na operação'}`);
+      }
+    } catch (error) {
+      alert('Erro de conexão com o servidor');
+    }
+  };
+
+  const renderActionMenu = (item: any, type: string, table: 'lancamentos' | 'caixa' = 'lancamentos') => (
+    <div className={`relative inline-block text-left ${openActionMenuId === item.id ? 'z-50' : 'z-auto'}`}>
+      <button onClick={() => setOpenActionMenuId(openActionMenuId === item.id ? null : item.id)} className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors">
+        <MoreVertical className="w-4 h-4" />
+      </button>
+      {openActionMenuId === item.id && (
+        <div className="action-menu-container absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-[50]">
+          {item.status !== 'paga' && item.status !== 'cancelada' && table === 'lancamentos' && (
+            <button
+              onClick={() => {
+                setOpenActionMenuId(null);
+                setSelectedItem({id: item.id, type, valor: item.valor - (item.valor_pago || 0)});
+                setFormData({ local: '', valor_pago: item.valor - (item.valor_pago || 0), data_pagamento: new Date().toISOString().split('T')[0] });
+                setModalType('baixa');
+                setIsModalOpen(true);
+              }}
+              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-indigo-600 font-medium text-sm flex items-center gap-2"
+            >
+              Baixar
+            </button>
+          )}
+          {item.status === 'aberta' && (
+            <button
+              onClick={() => { setOpenActionMenuId(null); setActionTarget({ id: item.id, table }); setCancelModalOpen(true); }}
+              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-rose-600 font-medium text-sm flex items-center gap-2"
+            >
+              Cancelar
+            </button>
+          )}
+          {(item.status === 'paga' || item.status === 'parcial') && (
+            <button
+              onClick={() => { setOpenActionMenuId(null); setActionTarget({ id: item.id, table }); setEstornoModalOpen(true); }}
+              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-amber-600 font-medium text-sm flex items-center gap-2"
+            >
+              Estornar
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -233,6 +315,7 @@ export const Finance = () => {
             <option value="aberta">Aberta</option>
             <option value="paga">Paga</option>
             <option value="parcial">Parcial</option>
+            <option value="cancelada">Cancelada</option>
           </select>
         </div>
       )}
@@ -269,16 +352,16 @@ export const Finance = () => {
 
           <FilterSection />
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-xs text-left uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Cliente / Descrição</th>
+                  <th className="px-6 py-4 font-semibold rounded-tl-2xl">Cliente / Descrição</th>
                   <th className="px-6 py-4 font-semibold">Vencimento</th>
                   <th className="px-6 py-4 font-semibold text-right">Valor</th>
                   <th className="px-6 py-4 font-semibold text-right">Pago</th>
                   <th className="px-6 py-4 font-semibold text-center">Status</th>
-                  <th className="px-6 py-4 font-semibold text-right">Ações</th>
+                  <th className="px-6 py-4 font-semibold text-right rounded-tr-2xl">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -292,14 +375,12 @@ export const Finance = () => {
                     <td className="px-6 py-4 text-right font-bold text-slate-900">R$ {formatMoney(r.valor)}</td>
                     <td className="px-6 py-4 text-right text-emerald-600 font-medium">R$ {formatMoney(r.valor_pago)}</td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${r.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : r.status === 'parcial' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                      <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${r.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : r.status === 'parcial' ? 'bg-amber-100 text-amber-700' : r.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
                         {r.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {r.status !== 'paga' && (
-                        <button onClick={() => { setSelectedItem({id: r.id, type: 'receivable', valor: r.valor - (r.valor_pago || 0)}); setFormData({ local: '', valor_pago: r.valor - (r.valor_pago || 0), data_pagamento: new Date().toISOString().split('T')[0] }); setModalType('baixa'); setIsModalOpen(true); }} className="text-indigo-600 font-bold text-xs hover:underline">Baixar</button>
-                      )}
+                      {renderActionMenu(r, 'receivable')}
                     </td>
                   </tr>
                 ))}
@@ -324,15 +405,15 @@ export const Finance = () => {
           </div>
           <FilterSection />
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-xs text-left uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Descrição / Cliente</th>
+                  <th className="px-6 py-4 font-semibold rounded-tl-2xl">Descrição / Cliente</th>
                   <th className="px-6 py-4 font-semibold">Vencimento</th>
                   <th className="px-6 py-4 text-right font-semibold">Valor</th>
                   <th className="px-6 py-4 text-center font-semibold">Status</th>
-                  <th className="px-6 py-4 text-right font-semibold">Ações</th>
+                  <th className="px-6 py-4 text-right font-semibold rounded-tr-2xl">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -350,14 +431,12 @@ export const Finance = () => {
                         {t.tType === 'receivable' ? '+' : '-'} R$ {formatMoney(t.valor)}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${t.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${t.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : t.status === 'parcial' ? 'bg-amber-100 text-amber-700' : t.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
                           {t.status}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {t.status !== 'paga' && (
-                          <button onClick={() => { setSelectedItem({id: t.id, type: t.tType, valor: t.valor - (t.valor_pago || 0)}); setFormData({ local: '', valor_pago: t.valor - (t.valor_pago || 0), data_pagamento: new Date().toISOString().split('T')[0] }); setModalType('baixa'); setIsModalOpen(true); }} className="text-indigo-600 font-bold text-xs hover:underline">Baixar</button>
-                        )}
+                        {renderActionMenu(t, t.tType, 'lancamentos')}
                       </td>
                     </tr>
                 ))}
@@ -382,15 +461,15 @@ export const Finance = () => {
           </div>
           <FilterSection />
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-xs text-left uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Descrição / Pessoa</th>
+                  <th className="px-6 py-4 font-semibold rounded-tl-2xl">Descrição / Pessoa</th>
                   <th className="px-6 py-4 font-semibold">Vencimento</th>
                   <th className="px-6 py-4 text-right font-semibold">Valor</th>
                   <th className="px-6 py-4 text-center font-semibold">Status</th>
-                  <th className="px-6 py-4 text-right font-semibold">Ações</th>
+                  <th className="px-6 py-4 text-right font-semibold rounded-tr-2xl">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -408,14 +487,12 @@ export const Finance = () => {
                         {t.tType === 'receivable' ? '+' : '-'} R$ {formatMoney(t.valor)}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${t.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${t.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : t.status === 'parcial' ? 'bg-amber-100 text-amber-700' : t.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
                           {t.status}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {t.status !== 'paga' && (
-                          <button onClick={() => { setSelectedItem({id: t.id, type: t.tType, valor: t.valor - (t.valor_pago || 0)}); setFormData({ local: '', valor_pago: t.valor - (t.valor_pago || 0), data_pagamento: new Date().toISOString().split('T')[0] }); setModalType('baixa'); setIsModalOpen(true); }} className="text-indigo-600 font-bold text-xs hover:underline">Baixar</button>
-                        )}
+                        {renderActionMenu(t, t.tType, 'lancamentos')}
                       </td>
                     </tr>
                 ))}
@@ -435,16 +512,16 @@ export const Finance = () => {
           </div>
           <FilterSection />
 
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-xs text-left uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Fornecedor</th>
+                  <th className="px-6 py-4 font-semibold rounded-tl-2xl">Fornecedor</th>
                   <th className="px-6 py-4 font-semibold">Vencimento</th>
                   <th className="px-6 py-4 text-right font-semibold">Valor</th>
                   <th className="px-6 py-4 text-right font-semibold">Pago</th>
                   <th className="px-6 py-4 text-center font-semibold">Status</th>
-                  <th className="px-6 py-4 text-right font-semibold">Ações</th>
+                  <th className="px-6 py-4 text-right font-semibold rounded-tr-2xl">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -458,14 +535,12 @@ export const Finance = () => {
                     <td className="px-6 py-4 text-right font-bold text-slate-900">R$ {formatMoney(p.valor)}</td>
                     <td className="px-6 py-4 text-right text-rose-600 font-medium">R$ {formatMoney(p.valor_pago)}</td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${p.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : p.status === 'parcial' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                      <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${p.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : p.status === 'parcial' ? 'bg-amber-100 text-amber-700' : p.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
                         {p.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {p.status !== 'paga' && (
-                        <button onClick={() => { setSelectedItem({id: p.id, type: 'payable', valor: p.valor - (p.valor_pago || 0)}); setFormData({ local: '', valor_pago: p.valor - (p.valor_pago || 0), data_pagamento: new Date().toISOString().split('T')[0] }); setModalType('baixa'); setIsModalOpen(true); }} className="text-indigo-600 font-bold text-xs hover:underline">Baixar</button>
-                      )}
+                      {renderActionMenu(p, 'payable', 'lancamentos')}
                     </td>
                   </tr>
                 ))}
@@ -520,8 +595,8 @@ export const Finance = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-4">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
+                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-4 rounded-t-2xl">
                   <h3 className="font-bold text-slate-900">Movimentações de Caixa</h3>
                 </div>
                 <table className="w-full text-left">
@@ -529,7 +604,9 @@ export const Finance = () => {
                     <tr>
                       <th className="px-6 py-3 font-semibold">Data/Hora</th>
                       <th className="px-6 py-3 font-semibold">Descrição</th>
+                      <th className="px-6 py-3 font-semibold text-center">Status</th>
                       <th className="px-6 py-3 font-semibold text-right">Valor</th>
+                      <th className="px-6 py-3 font-semibold text-right rounded-tr-2xl">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
@@ -539,8 +616,16 @@ export const Finance = () => {
                         <tr key={m.id}>
                           <td className="px-6 py-4 text-slate-500">{new Date(m.created_at).toLocaleString()}</td>
                           <td className="px-6 py-4 font-medium text-slate-900">{m.descricao || 'Venda'}</td>
+                          <td className="px-6 py-4 text-center">
+                            <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${(m.status || 'paga') === 'paga' ? 'bg-emerald-100 text-emerald-700' : (m.status || 'paga') === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
+                              {m.status || 'paga'}
+                            </span>
+                          </td>
                           <td className={`px-6 py-4 text-right font-bold ${m.tipo === 'saida' ? 'text-rose-600' : 'text-emerald-600'}`}>
                             {m.tipo === 'saida' ? '-' : '+'} R$ {formatMoney(m.valor)}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            {(!m.origem || m.origem === 'Lançamento Manual') && renderActionMenu(m, 'movimentacao', 'caixa')}
                           </td>
                         </tr>
                     ))}
@@ -659,6 +744,46 @@ export const Finance = () => {
               )}
               <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all">Confirmar</button>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {cancelModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-rose-50/50">
+              <h2 className="text-xl font-bold text-rose-800">Confirmar Cancelamento</h2>
+              <button onClick={() => setCancelModalOpen(false)} className="p-2 hover:bg-rose-100 rounded-full text-rose-500 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-rose-50 text-rose-700 p-4 rounded-xl text-sm mb-4">
+                <p><strong>Atenção:</strong> Esta ação marcará o lançamento como cancelado e não entrará mais nos relatórios no DRE. A ação fica registrada.</p>
+              </div>
+              <textarea placeholder="Motivo do Cancelamento..." value={actionReason} onChange={e => setActionReason(e.target.value)} className="w-full h-32 px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-rose-500 resize-none"></textarea>
+              <button onClick={() => handleActionRequest('cancel')} disabled={!actionReason.trim()} className="w-full bg-rose-600 disabled:bg-slate-300 text-white py-3 rounded-xl font-bold hover:bg-rose-700 transition-all">Cancelar Lançamento</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {estornoModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-amber-50/50">
+              <h2 className="text-xl font-bold text-amber-800">Confirmar Estorno</h2>
+              <button onClick={() => setEstornoModalOpen(false)} className="p-2 hover:bg-amber-100 rounded-full text-amber-500 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50 text-amber-800 p-4 rounded-xl text-sm mb-4">
+                <p><strong>Atenção:</strong> Esta ação voltará o lançamento atual para o status aberto e criará um contra-lançamento no respectivo local de repasse (Caixa/Banco/Cartão) para subtrair/adicionar o valor devidamente.</p>
+              </div>
+              <textarea placeholder="Motivo do Estorno..." value={actionReason} onChange={e => setActionReason(e.target.value)} className="w-full h-32 px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-amber-500 resize-none"></textarea>
+              <button onClick={() => handleActionRequest('estorno')} disabled={!actionReason.trim()} className="w-full bg-amber-600 disabled:bg-slate-300 text-white py-3 rounded-xl font-bold hover:bg-amber-700 transition-all">Efetuar Estorno</button>
+            </div>
           </motion.div>
         </div>
       )}

@@ -157,6 +157,29 @@ export const Layout = () => {
     setIsMobileMenuOpen(false);
   }, [location]);
 
+  const hasModule = (module: string) => {
+    if (!user) return false;
+    if (user.perfil === 'superadmin') return true;
+
+    // Check plan restriction first
+    let requiredPlanModule = module;
+    if (module === 'os' || module === 'mesas') requiredPlanModule = 'vendas';
+    if (module === 'dashboard') requiredPlanModule = 'dashboard';
+
+    const planHasModule = requiredPlanModule === 'dashboard' ? true : user.modulos?.includes(requiredPlanModule);
+    if (!planHasModule) return false;
+
+    // Admin passes group check automatically
+    if (user.perfil === 'admin') return true;
+
+    // Finally check user's group permissions
+    if (user.permissoes && user.permissoes[module]) {
+      return !!user.permissoes[module].acessar;
+    }
+
+    return false;
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <SubscriptionWarning />
@@ -191,29 +214,59 @@ export const Layout = () => {
         </div>
 
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-          <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={LayoutDashboard} label="Dashboard" to="/dashboard" active={location.pathname === '/dashboard'} />
-          <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Package} label="Estoque" to="/estoque" active={location.pathname === '/estoque'} />
-          <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Users} label="Pessoas" to="/pessoas" active={location.pathname === '/pessoas'} />
-          <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={DollarSign} label="Financeiro" to="/financeiro" active={location.pathname === '/financeiro'} />
-          <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={ShoppingCart} label="Pedidos e Orçamentos" to="/vendas" active={location.pathname === '/vendas'} />
-          <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Wrench} label="Ordens de Serviço" to="/os" active={location.pathname === '/os'} />
-          <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Coffee} label="Mesas & Comandas" to="/mesas" active={location.pathname === '/mesas'} />
-          <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={MonitorPlay} label="PDV" to="/pdv" active={location.pathname === '/pdv'} />
-          <SidebarDropdown 
-            collapsed={!isSidebarOpen && !isMobileMenuOpen} 
-            icon={FileText} 
-            label="Relatórios" 
-            items={[
-              { label: 'Vendas', to: '/reports/sales' },
-              { label: 'Estoque', to: '/reports/inventory' },
-              { label: 'Financeiro', to: '/reports/finance' },
-              { label: 'DRE', to: '/dre' },
-              { label: 'Pessoas', to: '/reports/people' },
-            ]} 
-          />
-          <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={SettingsIcon} label="Configurações" to="/settings" active={location.pathname === '/settings'} />
+          {hasModule('dashboard') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={LayoutDashboard} label="Dashboard" to="/dashboard" active={location.pathname === '/dashboard'} />
+          )}
+          
+          {hasModule('estoque') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Package} label="Estoque" to="/estoque" active={location.pathname === '/estoque'} />
+          )}
+          
+          {hasModule('cadastros') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Users} label="Pessoas" to="/pessoas" active={location.pathname === '/pessoas'} />
+          )}
+          
+          {hasModule('financeiro') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={DollarSign} label="Financeiro" to="/financeiro" active={location.pathname === '/financeiro'} />
+          )}
+          
+          {hasModule('vendas') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={ShoppingCart} label="Pedidos e Orçamentos" to="/vendas" active={location.pathname === '/vendas'} />
+          )}
+
+          {hasModule('os') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Wrench} label="Ordens de Serviço" to="/os" active={location.pathname === '/os'} />
+          )}
+
+          {hasModule('mesas') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Coffee} label="Mesas & Comandas" to="/mesas" active={location.pathname === '/mesas'} />
+          )}
+          
+          {hasModule('pdv') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={MonitorPlay} label="PDV" to="/pdv" active={location.pathname === '/pdv'} />
+          )}
+
+          {(hasModule('financeiro') || hasModule('vendas') || hasModule('estoque')) && (
+            <SidebarDropdown 
+              collapsed={!isSidebarOpen && !isMobileMenuOpen} 
+              icon={FileText} 
+              label="Relatórios" 
+              items={[
+                hasModule('vendas') && { label: 'Vendas', to: '/reports/sales' },
+                hasModule('estoque') && { label: 'Estoque', to: '/reports/inventory' },
+                hasModule('financeiro') && { label: 'Financeiro', to: '/reports/finance' },
+                hasModule('financeiro') && { label: 'DRE', to: '/dre' },
+                hasModule('cadastros') && { label: 'Pessoas', to: '/reports/people' },
+              ].filter(Boolean)} 
+            />
+          )}
+
+          {hasModule('configuracoes') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={SettingsIcon} label="Configurações" to="/settings" active={location.pathname === '/settings'} />
+          )}
+
           {user?.perfil === 'superadmin' && (
-            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={TrendingUp} label="Painel Admin" to="/admin" active={location.pathname === '/admin'} />
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={TrendingUp} label="Gestão do SaaS" to="/admin" active={location.pathname === '/admin'} />
           )}
         </nav>
 

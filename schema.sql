@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS planos (
     nome VARCHAR(255) UNIQUE NOT NULL,
     valor_mensal DECIMAL(10, 2) NOT NULL,
     limite_usuarios INTEGER NOT NULL,
+    modulos JSON,
     stripe_price_id VARCHAR(255),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

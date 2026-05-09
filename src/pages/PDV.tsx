@@ -13,7 +13,8 @@ import {
   MonitorPlay,
   AlertCircle,
   Printer,
-  MessageCircle
+  MessageCircle,
+  FileText
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -75,11 +76,12 @@ export default function PDV() {
   }, [token]);
 
   useEffect(() => {
+    const activeProducts = produtos.filter(p => p.tipo !== 'servico');
     if (searchTerm.trim() === '') {
-      setFilteredProdutos(produtos);
+      setFilteredProdutos(activeProducts);
     } else {
       const lower = searchTerm.toLowerCase();
-      setFilteredProdutos(produtos.filter(p => 
+      setFilteredProdutos(activeProducts.filter(p => 
         p.nome.toLowerCase().includes(lower) || 
         (p.codigo_barras && p.codigo_barras.includes(searchTerm))
       ));
@@ -398,22 +400,22 @@ export default function PDV() {
         </div>
 
         {/* Products Grid */}
-        <div className="flex-1 overflow-y-auto p-4 hide-scrollbar">
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 hide-scrollbar">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4">
             {filteredProdutos.map(produto => (
               <button 
                 key={produto.id}
                 onClick={() => addToCart(produto)}
-                className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100 transition-all text-left flex flex-col justify-between h-32 active:scale-95"
+                className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100 transition-all text-left flex flex-col justify-between min-h-[8rem] active:scale-95 group"
               >
                 <div>
-                  <h3 className="font-bold text-slate-800 line-clamp-2 leading-tight">{produto.nome}</h3>
-                  <p className="text-xs text-slate-400 mt-1">{produto.codigo_barras || 'Sem código'}</p>
+                  <h3 className="font-bold text-slate-800 text-sm sm:text-base line-clamp-3 leading-tight group-hover:text-indigo-700 transition-colors">{produto.nome}</h3>
+                  <p className="text-[10px] sm:text-xs text-slate-400 mt-1 truncate">{produto.codigo_barras || 'Sem código'}</p>
                 </div>
-                <div className="flex justify-between items-end mt-2">
-                  <span className="font-black text-indigo-600">R$ {formatMoney(produto.preco_venda)}</span>
-                  <span className={`text-xs font-bold px-2 py-1 rounded bg-slate-100 ${produto.estoque_atual <= 0 ? 'text-red-500' : 'text-slate-500'}`}>
-                    Estoque: {produto.estoque_atual}
+                <div className="flex flex-col sm:flex-row justify-between sm:items-end mt-3 gap-1 sm:gap-0">
+                  <span className="font-black text-indigo-600 text-sm sm:text-base">R$ {formatMoney(produto.preco_venda)}</span>
+                  <span className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 sm:py-1 rounded bg-slate-100 w-fit ${produto.estoque_atual <= 0 ? 'text-red-500' : 'text-slate-500'}`}>
+                    Estq: {produto.estoque_atual}
                   </span>
                 </div>
               </button>
@@ -685,52 +687,6 @@ export default function PDV() {
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="bg-white w-full max-w-sm rounded-3xl shadow-2xl relative z-10 overflow-hidden"
-            >
-              <div className="p-8 text-center bg-gradient-to-b from-emerald-50 to-white">
-                <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-200">
-                  <CheckCircle className="w-10 h-10 text-white" />
-                </div>
-                <h2 className="text-2xl font-black text-slate-900 mb-2">Venda Finalizada!</h2>
-                <p className="text-slate-500 font-medium">Selecione uma opção de recibo:</p>
-              </div>
-
-              <div className="p-8 space-y-4 pt-0">
-                <button 
-                  onClick={() => handlePrintFinalReceipt('whatsapp')}
-                  className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-100"
-                >
-                  <MessageCircle className="w-6 h-6" /> Enviar por WhatsApp
-                </button>
-                <button 
-                  onClick={() => handlePrintFinalReceipt('print')}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-slate-200"
-                >
-                  <Printer className="w-6 h-6" /> Imprimir Cupom
-                </button>
-                
-                <button 
-                  onClick={() => setIsReceiptModalOpen(false)}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold py-4 rounded-2xl transition-all"
-                >
-                  Fechar
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Finished Sale Receipt Options Modal */}
-      <AnimatePresence>
-        {isReceiptModalOpen && finishedSaleData && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-md"
               onClick={() => setIsReceiptModalOpen(false)}
             />
             <motion.div 
@@ -745,23 +701,28 @@ export default function PDV() {
                 <p className="text-slate-500 font-medium">Selecione uma opção de recibo:</p>
               </div>
 
-              <div className="p-8 space-y-4 pt-0">
+              <div className="p-4 space-y-3 pt-0">
                 <button 
-                  onClick={() => handlePrintFinalReceipt('whatsapp')}
-                  className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-100"
+                  onClick={() => { window.open('/print/venda/' + (finishedSaleData?.id || finishedSaleData?.sequencial_id) + '?t=' + token, '_blank') }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-md"
                 >
-                  <MessageCircle className="w-6 h-6" /> Enviar por WhatsApp
+                  <FileText className="w-5 h-5" /> Imprimir Pedido de Venda
                 </button>
                 <button 
                   onClick={() => handlePrintFinalReceipt('print')}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-slate-200"
+                  className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-md"
                 >
-                  <Printer className="w-6 h-6" /> Imprimir Cupom
+                  <Printer className="w-5 h-5" /> Imprimir Recibo Não Fiscal
                 </button>
-                
+                <button 
+                  onClick={() => handlePrintFinalReceipt('whatsapp')}
+                  className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-3.5 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-md"
+                >
+                  <MessageCircle className="w-5 h-5" /> Enviar por WhatsApp
+                </button>
                 <button 
                   onClick={() => setIsReceiptModalOpen(false)}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold py-4 rounded-2xl transition-all"
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold py-3.5 rounded-2xl transition-all mt-2"
                 >
                   Fechar
                 </button>
