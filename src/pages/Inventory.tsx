@@ -549,6 +549,7 @@ export const Inventory = () => {
                   <input 
                     type="text" 
                     required
+                    maxLength={255}
                     className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     value={newProduct.nome}
                     onChange={e => setNewProduct({...newProduct, nome: e.target.value})}
@@ -570,9 +571,11 @@ export const Inventory = () => {
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Unidade</label>
                 <input 
                   type="text" 
+                  maxLength={20}
                   className="w-full px-4 py-2 rounded-xl border border-slate-200"
                   value={newProduct.unidade}
                   onChange={e => setNewProduct({...newProduct, unidade: e.target.value})}
+                  placeholder="UN, KG, etc"
                 />
               </div>
               <div className="col-span-2">
@@ -642,6 +645,7 @@ export const Inventory = () => {
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Marca / Fabricante</label>
                 <input 
                   type="text" 
+                  maxLength={255}
                   className="w-full px-4 py-2 rounded-xl border border-slate-200"
                   value={newProduct.marca || ''}
                   onChange={e => setNewProduct({...newProduct, marca: e.target.value})}

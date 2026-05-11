@@ -341,6 +341,7 @@ export const Settings = () => {
                     <FormField label="Nome Fantasia" error={fieldErrors.nome_fantasia} required>
                       <input 
                         type="text" 
+                        maxLength={255}
                         className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.nome_fantasia ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
                         value={company.nome_fantasia || ''}
                         onChange={e => {
@@ -354,6 +355,7 @@ export const Settings = () => {
                     <FormField label="Razão Social">
                       <input 
                         type="text" 
+                        maxLength={255}
                         className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={company.razao_social || ''}
                         onChange={e => setCompany({...company, razao_social: e.target.value})}
@@ -388,6 +390,7 @@ export const Settings = () => {
                     <FormField label="CPF / CNPJ">
                       <input 
                         type="text" 
+                        maxLength={20}
                         className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={company.cnpj || ''}
                         onChange={e => setCompany({...company, cnpj: e.target.value})}
@@ -398,6 +401,7 @@ export const Settings = () => {
                     <FormField label="E-mail" error={fieldErrors.email} required>
                       <input 
                         type="email" 
+                        maxLength={255}
                         className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.email ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
                         value={company.email || ''}
                         onChange={e => {
@@ -411,6 +415,7 @@ export const Settings = () => {
                     <FormField label="Telefone Fixo">
                       <input 
                         type="text" 
+                        maxLength={20}
                         className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={company.telefone_fixo || ''}
                         onChange={e => setCompany({...company, telefone_fixo: e.target.value})}
@@ -421,6 +426,7 @@ export const Settings = () => {
                     <FormField label="Telefone Celular">
                       <input 
                         type="text" 
+                        maxLength={20}
                         className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={company.telefone_celular || ''}
                         onChange={e => setCompany({...company, telefone_celular: e.target.value})}
@@ -431,6 +437,7 @@ export const Settings = () => {
                     <FormField label="Endereço">
                       <input 
                         type="text" 
+                        maxLength={65535}
                         className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={company.endereco || ''}
                         onChange={e => setCompany({...company, endereco: e.target.value})}
@@ -441,6 +448,7 @@ export const Settings = () => {
                     <FormField label="Número">
                       <input 
                         type="text" 
+                        maxLength={20}
                         className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={company.numero || ''}
                         onChange={e => setCompany({...company, numero: e.target.value})}
@@ -451,6 +459,7 @@ export const Settings = () => {
                     <FormField label="CEP">
                       <input 
                         type="text" 
+                        maxLength={20}
                         className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={company.cep || ''}
                         onChange={e => setCompany({...company, cep: e.target.value})}
@@ -461,6 +470,7 @@ export const Settings = () => {
                     <FormField label="Cidade">
                       <input 
                         type="text" 
+                        maxLength={255}
                         className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
                         value={company.cidade || ''}
                         onChange={e => setCompany({...company, cidade: e.target.value})}

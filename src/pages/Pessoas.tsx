@@ -185,11 +185,11 @@ export const Pessoas = () => {
             <form onSubmit={handleAdd} className="grid grid-cols-2 gap-4 max-h-[70vh] overflow-y-auto pr-2">
               <div className="col-span-2">
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Razão Social</label>
-                <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.razao_social || ''} onChange={e => setNewPessoa({...newPessoa, razao_social: e.target.value, nome: e.target.value})} required />
+                <input type="text" maxLength={255} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.razao_social || ''} onChange={e => setNewPessoa({...newPessoa, razao_social: e.target.value, nome: e.target.value})} required />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Nome Fantasia</label>
-                <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.nome_fantasia || ''} onChange={e => setNewPessoa({...newPessoa, nome_fantasia: e.target.value})} />
+                <input type="text" maxLength={255} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.nome_fantasia || ''} onChange={e => setNewPessoa({...newPessoa, nome_fantasia: e.target.value})} />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Tipo de Pessoa</label>
@@ -201,35 +201,35 @@ export const Pessoas = () => {
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">CPF/CNPJ</label>
-                <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.cpf_cnpj || ''} onChange={e => setNewPessoa({...newPessoa, cpf_cnpj: e.target.value})} />
+                <input type="text" maxLength={20} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.cpf_cnpj || ''} onChange={e => setNewPessoa({...newPessoa, cpf_cnpj: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">E-mail</label>
-                <input type="email" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.email || ''} onChange={e => setNewPessoa({...newPessoa, email: e.target.value})} />
+                <input type="email" maxLength={255} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.email || ''} onChange={e => setNewPessoa({...newPessoa, email: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Telefone Fixo</label>
-                <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.telefone_fixo || ''} onChange={e => setNewPessoa({...newPessoa, telefone_fixo: e.target.value})} />
+                <input type="text" maxLength={20} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.telefone_fixo || ''} onChange={e => setNewPessoa({...newPessoa, telefone_fixo: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Telefone Celular</label>
-                <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.telefone_celular || ''} onChange={e => setNewPessoa({...newPessoa, telefone_celular: e.target.value, telefone: e.target.value})} />
+                <input type="text" maxLength={20} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.telefone_celular || ''} onChange={e => setNewPessoa({...newPessoa, telefone_celular: e.target.value, telefone: e.target.value})} />
               </div>
               <div className="col-span-2">
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Logradouro</label>
-                <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.endereco || ''} onChange={e => setNewPessoa({...newPessoa, endereco: e.target.value})} />
+                <input type="text" maxLength={65535} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.endereco || ''} onChange={e => setNewPessoa({...newPessoa, endereco: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Número</label>
-                <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.numero || ''} onChange={e => setNewPessoa({...newPessoa, numero: e.target.value})} />
+                <input type="text" maxLength={20} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.numero || ''} onChange={e => setNewPessoa({...newPessoa, numero: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">CEP</label>
-                <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.cep || ''} onChange={e => setNewPessoa({...newPessoa, cep: e.target.value})} />
+                <input type="text" maxLength={20} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.cep || ''} onChange={e => setNewPessoa({...newPessoa, cep: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Cidade</label>
-                <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.cidade || ''} onChange={e => setNewPessoa({...newPessoa, cidade: e.target.value})} />
+                <input type="text" maxLength={255} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newPessoa.cidade || ''} onChange={e => setNewPessoa({...newPessoa, cidade: e.target.value})} />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estado (UF)</label>

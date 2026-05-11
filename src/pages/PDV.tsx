@@ -89,21 +89,22 @@ export default function PDV() {
   }, [searchTerm, produtos]);
 
   const addToCart = (produto: any) => {
+    const preco = parseFloat(produto.preco_venda || 0);
     setCart(prev => {
       const existing = prev.find(item => item.id === produto.id);
       if (existing) {
         return prev.map(item => 
           item.id === produto.id 
-            ? { ...item, quantidade: item.quantidade + 1, subtotal: (item.quantidade + 1) * item.preco_venda }
+            ? { ...item, quantidade: item.quantidade + 1, subtotal: (item.quantidade + 1) * preco }
             : item
         );
       }
       return [...prev, { 
         id: produto.id, 
         nome: produto.nome, 
-        preco_venda: produto.preco_venda, 
+        preco_venda: preco, 
         quantidade: 1, 
-        subtotal: produto.preco_venda 
+        subtotal: preco 
       }];
     });
   };
@@ -112,7 +113,8 @@ export default function PDV() {
     setCart(prev => prev.map(item => {
       if (item.id === id) {
         const newQ = Math.max(1, item.quantidade + delta);
-        return { ...item, quantidade: newQ, subtotal: newQ * item.preco_venda };
+        const preco = parseFloat(item.preco_venda || 0);
+        return { ...item, quantidade: newQ, subtotal: newQ * preco };
       }
       return item;
     }));
@@ -122,8 +124,8 @@ export default function PDV() {
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + item.subtotal, 0);
-  const finalTotal = Math.max(0, cartTotal - discount);
+  const cartTotal = cart.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0);
+  const finalTotal = Math.max(0, cartTotal - parseFloat(discount as any || 0));
 
   const handleAddPayment = () => {
     if (!currentPayment.tipo_pagamento_id || currentPayment.valor <= 0) return;
@@ -512,7 +514,7 @@ export default function PDV() {
               <span>R$ {formatMoney(cartTotal)}</span>
             </div>
             
-            <div className="flex justify-between items-center text-sm font-medium">
+                  <div className="flex justify-between items-center text-sm font-medium">
               <span className="text-slate-500">Desconto</span>
               <div className="relative w-28">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">R$</span>
@@ -521,7 +523,10 @@ export default function PDV() {
                   min="0"
                   step="0.01"
                   value={discount === 0 ? '' : discount}
-                  onChange={e => setDiscount(parseFloat(e.target.value) || 0)}
+                  onChange={e => {
+                    const val = parseFloat(e.target.value);
+                    setDiscount(isNaN(val) ? 0 : val);
+                  }}
                   className="w-full pl-8 pr-3 py-1.5 text-right bg-white border border-slate-200 rounded-lg text-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-mono"
                   placeholder="0,00"
                 />
