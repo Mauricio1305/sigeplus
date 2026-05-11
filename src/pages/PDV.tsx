@@ -394,6 +394,7 @@ export default function PDV() {
             <input 
               type="text" 
               placeholder="Buscar Produto (Nome ou Código)" 
+              maxLength={255}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="w-full bg-slate-100 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100 rounded-xl py-3 pl-10 pr-4 transition-all text-slate-900 font-medium"

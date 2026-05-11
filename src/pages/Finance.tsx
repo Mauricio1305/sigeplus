@@ -706,7 +706,7 @@ export const Finance = () => {
                     {categories.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
                   <input type="number" step="0.01" placeholder="Valor" className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, valor: parseFloat(e.target.value)})} required />
-                  <input type="text" placeholder="Descrição" className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, descricao: e.target.value})} required />
+                  <input type="text" placeholder="Descrição" maxLength={65535} className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, descricao: e.target.value})} required />
                 </>
               )}
               {['receivable', 'payable'].includes(modalType) && (
@@ -721,7 +721,7 @@ export const Finance = () => {
                   </select>
                   <input type="date" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.vencimento || ''} onChange={e => setFormData({...formData, vencimento: e.target.value})} required />
                   <input type="number" step="0.01" placeholder="Valor" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.valor || ''} onChange={e => setFormData({...formData, valor: parseFloat(e.target.value)})} required />
-                  <input type="text" placeholder="Descrição" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.descricao || ''} onChange={e => setFormData({...formData, descricao: e.target.value})} />
+                  <input type="text" placeholder="Descrição" maxLength={65535} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.descricao || ''} onChange={e => setFormData({...formData, descricao: e.target.value})} />
                 </>
               )}
               {modalType === 'baixa' && (
