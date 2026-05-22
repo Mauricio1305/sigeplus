@@ -7,6 +7,8 @@ CREATE TABLE IF NOT EXISTS planos (
     valor_mensal DECIMAL(10, 2) NOT NULL,
     limite_usuarios INTEGER NOT NULL,
     modulos JSON,
+    is_trial BOOLEAN DEFAULT 0,
+    trial_days INTEGER DEFAULT NULL,
     stripe_price_id VARCHAR(255),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

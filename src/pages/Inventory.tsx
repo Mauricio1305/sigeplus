@@ -52,8 +52,12 @@ export const Inventory = () => {
     fetch('/api/inventory/layouts', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
-        setLayouts(data);
-        if (data.length > 0 && !selectedLayoutId) setSelectedLayoutId(data[0].id.toString());
+        if (Array.isArray(data)) {
+          setLayouts(data);
+          if (data.length > 0 && !selectedLayoutId) setSelectedLayoutId(data[0].id.toString());
+        } else {
+          setLayouts([]);
+        }
       })
       .catch(console.error);
   };
@@ -62,7 +66,7 @@ export const Inventory = () => {
     fetchProducts();
     fetch('/api/inventory/groups', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(setGroups)
+      .then(data => setGroups(Array.isArray(data) ? data : []))
       .catch(console.error);
     fetchLabelLayouts();
   }, [token]);

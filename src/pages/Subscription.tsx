@@ -9,25 +9,24 @@ export const Subscription = () => {
   const user = useAuthStore(state => state.user);
   const token = useAuthStore(state => state.token);
   const [plans, setPlans] = useState<any[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('/api/plans').then(res => res.json()).then(setPlans);
-  }, []);
+    fetch('/api/plans').then(res => res.json()).then(data => {
+      setPlans(data);
+      if (user?.plano_id) {
+        const userPlan = data.find((p: any) => p.id === user.plano_id);
+        if (userPlan && !userPlan.is_trial) {
+           setSelectedPlanId(user.plano_id);
+        }
+      }
+    });
+  }, [user?.plano_id]);
 
-  const selectedPlan = plans.find(p => {
-    const planId = Number(p.id);
-    const userPlanoId = Number(user?.plano_id);
-    return planId === userPlanoId;
-  });
-  
-  useEffect(() => {
-    if (!selectedPlan && plans.length > 0) {
-        console.warn('Plan not found for user!', { userPlanoId: user?.plano_id, availablePlans: plans });
-    }
-  }, [user, plans, selectedPlan]);
+  const selectedPlan = plans.find(p => p.id === selectedPlanId);
 
   const handleSubscribe = async (planoId: number) => {
     setLoading(true);
@@ -164,19 +163,6 @@ export const Subscription = () => {
     );
   }
 
-  // If plans loaded but we didn't find the user's plan
-  if (!selectedPlan) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-3xl shadow-xl text-center max-w-md w-full">
-          <h2 className="text-2xl font-bold text-slate-900 mb-4">Plano não encontrado</h2>
-          <p className="text-slate-500 mb-6">Não conseguimos identificar o seu plano (ID: {user?.plano_id}). Por favor, entre em contato com o suporte técnico.</p>
-          <button onClick={() => navigate('/dashboard')} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">Voltar ao Dashboard</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <motion.div 
@@ -201,33 +187,41 @@ export const Subscription = () => {
           </motion.div>
         )}
 
-        {selectedPlan && (
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 mb-8 text-left">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="font-bold text-slate-900 text-lg">{selectedPlan.nome}</h3>
-                <p className="text-sm text-slate-500">Plano Selecionado</p>
+        <div className="grid grid-cols-1 gap-4 mb-8 text-left">
+          {plans.filter(p => !p.is_trial).map(p => (
+            <label 
+              key={p.id} 
+              className={`flex flex-col p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                selectedPlanId === p.id ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 hover:border-slate-200'
+              }`}
+            >
+              <input 
+                type="radio" 
+                name="plan" 
+                className="hidden" 
+                value={p.id} 
+                checked={selectedPlanId === p.id}
+                onChange={() => setSelectedPlanId(p.id)}
+              />
+              <div className="flex justify-between items-center mb-2">
+                <span className="font-bold text-slate-900 text-lg">{p.nome}</span>
+                <span className="bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                  R$ {formatMoney(p.valor_mensal)}/mês
+                </span>
               </div>
-              <span className="bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                R$ {formatMoney(selectedPlan.valor_mensal)}/mês
-              </span>
-            </div>
-            <ul className="space-y-2">
-              <li className="flex items-center gap-2 text-sm text-slate-600">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
-                {selectedPlan.limite_usuarios === 9999 ? 'Usuários Ilimitados' : `${selectedPlan.limite_usuarios} Usuários`}
-              </li>
-              <li className="flex items-center gap-2 text-sm text-slate-600">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
-                Acesso a todos os módulos
-              </li>
-              <li className="flex items-center gap-2 text-sm text-slate-600">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
-                Suporte prioritário
-              </li>
-            </ul>
-          </div>
-        )}
+              <ul className="space-y-1">
+                <li className="flex items-center gap-2 text-sm text-slate-600">
+                  <CheckCircle className="w-4 h-4 text-emerald-500" />
+                  {p.limite_usuarios === 9999 ? 'Usuários Ilimitados' : `${p.limite_usuarios} Usuários`}
+                </li>
+                <li className="flex items-center gap-2 text-sm text-slate-600">
+                  <CheckCircle className="w-4 h-4 text-emerald-500" />
+                  {p.modulos?.length > 0 ? `${p.modulos.length} módulos adicionais` : 'Módulos básicos'}
+                </li>
+              </ul>
+            </label>
+          ))}
+        </div>
 
         <button 
           onClick={() => selectedPlan?.id && handleSubscribe(selectedPlan.id)}

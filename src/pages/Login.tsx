@@ -80,7 +80,12 @@ export const Login = () => {
         setAuth(data.user, data.token);
         
         if (isRegistering) {
-          navigate('/subscription');
+            const isTrial = data.user.status_assinatura === 'ativo' && new Date(data.user.vencimento_assinatura) > new Date();
+            if (isTrial) {
+               navigate('/dashboard');
+            } else {
+               navigate('/subscription');
+            }
         } else {
           const from = (location.state as any)?.from;
           if (from) {

@@ -85,6 +85,7 @@ export const Settings = () => {
   }, [location]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalSubmitting, setIsModalSubmitting] = useState(false);
   const [modalType, setModalType] = useState<'category' | 'paymentType' | 'group' | 'user' | 'productGroup' | 'labelLayout'>('category');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
@@ -103,42 +104,42 @@ export const Settings = () => {
   const fetchPaymentTypes = () => {
     fetch('/api/finance/payment-types', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(setPaymentTypes)
+      .then(data => setPaymentTypes(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching payment types:", err));
   };
 
   const fetchCategories = () => {
     fetch('/api/finance/categories', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(setCategories)
+      .then(data => setCategories(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching categories:", err));
   };
 
   const fetchGroups = () => {
     fetch('/api/settings/groups', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(setGroups)
+      .then(data => setGroups(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching groups:", err));
   };
 
   const fetchUsers = () => {
     fetch('/api/settings/users', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(setUsers)
+      .then(data => setUsers(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching users:", err));
   };
 
   const fetchProductGroups = () => {
     fetch('/api/inventory/groups', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(setProductGroups)
+      .then(data => setProductGroups(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching product groups:", err));
   };
 
   const fetchLabelLayouts = () => {
     fetch('/api/inventory/layouts', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
-      .then(setLabelLayouts)
+      .then(data => setLabelLayouts(Array.isArray(data) ? data : []))
       .catch(err => console.error("Error fetching label layouts:", err));
   };
 
@@ -213,6 +214,7 @@ export const Settings = () => {
     }
 
     setFinanceFieldErrors({});
+    setIsModalSubmitting(true);
     let url = '';
     let method = 'POST';
 
@@ -267,6 +269,7 @@ export const Settings = () => {
       console.error('Submit error:', error);
       setToast({ message: 'Erro de conexão com o servidor', type: 'error' });
     } finally {
+      setIsModalSubmitting(false);
       setTimeout(() => setToast(null), 5000);
     }
   };
@@ -545,7 +548,7 @@ export const Settings = () => {
       )}
 
       {activeTab === 'finance' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-slate-900">Tipos de Pagamento</h3>
@@ -663,7 +666,7 @@ export const Settings = () => {
       )}
 
       {activeTab === 'inventory' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-slate-900">Grupos de Produtos</h3>
@@ -763,7 +766,7 @@ export const Settings = () => {
       )}
 
       {activeTab === 'users' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-slate-900">Grupos de Usuários</h3>
@@ -779,8 +782,8 @@ export const Settings = () => {
                 + Adicionar
               </button>
             </div>
-            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-              <table className="w-full text-left text-sm">
+            <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto">
+              <table className="w-full text-left text-sm min-w-[300px]">
                 <thead className="bg-slate-50 text-slate-500 uppercase text-[10px]">
                   <tr>
                     <th className="px-4 py-2">Nome</th>
@@ -834,8 +837,8 @@ export const Settings = () => {
                 + Adicionar
               </button>
             </div>
-            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-              <table className="w-full text-left text-sm">
+            <div className="bg-white rounded-xl border border-slate-100 overflow-x-auto">
+              <table className="w-full text-left text-sm min-w-[500px]">
                 <thead className="bg-slate-50 text-slate-500 uppercase text-[10px]">
                   <tr>
                     <th className="px-4 py-2">Nome</th>
@@ -1297,8 +1300,8 @@ export const Settings = () => {
               </div>
 
               <div className="p-6 border-t border-slate-100 bg-slate-50 shrink-0">
-                <button type="submit" className="w-full bg-indigo-600 text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2">
-                  {selectedItem ? 'Atualizar Alterações' : 'Cadastrar Registro'}
+                <button type="submit" disabled={isModalSubmitting} className="w-full bg-indigo-600 text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                  {isModalSubmitting ? 'Salvando...' : selectedItem ? 'Atualizar Alterações' : 'Cadastrar Registro'}
                 </button>
               </div>
             </form>

@@ -4,6 +4,7 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import mysql from "mysql2/promise";
+import pg from "pg";
 import nodemailer from "nodemailer";
 import fs from "fs";
 import path from "path";
@@ -39,7 +40,9 @@ if (missingEnvVars.length > 0) {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const pool = mysql.createPool({
+const isPg = process.env.DB_TYPE === 'postgres';
+
+const mysqlPool = mysql.createPool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
@@ -50,6 +53,109 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0
 });
+
+const pgPool = new pg.Pool({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  port: parseInt(process.env.DB_PORT || "5432"),
+  max: 20, // Increase max connections
+  idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+  connectionTimeoutMillis: 5000,
+});
+
+const sqlCache = new Map<string, string>();
+
+// A wrapper to handle mysql vs pg syntax
+const processQuery = (sql: string) => {
+  if (!isPg) return sql;
+  
+  if (sqlCache.has(sql)) {
+    return sqlCache.get(sql)!;
+  }
+  
+  let idx = 1;
+  let pgSql = sql.replace(/\?/g, () => `$${idx++}`);
+  // Attempt simple conversion for some known queries
+  pgSql = pgSql.replace(/SHOW TABLES LIKE 'clientes'/g, "SELECT table_name FROM information_schema.tables WHERE table_name = 'clientes'");
+  pgSql = pgSql.replace(/YEAR\(([^)]+)\)/gi, 'EXTRACT(YEAR FROM $1)');
+  pgSql = pgSql.replace(/DATE_FORMAT\(([^,]+),\s*'%m'\)/gi, "TO_CHAR($1, 'MM')");
+  pgSql = pgSql.replace(/DATE_FORMAT\(([^,]+),\s*'%Y-%m'\)/gi, "TO_CHAR($1, 'YYYY-MM')");
+  pgSql = pgSql.replace(/DATE_FORMAT\(([^,]+),\s*'%d\/%m\/%Y'\)/gi, "TO_CHAR($1, 'DD/MM/YYYY')");
+  pgSql = pgSql.replace(/INTEGER PRIMARY KEY AUTO_INCREMENT/gi, 'SERIAL PRIMARY KEY');
+  pgSql = pgSql.replace(/DATETIME/gi, 'TIMESTAMP');
+  pgSql = pgSql.replace(/LONGTEXT/gi, 'TEXT');
+  pgSql = pgSql.replace(/BOOLEAN DEFAULT 1/gi, 'SMALLINT DEFAULT 1');
+  pgSql = pgSql.replace(/BOOLEAN DEFAULT 0/gi, 'SMALLINT DEFAULT 0');
+  
+  if (pgSql.startsWith('SHOW COLUMNS FROM ')) {
+      const tableMatch = pgSql.match(/FROM\s+([a-zA-Z0-9_]+)/);
+      if (tableMatch) {
+          pgSql = `SELECT column_name as "Field" FROM information_schema.columns WHERE table_name = '${tableMatch[1]}'`;
+      }
+  }
+  if (pgSql.startsWith('SHOW TABLES LIKE ')) {
+      const tableMatch = pgSql.match(/LIKE\s+'([^']+)'/);
+      if (tableMatch) {
+          pgSql = `SELECT table_name FROM information_schema.tables WHERE table_name = '${tableMatch[1]}'`;
+      }
+  }
+  sqlCache.set(sql, pgSql);
+  return pgSql;
+};
+
+const abstractQuery = async (client: any, sql: string, params?: any[]) => {
+  if (isPg) {
+    const pgSql = processQuery(sql);
+    let isInsert = pgSql.trim().toUpperCase().startsWith('INSERT ');
+    const finalSql = isInsert ? `${pgSql} RETURNING id` : pgSql;
+    
+    try {
+      const result = await client.query(finalSql, params);
+      
+      // Mute errors if it's a structural migration command failing gracefully
+      if (isInsert) {
+         return [{ insertId: result.rows[0]?.id || 0, affectedRows: result.rowCount }, result.fields];
+      }
+      return [result.rows, result.fields];
+    } catch (err: any) {
+      if (pgSql.includes('information_schema')) {
+        return [[], []]; // Return empty array for schema checks to prevent crashes
+      }
+      if (pgSql.includes('ALTER TABLE')) {
+        // Suppress expected column exists errors during weak migrations
+        console.warn('PG Alter Table warning:', err.message);
+        return [[], []];
+      }
+      throw err;
+    }
+  } else {
+    return await client.query(sql, params);
+  }
+};
+
+const pool = {
+  async query(sql: string, params?: any[]) {
+    return abstractQuery(isPg ? pgPool : mysqlPool, sql, params);
+  },
+  async getConnection() {
+    if (isPg) {
+      const client = await pgPool.connect();
+      return {
+        async query(sql: string, params?: any[]) {
+          return abstractQuery(client, sql, params);
+        },
+        async beginTransaction() { await client.query('BEGIN'); },
+        async commit() { await client.query('COMMIT'); },
+        async rollback() { await client.query('ROLLBACK'); },
+        release() { client.release(); }
+      };
+    } else {
+      return await mysqlPool.getConnection();
+    }
+  }
+};
 
 const JWT_SECRET = process.env.JWT_SECRET || "saas-secret-key-123";
 
@@ -73,7 +179,7 @@ async function initDB() {
     await pool.query("SELECT 1");
     console.log("Database connection successful.");
 
-    const schemaPath = path.join(process.cwd(), "schema.sql");
+    const schemaPath = path.join(process.cwd(), isPg ? "schema-pg.sql" : "schema.sql");
     if (fs.existsSync(schemaPath)) {
       const schema = fs.readFileSync(schemaPath, "utf8");
       await pool.query(schema);
@@ -202,6 +308,14 @@ async function initDB() {
           if (!columns.includes('modulos')) {
             await pool.query("ALTER TABLE planos ADD COLUMN modulos JSON AFTER limite_usuarios");
             console.log("Added modulos column to planos table");
+          }
+          if (!columns.includes('is_trial')) {
+            await pool.query("ALTER TABLE planos ADD COLUMN is_trial SMALLINT DEFAULT 0");
+            console.log("Added is_trial column to planos table");
+          }
+          if (!columns.includes('trial_days')) {
+            await pool.query("ALTER TABLE planos ADD COLUMN trial_days INTEGER DEFAULT NULL");
+            console.log("Added trial_days column to planos table");
           }
           // Always ensure NULL modulos are set to a default (helpful for existing data)
           const defaultModules = JSON.stringify(['financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes']);
@@ -596,18 +710,19 @@ const planMiddleware = (module: string) => {
       if (!company) return res.status(404).json({ error: "Empresa não encontrada" });
 
       // Check Plan level
-      let requiredPlanModule = currentModule;
-      if (currentModule === 'os' || currentModule === 'mesas') requiredPlanModule = 'vendas';
-      if (currentModule === 'dashboard') requiredPlanModule = 'dashboard';
-      
+      const additionalModules = ['vendas', 'os', 'mesas', 'pdv'];
       const allowedModules = company.modulos || [];
-      const planHasModule = requiredPlanModule === 'dashboard' ? true : allowedModules.includes(requiredPlanModule);
+      
+      let planHasModule = true;
+      if (additionalModules.includes(currentModule)) {
+         planHasModule = allowedModules.includes(currentModule);
+      }
 
       if (!planHasModule) {
         return res.status(403).json({ 
-          error: `O seu plano atual não possui acesso ao módulo ${requiredPlanModule}.`,
+          error: `O seu plano atual não possui acesso ao módulo ${currentModule}.`,
           code: 'PLAN_RESTRICTION',
-          module: requiredPlanModule 
+          module: currentModule 
         });
       }
 
@@ -698,17 +813,30 @@ app.post("/api/auth/register", async (req, res) => {
     
     await connection.beginTransaction();
     
-    // Set default expiration date to force payment
-    const formattedExpirationDate = '1999-01-01';
-
-    // Create Company
     if (!plano_id) {
       return res.status(400).json({ error: "Por favor, selecione um plano." });
     }
 
+    const [plans] = await connection.query("SELECT * FROM planos WHERE id = ?", [plano_id]) as any[];
+    const plan = plans[0];
+    if (!plan) {
+      return res.status(400).json({ error: "Plano inválido." });
+    }
+
+    let status_assinatura = 'inativo';
+    let formattedExpirationDate = '1999-01-01';
+
+    if (plan.is_trial) {
+       status_assinatura = 'ativo';
+       const expireDate = new Date();
+       expireDate.setDate(expireDate.getDate() + (plan.trial_days || 7));
+       formattedExpirationDate = expireDate.toISOString().split('T')[0];
+    }
+    
+    // Create Company
     await connection.query(
       "INSERT INTO empresas (tenant_id, nome_fantasia, email, plano_id, status_assinatura, vencimento_assinatura) VALUES (?, ?, ?, ?, ?, ?)",
-      [tenant_id, companyName, email, plano_id, 'inativo', formattedExpirationDate]
+      [tenant_id, companyName, email, plano_id, status_assinatura, formattedExpirationDate]
     );
     
     // Create Admin User
@@ -735,7 +863,7 @@ app.post("/api/auth/register", async (req, res) => {
         tenant_id: user.tenant_id, 
         perfil: user.perfil, 
         nome: user.nome,
-        status_assinatura: 'inativo',
+        status_assinatura: status_assinatura,
         vencimento_assinatura: formattedExpirationDate,
         plano_id: plano_id
       },
@@ -755,7 +883,7 @@ app.post("/api/auth/register", async (req, res) => {
         email: user.email,
         perfil: user.perfil,
         tenant_id: user.tenant_id,
-        status_assinatura: 'inativo',
+        status_assinatura: status_assinatura,
         vencimento_assinatura: formattedExpirationDate,
         plano_id: plano_id
       }
@@ -2139,14 +2267,15 @@ app.put("/api/admin/companies/:id", authMiddleware, async (req: any, res) => {
 
 app.post("/api/admin/plans", authMiddleware, async (req: any, res) => {
   if (req.user.perfil !== 'superadmin') return res.status(403).json({ error: "Forbidden" });
-  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos } = req.body;
+  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos, is_trial, trial_days } = req.body;
   
-  if (stripe_price_id && !stripe_price_id.startsWith('price_')) {
-    return res.status(400).json({ error: "O ID do Stripe deve ser um Price ID (começar com 'price_'). Você informou um Product ID." });
+  if (stripe_price_id && stripe_price_id !== 'none' && stripe_price_id !== 'price_system' && !stripe_price_id.startsWith('price_')) {
+    return res.status(400).json({ error: "O ID do Stripe deve ser um Price ID (começar com 'price_')." });
   }
 
   try {
-    await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, stripe_price_id, modulos) VALUES (?, ?, ?, ?, ?)", [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || [])]);
+    await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, stripe_price_id, modulos, is_trial, trial_days) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+      [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || []), is_trial ? 1 : 0, trial_days || null]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -2156,13 +2285,14 @@ app.post("/api/admin/plans", authMiddleware, async (req: any, res) => {
 app.put("/api/admin/plans/:id", authMiddleware, async (req: any, res) => {
   if (req.user.perfil !== 'superadmin') return res.status(403).json({ error: "Forbidden" });
   const { id } = req.params;
-  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos } = req.body;
+  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos, is_trial, trial_days } = req.body;
   
-  if (stripe_price_id && !stripe_price_id.startsWith('price_')) {
-    return res.status(400).json({ error: "O ID do Stripe deve ser um Price ID (começar com 'price_'). Você informou um Product ID." });
+  if (stripe_price_id && stripe_price_id !== 'none' && stripe_price_id !== 'price_system' && !stripe_price_id.startsWith('price_')) {
+    return res.status(400).json({ error: "O ID do Stripe deve ser um Price ID (começar com 'price_')." });
   }
 
-  await pool.query("UPDATE planos SET nome = ?, valor_mensal = ?, limite_usuarios = ?, stripe_price_id = ?, modulos = ? WHERE id = ?", [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || []), id]);
+  await pool.query("UPDATE planos SET nome = ?, valor_mensal = ?, limite_usuarios = ?, stripe_price_id = ?, modulos = ?, is_trial = ?, trial_days = ? WHERE id = ?", 
+    [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || []), is_trial ? 1 : 0, trial_days || null, id]);
     
   res.json({ success: true });
 });
@@ -2438,7 +2568,7 @@ app.get("/api/finance/accounts", authMiddleware, async (req: any, res) => {
     const [accounts] = await pool.query(`
       SELECT l.id, l.vencimento as vencimento, COALESCE(l.descricao, p.nome) as descricao, 
              CASE WHEN l.tipo = 'CR' THEN 'receita' ELSE 'despesa' END as tipo, 
-             l.valor as valor, (l.status = 'paga') as pago, l.pessoa_id as pessoa_id, p.nome as pessoa_nome,
+             l.valor as valor, CASE WHEN l.status = 'paga' THEN 1 ELSE 0 END as pago, l.pessoa_id as pessoa_id, p.nome as pessoa_nome,
              l.local as local, ct.nome as categoria_nome
       FROM lancamentos l
       LEFT JOIN pessoas p ON l.pessoa_id = p.id
