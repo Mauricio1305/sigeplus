@@ -10,8 +10,6 @@ interface User {
   status_assinatura?: string;
   vencimento_assinatura?: string;
   plano_id?: number;
-  modulos?: string[];
-  permissoes?: Record<string, Record<string, boolean>>;
 }
 
 interface AuthState {
