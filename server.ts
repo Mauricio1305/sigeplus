@@ -8,7 +8,6 @@ import pg from "pg";
 import nodemailer from "nodemailer";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from 'url';
 import dotenv from "dotenv";
 import Stripe from 'stripe';
 import helmet from "helmet";
@@ -37,8 +36,7 @@ if (missingEnvVars.length > 0) {
   // We don't exit here to allow the app to start, but it will fail on DB connection
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+
 
 const isPg = process.env.DB_TYPE === 'postgres';
 
