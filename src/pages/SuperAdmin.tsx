@@ -14,10 +14,43 @@ export const SuperAdmin = () => {
   const [editingCompany, setEditingCompany] = useState<any>(null);
   const [isNewPlanModalOpen, setIsNewPlanModalOpen] = useState(false);
   const [planToDelete, setPlanToDelete] = useState<number | null>(null);
-  const [newPlan, setNewPlan] = useState({ nome: '', valor_mensal: 0, limite_usuarios: 1, stripe_price_id: '' });
+  const [newPlan, setNewPlan] = useState({ 
+    nome: '', 
+    valor_mensal: 0, 
+    limite_usuarios: 1, 
+    stripe_price_id: '',
+    modulos: [] as string[],
+    is_trial: false,
+    trial_days: 7
+  });
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const availableModules = [
+    { id: 'vendas', label: 'Pedidos e Orçamentos' },
+    { id: 'os', label: 'Ordens de Serviço' },
+    { id: 'mesas', label: 'Mesas & Comandas' },
+    { id: 'pdv', label: 'PDV' },
+    { id: 'export_excel', label: 'Exportar Relatórios Excel' },
+    { id: 'import_produtos', label: 'Importar Produtos (Excel)' }
+  ];
+
+  const handleModuleToggle = (moduleId: string, isEditing: boolean) => {
+    if (isEditing) {
+      const currentModules = editingPlan.modulos || [];
+      const newModules = currentModules.includes(moduleId)
+        ? currentModules.filter((m: string) => m !== moduleId)
+        : [...currentModules, moduleId];
+      setEditingPlan({ ...editingPlan, modulos: newModules });
+    } else {
+      const currentModules = newPlan.modulos || [];
+      const newModules = currentModules.includes(moduleId)
+        ? currentModules.filter((m: string) => m !== moduleId)
+        : [...currentModules, moduleId];
+      setNewPlan({ ...newPlan, modulos: newModules });
+    }
+  };
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -124,8 +157,13 @@ export const SuperAdmin = () => {
     if (!plan.nome) errors.nome = 'Nome do plano é obrigatório';
     if (plan.valor_mensal < 0) errors.valor_mensal = 'Valor mensal não pode ser negativo';
     if (plan.limite_usuarios < 1) errors.limite_usuarios = 'Limite de usuários deve ser pelo menos 1';
-    if (!plan.stripe_price_id) errors.stripe_price_id = 'ID do preço no Stripe é obrigatório';
-    else if (!plan.stripe_price_id.startsWith('price_')) errors.stripe_price_id = 'ID do preço deve começar com price_';
+    
+    if (plan.is_trial) {
+      if (!plan.trial_days || plan.trial_days < 1) errors.trial_days = 'Dias de teste são obrigatórios';
+    } else {
+      if (!plan.stripe_price_id) errors.stripe_price_id = 'ID do preço no Stripe é obrigatório';
+      else if (plan.stripe_price_id !== 'none' && plan.stripe_price_id !== 'price_system' && !plan.stripe_price_id.startsWith('price_')) errors.stripe_price_id = 'ID do preço deve começar com price_';
+    }
     
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -228,7 +266,7 @@ export const SuperAdmin = () => {
         )}
       </AnimatePresence>
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Painel SuperAdmin</h1>
+        <h1 className="text-3xl font-bold text-slate-900">Gestão do SaaS</h1>
         <div className="flex bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
           <button 
             onClick={() => setActiveTab('companies')}
@@ -356,7 +394,19 @@ export const SuperAdmin = () => {
                   <p className="text-slate-500 text-sm mt-4">
                     Limite: <span className="font-bold text-slate-900">{p.limite_usuarios === 9999 ? 'Ilimitado' : `${p.limite_usuarios} usuários`}</span>
                   </p>
-                  <p className="text-slate-400 text-[10px] mt-1 font-mono">ID Stripe: {p.stripe_price_id || 'Não configurado'}</p>
+                  {p.is_trial ? (
+                    <p className="text-amber-500 bg-amber-50 px-2 py-1 rounded inline-block text-[10px] mt-1 font-bold">PLANO DE TESTE ({p.trial_days} dias)</p>
+                  ) : (
+                    <p className="text-slate-400 text-[10px] mt-1 font-mono">ID Stripe: {p.stripe_price_id || 'Não configurado'}</p>
+                  )}
+                  <div className="mt-4 flex flex-wrap gap-1">
+                    {(p.modulos || []).map((m: string) => (
+                      <span key={m} className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded uppercase font-bold">
+                        {m}
+                      </span>
+                    ))}
+                    {(p.modulos || []).length === 0 && <span className="text-[10px] text-slate-400 italic">Nenhum módulo</span>}
+                  </div>
                 </div>
                 <div className="mt-6 flex gap-2">
                   <button 
@@ -424,21 +474,66 @@ export const SuperAdmin = () => {
                   }}
                 />
               </FormField>
-              <FormField label="ID do Preço no Stripe" error={fieldErrors.stripe_price_id} required>
+              <div className="flex items-center gap-2 mt-4 ml-1">
                 <input 
-                  type="text" 
-                  className={`w-full px-4 py-2 rounded-xl border font-mono text-sm outline-none transition-all ${fieldErrors.stripe_price_id ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                  placeholder="price_..."
-                  value={newPlan.stripe_price_id}
-                  onChange={e => {
-                    setNewPlan({...newPlan, stripe_price_id: e.target.value});
-                    if (fieldErrors.stripe_price_id) setFieldErrors({...fieldErrors, stripe_price_id: ''});
-                  }}
+                  type="checkbox" 
+                  id="new-is-trial"
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  checked={newPlan.is_trial}
+                  onChange={e => setNewPlan({...newPlan, is_trial: e.target.checked})}
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-slate-100 px-1 rounded text-indigo-600">price_...</code> e <strong>NÃO</strong> o ID do Produto (<code className="bg-slate-100 px-1 rounded text-red-500">prod_...</code>).
-                </p>
-              </FormField>
+                <label htmlFor="new-is-trial" className="text-sm font-semibold text-slate-700 cursor-pointer">
+                  Plano de Teste Grátis (Trial)
+                </label>
+              </div>
+
+              {newPlan.is_trial ? (
+                <FormField label="Dias de Teste" error={fieldErrors.trial_days} required>
+                  <input 
+                    type="number" 
+                    className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.trial_days ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                    value={newPlan.trial_days}
+                    onChange={e => {
+                      setNewPlan({...newPlan, trial_days: parseInt(e.target.value)});
+                      if (fieldErrors.trial_days) setFieldErrors({...fieldErrors, trial_days: ''});
+                    }}
+                  />
+                </FormField>
+              ) : (
+                <FormField label="ID do Preço no Stripe" error={fieldErrors.stripe_price_id} required>
+                  <input 
+                    type="text" 
+                    className={`w-full px-4 py-2 rounded-xl border font-mono text-sm outline-none transition-all ${fieldErrors.stripe_price_id ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                    placeholder="price_..."
+                    value={newPlan.stripe_price_id}
+                    onChange={e => {
+                      setNewPlan({...newPlan, stripe_price_id: e.target.value});
+                      if (fieldErrors.stripe_price_id) setFieldErrors({...fieldErrors, stripe_price_id: ''});
+                    }}
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-slate-100 px-1 rounded text-indigo-600">price_...</code> e <strong>NÃO</strong> o ID do Produto (<code className="bg-slate-100 px-1 rounded text-red-500">prod_...</code>).
+                  </p>
+                </FormField>
+              )}
+
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-slate-700">Módulos Inclusos</label>
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  {availableModules.map(mod => (
+                    <label key={mod.id} className="flex items-center gap-2 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                        checked={(newPlan.modulos || []).includes(mod.id)}
+                        onChange={() => handleModuleToggle(mod.id, false)}
+                      />
+                      <span className="text-sm text-slate-600 group-hover:text-indigo-600 transition-colors">{mod.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold mt-4 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">Cadastrar Plano</button>
             </form>
           </motion.div>
@@ -491,21 +586,66 @@ export const SuperAdmin = () => {
                 />
                 <p className="text-[10px] text-slate-400 mt-1">* Use 9999 para ilimitado</p>
               </FormField>
-              <FormField label="ID do Preço no Stripe" error={fieldErrors.stripe_price_id} required>
+              <div className="flex items-center gap-2 mt-4 ml-1">
                 <input 
-                  type="text" 
-                  className={`w-full px-4 py-2 rounded-xl border font-mono text-sm outline-none transition-all ${fieldErrors.stripe_price_id ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                  placeholder="price_..."
-                  value={editingPlan.stripe_price_id || ''}
-                  onChange={e => {
-                    setEditingPlan({...editingPlan, stripe_price_id: e.target.value});
-                    if (fieldErrors.stripe_price_id) setFieldErrors({...fieldErrors, stripe_price_id: ''});
-                  }}
+                  type="checkbox" 
+                  id="edit-is-trial"
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                  checked={editingPlan.is_trial}
+                  onChange={e => setEditingPlan({...editingPlan, is_trial: e.target.checked})}
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-slate-100 px-1 rounded text-indigo-600">price_...</code> e <strong>NÃO</strong> o ID do Produto (<code className="bg-slate-100 px-1 rounded text-red-500">prod_...</code>).
-                </p>
-              </FormField>
+                <label htmlFor="edit-is-trial" className="text-sm font-semibold text-slate-700 cursor-pointer">
+                  Plano de Teste Grátis (Trial)
+                </label>
+              </div>
+
+              {editingPlan.is_trial ? (
+                <FormField label="Dias de Teste" error={fieldErrors.trial_days} required>
+                  <input 
+                    type="number" 
+                    className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.trial_days ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                    value={editingPlan.trial_days || ''}
+                    onChange={e => {
+                      setEditingPlan({...editingPlan, trial_days: parseInt(e.target.value)});
+                      if (fieldErrors.trial_days) setFieldErrors({...fieldErrors, trial_days: ''});
+                    }}
+                  />
+                </FormField>
+              ) : (
+                <FormField label="ID do Preço no Stripe" error={fieldErrors.stripe_price_id} required>
+                  <input 
+                    type="text" 
+                    className={`w-full px-4 py-2 rounded-xl border font-mono text-sm outline-none transition-all ${fieldErrors.stripe_price_id ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                    placeholder="price_..."
+                    value={editingPlan.stripe_price_id || ''}
+                    onChange={e => {
+                      setEditingPlan({...editingPlan, stripe_price_id: e.target.value});
+                      if (fieldErrors.stripe_price_id) setFieldErrors({...fieldErrors, stripe_price_id: ''});
+                    }}
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-slate-100 px-1 rounded text-indigo-600">price_...</code> e <strong>NÃO</strong> o ID do Produto (<code className="bg-slate-100 px-1 rounded text-red-500">prod_...</code>).
+                  </p>
+                </FormField>
+              )}
+
+              <div className="space-y-3">
+                <label className="block text-sm font-semibold text-slate-700">Módulos Inclusos</label>
+                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  {availableModules.map(mod => (
+                    <label key={mod.id} className="flex items-center gap-2 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                        checked={(editingPlan.modulos || []).includes(mod.id)}
+                        onChange={() => handleModuleToggle(mod.id, true)}
+                      />
+                      <span className="text-sm text-slate-600 group-hover:text-indigo-600 transition-colors">{mod.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold mt-4 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">Salvar Alterações</button>
             </form>
           </motion.div>

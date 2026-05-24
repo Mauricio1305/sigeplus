@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Wrench, Search, Plus, Edit2, MoreVertical, Printer, MessageCircle, Trash2, Ban, AlertCircle, X } from 'lucide-react';
+import { ShoppingCart, Wrench, Search, Plus, Edit2, MoreVertical, Printer, MessageCircle, Trash2, Ban, AlertCircle, X, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney } from '../utils/format';
@@ -149,155 +149,83 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
         text += `\nAgradecemos a preferência!`;
         window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
       } else {
-        const companyHeader = `
-          <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px;">
-            <div style="flex: 1;">
-              <h2 style="margin: 0; font-size: 24px; text-transform: uppercase;">${company?.nome_fantasia || 'CONTIGO'}</h2>
-              ${company?.razao_social ? `<p style="margin: 2px 0; font-size: 14px; font-weight: bold;">${company.razao_social}</p>` : ''}
-              <div style="margin-top: 10px; font-size: 11px; color: #444;">
-                ${company?.cnpj ? `<p style="margin: 2px 0;"><strong>CNPJ/CPF:</strong> ${company.cnpj}</p>` : ''}
-                ${company?.endereco ? `<p style="margin: 2px 0;"><strong>Endereço:</strong> ${company.endereco}, ${company.numero || ''} - ${company.cidade || ''}/${company.estado || ''}</p>` : ''}
-                ${(company?.telefone_celular || company?.telefone_fixo) ? `<p style="margin: 2px 0;"><strong>Fone:</strong> ${company.telefone_fixo || ''} ${company.telefone_celular || ''}</p>` : ''}
-              </div>
+        const items = sale.items || [];
+        const subtotal = items.reduce((acc: number, i: any) => acc + parseFloat(i.subtotal || 0), 0);
+        const total = sale.valor_total;
+        
+        const content = `
+          <style>
+            @page { size: 58mm auto; margin: 0; }
+            body { 
+              width: 58mm; 
+              margin: 0; 
+              padding: 2mm; 
+              font-family: 'Courier New', Courier, monospace; 
+              font-size: 10px; 
+              color: #000;
+              line-height: 1.2;
+            }
+            .header { text-align: center; margin-bottom: 5px; }
+            .company-name { font-size: 14px; font-weight: bold; }
+            .disclaimer { font-weight: bold; font-size: 11px; margin: 8px 0; border: 1px solid #000; padding: 2px; }
+            .divider { border-top: 1px dashed #000; margin: 5px 0; }
+            .row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+            .bold { font-weight: bold; }
+            .center { text-align: center; }
+          </style>
+          <div>
+            <div class="header">
+              <div class="company-name">${company?.nome_fantasia || 'RECIBO'}</div>
+              ${company?.cnpj ? `<span>CNPJ: ${company.cnpj}</span><br/>` : ''}
+              ${company?.endereco ? `<span>${company.endereco}, ${company.numero || ''}</span><br/>` : ''}
+              ${company?.cidade ? `<span>${company.cidade}/${company.estado || ''}</span><br/>` : ''}
+              ${company?.telefone_celular || company?.telefone_fixo ? `<span>Tel: ${company.telefone_celular || company.telefone_fixo}</span>` : ''}
             </div>
-            <div style="text-align: right;">
-              <div style="background: #000; color: #fff; padding: 5px 15px; border-radius: 5px;">
-                <h1 style="margin: 0; font-size: 20px; text-transform: uppercase;">${sale.tipo === 'os' ? 'Ordem de Serviço' : 'Pedido de Venda'}</h1>
-              </div>
-              <p style="margin: 10px 0 0 0; font-size: 24px; font-weight: 900;">#${(sale.sequencial_id || sale.id).toString().padStart(6, '0')}</p>
-              <p style="margin: 2px 0; font-size: 11px; font-weight: bold;">DATA: ${new Date(sale.data_venda).toLocaleDateString()}</p>
-            </div>
-          </div>
-        `;
-
-        const detailsRows = `
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-bottom: 30px;">
-            <div>
-              <h3 style="margin: 0 0 10px 0; font-size: 12px; color: #94a3b8; text-transform: uppercase;">Cliente</h3>
-              <p style="margin: 0; font-size: 16px; font-weight: bold;">${sale.cliente_razao_social || sale.cliente_nome || 'Consumidor Final'}</p>
-              <div style="margin-top: 8px; font-size: 11px; color: #444;">
-                ${sale.cliente_cpf_cnpj ? `<p style="margin: 2px 0;"><strong>CPF/CNPJ:</strong> ${sale.cliente_cpf_cnpj}</p>` : ''}
-                ${(sale.cliente_telefone_celular || sale.cliente_telefone || sale.cliente_telefone_fixo) ? `<p style="margin: 2px 0;"><strong>Fone:</strong> ${sale.cliente_telefone_celular || sale.cliente_telefone || sale.cliente_telefone_fixo}</p>` : ''}
-                ${sale.cliente_endereco ? `<p style="margin: 2px 0;"><strong>Endereço:</strong> ${sale.cliente_endereco}, ${sale.cliente_numero || ''} - ${sale.cliente_cidade || ''}/${sale.cliente_uf || ''}</p>` : ''}
-              </div>
-            </div>
-            <div style="text-align: right;">
-              <h3 style="margin: 0 0 10px 0; font-size: 12px; color: #94a3b8; text-transform: uppercase;">Informações</h3>
-              <p style="margin: 2px 0; font-size: 12px;"><strong>Status:</strong> ${sale.status.toUpperCase()}</p>
-              <p style="margin: 2px 0; font-size: 12px;"><strong>Pagamento:</strong> ${sale.pagamentos?.map((p: any) => p.parcelas > 1 ? `${p.nome} (${p.parcelas}x)` : p.nome).join(', ') || '-'}</p>
-              ${sale.tipo === 'os' ? `<p style="margin: 2px 0; font-size: 12px;"><strong>Tipo:</strong> Ordem de Serviço</p>` : ''}
-            </div>
-          </div>
-        `;
-
-        const osInfo = sale.tipo === 'os' ? `
-          <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 30px; background: #f8fafc;">
-            <h3 style="margin: 0 0 15px 0; font-size: 14px; text-transform: uppercase; color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">Informações da O.S.</h3>
-            <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
-              <div>
-                <p style="margin: 0 0 4px 0; font-size: 11px; color: #64748b; font-weight: bold;">SOLICITAÇÃO / DEFEITO RECLAMADO:</p>
-                <div style="font-size: 13px; color: #1e293b; white-space: pre-wrap;">${sale.solicitacao || 'Não informada'}</div>
-              </div>
-              ${sale.laudo_tecnico ? `
-              <div style="margin-top: 10px; border-top: 1px dashed #e2e8f0; padding-top: 15px;">
-                <p style="margin: 0 0 4px 0; font-size: 11px; color: #64748b; font-weight: bold;">LAUDO TÉCNICO / RESOLUÇÃO:</p>
-                <div style="font-size: 13px; color: #1e293b; white-space: pre-wrap;">${sale.laudo_tecnico}</div>
-              </div>
-              ` : ''}
-            </div>
-          </div>
-        ` : '';
-
-        const tableHtml = `
-          <div style="margin-bottom: 10px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 12px; color: #94a3b8; text-transform: uppercase;">${sale.tipo === 'os' ? 'Serviços e Pecas' : 'Itens do Pedido'}</h3>
-          </div>
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
-            <thead>
-              <tr style="border-bottom: 1px solid #e2e8f0;">
-                <th style="padding: 10px; border-bottom: 1px solid #000; text-align: left;">Item</th>
-                <th style="padding: 10px; border-bottom: 1px solid #000; text-align: center;">Qtd</th>
-                <th style="padding: 10px; border-bottom: 1px solid #000; text-align: right;">V. Unit</th>
-                <th style="padding: 10px; border-bottom: 1px solid #000; text-align: right;">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${sale.items.map((i: any) => `
-                <tr style="border-bottom: 1px solid #f1f5f9;">
-                  <td style="padding: 10px;">${i.nome}</td>
-                  <td style="padding: 10px; text-align: center;">${i.quantidade}</td>
-                  <td style="padding: 10px; text-align: right;">R$ ${formatMoney(i.preco_venda)}</td>
-                  <td style="padding: 10px; text-align: right;">R$ ${formatMoney(i.subtotal)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        `;
-
-        const pagamentosHtml = sale.pagamentos && sale.pagamentos.length > 0 ? `
-          <div style="margin-top: 0px;">
-            <h3 style="margin: 0 0 10px 0; font-size: 12px; color: #94a3b8; text-transform: uppercase;">Pagamentos</h3>
-            ${sale.pagamentos.map((p: any) => `
-              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; width: 250px;">
-                <span>- ${p.nome} ${p.parcelas > 1 ? `(${p.parcelas}x)` : ''}</span>
-                <span>R$ ${formatMoney(p.valor)}</span>
+            
+            <div class="center disclaimer">${sale.tipo === 'os' ? 'ORDEM DE SERVIÇO' : 'RECIBO DE VENDA'}<br/>SEM VALOR FISCAL</div>
+            
+            <div class="row"><span>${sale.tipo === 'os' ? 'O.S' : 'Venda'}: #${sale.sequencial_id || sale.id}</span></div>
+            <div class="row"><span>Data: ${new Date(sale.data_venda).toLocaleString('pt-BR')}</span></div>
+            ${sale.cliente_nome ? `<div class="row"><span>Cliente: ${sale.cliente_nome.substring(0,15)}</span></div>` : ''}
+            
+            <div class="divider"></div>
+            ${items.map((i: any) => `
+              <div class="row">
+                <span>${i.quantidade}x ${i.nome.substring(0,14)}</span>
+                <span>R$ ${formatMoney(i.subtotal)}</span>
               </div>
             `).join('')}
-          </div>
-        ` : '';
-
-        const summaryHtml = `
-          <div style="display: flex; justify-content: space-between; margin-top: 20px;">
-            <div>
-              ${pagamentosHtml}
+            <div class="divider"></div>
+            
+            <div class="row"><span>Subtotal:</span><span>R$ ${formatMoney(subtotal)}</span></div>
+            ${parseFloat(sale.desconto) > 0 ? `<div class="row"><span>Desconto:</span><span>R$ ${formatMoney(sale.desconto)}</span></div>` : ''}
+            
+            <div class="row bold" style="font-size: 12px; margin-top: 4px;">
+              <span>TOTAL:</span>
+              <span>R$ ${formatMoney(total)}</span>
             </div>
-            <div style="width: 250px;">
-              <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;">
-                <span>Subtotal:</span>
-                <span>R$ ${formatMoney(parseFloat(sale.valor_total) - (parseFloat(sale.frete) || 0) + (parseFloat(sale.desconto) || 0))}</span>
-              </div>
-              ${sale.desconto > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; color: #10b981;"><span>Desconto:</span><span>- R$ ${formatMoney(sale.desconto)}</span></div>` : ''}
-              ${sale.frete > 0 ? `<div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px;"><span>Frete:</span><span>+ R$ ${formatMoney(sale.frete)}</span></div>` : ''}
-              <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 900; border-top: 1px solid #e2e8f0; padding-top: 10px; margin-top: 10px;">
-                <span>TOTAL:</span>
-                <span>R$ ${formatMoney(sale.valor_total)}</span>
-              </div>
-            </div>
+            
+            <div class="divider"></div>
+            <div class="row bold" style="font-size: 11px;"><span>Pagamentos:</span></div>
+            ${sale.pagamentos && sale.pagamentos.length > 0 ? 
+              sale.pagamentos.map((p: any) => `
+                <div class="row" style="padding-left: 5px;">
+                  <span>- ${p.nome} ${p.parcelas > 1 ? `(${p.parcelas}x)` : ''}</span>
+                  <span class="bold">R$ ${formatMoney(p.valor)}</span>
+                </div>
+              `).join('')
+            : `
+              <div class="row"><span>-</span><span class="bold">A Receber</span></div>
+            `}
+            
+            <div class="divider"></div>
+            <div class="center" style="margin-top: 10px;">Agradecemos a preferência!</div>
           </div>
         `;
 
-        const footerHtml = `
-          <div style="margin-top: 50px; border-top: 1px dashed #cbd5e1; padding-top: 20px; text-align: center; font-size: 10px; color: #94a3b8;">
-            Documento sem valor fiscal.
-          </div>
-        `;
-
-        const finalHtml = `
-          <html>
-            <head>
-              <title>Pedido #${sale.sequencial_id || sale.id}</title>
-              <style>
-                body { font-family: sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
-                @media print {
-                  body { padding: 0; }
-                  @page { margin: 1cm; }
-                }
-              </style>
-            </head>
-            <body onload="window.print(); setTimeout(() => window.close(), 500);">
-              ${companyHeader}
-              ${detailsRows}
-              ${osInfo}
-              ${tableHtml}
-              ${summaryHtml}
-              ${footerHtml}
-            </body>
-          </html>
-        `;
-
-        const printWindow = window.open('', '_blank');
+        const printWindow = window.open('', '_blank', 'width=300,height=600');
         if (printWindow) {
-          printWindow.document.write(finalHtml);
+          printWindow.document.write(`<html><head><title>Recibo #${sale.sequencial_id || sale.id}</title></head><body onload="window.print(); setTimeout(() => window.close(), 500);">${content}</body></html>`);
           printWindow.document.close();
         }
       }
@@ -651,7 +579,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                                   >
                                     <button onClick={() => { setPrintModalSale(s); setOpenActionMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Printer className="w-4 h-4" /> Imprimir</button>
                                     {s.status === 'orcamento' && <button onClick={() => { handleEdit(s.sequencial_id); setOpenActionMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 flex items-center gap-2"><Edit2 className="w-4 h-4" /> Editar</button>}
-                                    {s.status === 'finalizada' && <button onClick={() => { setConfirmCancelId(s.id); setOpenActionMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-100 flex items-center gap-2 font-bold"><Ban className="w-4 h-4" /> Cancelar Pedido</button>}
+                                    {['aberta', 'orcamento', 'finalizada'].includes(s.status) && <button onClick={() => { setConfirmCancelId(s.id); setOpenActionMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-100 flex items-center gap-2 font-bold"><Ban className="w-4 h-4" /> Cancelar {mode === 'os' ? 'OS' : 'Pedido'}</button>}
                                   </motion.div>
                                 </>
                               )}
@@ -677,9 +605,30 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
             <h3 className="text-xl font-bold text-slate-900 mb-2">Recibo de Venda</h3>
             <p className="text-slate-500 mb-6 text-sm">Escolha como deseja emitir o recibo para <br/><strong>Pedido #${printModalSale.sequencial_id}</strong></p>
             <div className="grid grid-cols-1 gap-3">
-              <button onClick={() => handlePrintSale(printModalSale.id || printModalSale.sequencial_id, 'whatsapp')} className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all"><MessageCircle className="w-5 h-5" /> Enviar via WhatsApp</button>
-              <button onClick={() => handlePrintSale(printModalSale.id || printModalSale.sequencial_id, 'print')} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all"><Printer className="w-5 h-5" /> Imprimir PDF</button>
-              <button onClick={() => setPrintModalSale(null)} className="w-full py-3 text-slate-400 font-bold hover:text-slate-600">Cancelar</button>
+              <button 
+                onClick={() => { window.open('/print/venda/' + (printModalSale.id || printModalSale.sequencial_id) + '?t=' + token, '_blank') }}
+                className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-md"
+              >
+                <FileText className="w-5 h-5" /> Imprimir Pedido de Venda
+              </button>
+              <button 
+                onClick={() => handlePrintSale(printModalSale.id || printModalSale.sequencial_id, 'print')}
+                className="w-full py-3.5 bg-slate-800 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-slate-900 transition-all shadow-md"
+              >
+                <Printer className="w-5 h-5" /> Imprimir Recibo Não Fiscal
+              </button>
+              <button 
+                onClick={() => handlePrintSale(printModalSale.id || printModalSale.sequencial_id, 'whatsapp')}
+                className="w-full py-3.5 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-md"
+              >
+                <MessageCircle className="w-5 h-5" /> Enviar via WhatsApp
+              </button>
+              <button 
+                onClick={() => setPrintModalSale(null)} 
+                className="w-full py-3.5 text-slate-400 font-bold hover:text-slate-600 bg-slate-100 rounded-2xl mt-2"
+              >
+                Cancelar
+              </button>
             </div>
           </motion.div>
         </div>
@@ -696,12 +645,12 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="relative">
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Cliente</label>
-                  <input type="text" className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200" placeholder="Pesquisar cliente..." value={clientSearchTerm} onChange={e => { setClientSearchTerm(e.target.value); setShowClientDropdown(true); }} onFocus={() => setShowClientDropdown(true)} />
+                  <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" placeholder="Pesquisar cliente..." value={clientSearchTerm} onChange={e => { setClientSearchTerm(e.target.value); setShowClientDropdown(true); }} onFocus={() => setShowClientDropdown(true)} />
                   {showClientDropdown && (
-                    <div className="absolute z-30 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                      <div className="px-4 py-2 hover:bg-slate-50 cursor-pointer italic" onClick={() => { setNewSale({...newSale, pessoa_id: ''}); setClientSearchTerm('Consumidor Final'); setShowClientDropdown(false); }}>Consumidor Final</div>
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
+                      <div className="px-4 py-3 hover:bg-indigo-50 border-b border-slate-100 cursor-pointer italic text-slate-600" onClick={() => { setNewSale({...newSale, pessoa_id: ''}); setClientSearchTerm('Consumidor Final'); setShowClientDropdown(false); }}>Consumidor Final</div>
                       {pessoas.filter(p => (p.tipo_pessoa === 'cliente' || p.tipo_pessoa === 'ambos') && (p.nome || '').toLowerCase().includes(clientSearchTerm.toLowerCase())).map(p => (
-                        <div key={p.id} className="px-4 py-2 hover:bg-slate-50 cursor-pointer" onClick={() => { setNewSale({...newSale, pessoa_id: p.id}); setClientSearchTerm(p.razao_social || p.nome); setShowClientDropdown(false); }}>{p.razao_social || p.nome}</div>
+                        <div key={p.id} className="px-4 py-3 hover:bg-indigo-50 border-b border-slate-100 last:border-0 cursor-pointer font-medium text-slate-800" onClick={() => { setNewSale({...newSale, pessoa_id: p.id}); setClientSearchTerm(p.razao_social || p.nome); setShowClientDropdown(false); }}>{p.razao_social || p.nome}</div>
                       ))}
                     </div>
                   )}
@@ -722,17 +671,23 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
               )}
               <div className="border p-4 rounded-xl bg-slate-50">
                 <h3 className="font-bold mb-4">Itens</h3>
-                <div className="flex gap-2">
+                <div className="flex gap-2 relative">
                   <input type="text" className="flex-1 px-4 py-2 rounded-xl border" placeholder="Pesquisar item..." value={productSearchTerm} onChange={e => { setProductSearchTerm(e.target.value); setShowProductDropdown(e.target.value.length >= 3); }} />
                   {showProductDropdown && (
-                    <div className="absolute z-20 mt-10 bg-white border w-64 max-h-60 overflow-y-auto shadow-xl">
-                      {produtos.filter(p => p.nome.toLowerCase().includes(productSearchTerm.toLowerCase())).map(p => (
-                        <div key={p.id} className="p-2 hover:bg-slate-50 cursor-pointer" onClick={() => { setSelectedProduct(p.id.toString()); setProductSearchTerm(p.nome); setShowProductDropdown(false); }}>{p.nome} - R$ {formatMoney(p.preco_venda)}</div>
+                    <div className="absolute z-50 top-11 left-0 bg-white border border-slate-200 rounded-xl w-[calc(100%-130px)] max-h-60 overflow-y-auto shadow-2xl">
+                      {produtos.filter(p => (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase())).map(p => (
+                        <div key={p.id} className="p-3 hover:bg-indigo-50 border-b border-slate-100 last:border-0 cursor-pointer" onClick={() => { setSelectedProduct(p.id.toString()); setProductSearchTerm(p.nome); setShowProductDropdown(false); }}>
+                          <span className="font-bold text-slate-800">{p.nome}</span>
+                          <span className="block text-sm text-slate-500">R$ {formatMoney(p.preco_venda)}</span>
+                        </div>
                       ))}
+                      {produtos.filter(p => (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase())).length === 0 && (
+                        <div className="p-4 text-center text-slate-500 text-sm">Nenhum produto encontrado.</div>
+                      )}
                     </div>
                   )}
                   <input type="number" className="w-20 px-4 py-2 rounded-xl border" value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} />
-                  <button type="button" onClick={handleAddItem} className="bg-indigo-600 text-white px-4 py-2 rounded-xl">Add</button>
+                  <button type="button" onClick={handleAddItem} className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium">Add</button>
                 </div>
                 {newSale.items.map((item: any, idx: number) => (
                   <div key={idx} className="flex justify-between py-2 border-b">

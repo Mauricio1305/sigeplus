@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { 
-  Coffee, Plus, X, Search, CheckCircle, CreditCard, ShoppingCart, Minus, Printer, Users, MessageCircle, Trash2
+  Coffee, Plus, X, Search, CheckCircle, CreditCard, ShoppingCart, Minus, Printer, Users, MessageCircle, Trash2, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { validatePayment } from '../utils/paymentValidation';
@@ -536,7 +536,8 @@ export default function Mesas() {
     }
   };
 
-  const filteredProdutos = productSearchTerm.trim() === '' ? produtos : produtos.filter(p => 
+  const activeProducts = produtos.filter(p => p.tipo !== 'servico');
+  const filteredProdutos = productSearchTerm.trim() === '' ? activeProducts : activeProducts.filter(p => 
     p.nome.toLowerCase().includes(productSearchTerm.toLowerCase()) || 
     (p.codigo_barras && p.codigo_barras.includes(productSearchTerm))
   );
@@ -945,23 +946,29 @@ export default function Mesas() {
                 <p className="text-slate-500 font-medium">O que deseja fazer com o recibo?</p>
               </div>
 
-              <div className="p-8 space-y-4 pt-0">
+              <div className="p-4 space-y-3 pt-0">
                 <button 
-                  onClick={() => handlePrintFinalReceipt('whatsapp')}
-                  className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-100"
+                  onClick={() => { window.open('/print/venda/' + (finishedSaleData?.id || finishedSaleData?.sequencial_id) + '?t=' + token, '_blank') }}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-md"
                 >
-                  <MessageCircle className="w-6 h-6" /> Enviar por WhatsApp
+                  <FileText className="w-5 h-5" /> Imprimir Pedido de Venda
                 </button>
                 <button 
                   onClick={() => handlePrintFinalReceipt('print')}
-                  className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-4 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-lg shadow-slate-200"
+                  className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-3.5 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-md"
                 >
-                  <Printer className="w-6 h-6" /> Imprimir Cupom
+                  <Printer className="w-5 h-5" /> Imprimir Recibo Não Fiscal
+                </button>
+                <button 
+                  onClick={() => handlePrintFinalReceipt('whatsapp')}
+                  className="w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-bold py-3.5 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-md"
+                >
+                  <MessageCircle className="w-5 h-5" /> Enviar por WhatsApp
                 </button>
                 
                 <button 
                   onClick={() => setIsReceiptModalOpen(false)}
-                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold py-4 rounded-2xl transition-all"
+                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold py-3.5 rounded-2xl transition-all mt-2"
                 >
                   Fechar sem imprimir
                 </button>

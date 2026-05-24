@@ -28,6 +28,11 @@ export const ReportPrint = () => {
   const financeStatusFilter = searchParams.get('fStatus') || 'todos';
   const personFilter = searchParams.get('person') || 'todos';
   const stockStatusFilter = searchParams.get('stockStatus') || 'todos';
+  const stockGroupFilter = searchParams.get('stockGroup') || 'todos';
+  const stockTypeFilter = searchParams.get('stockType') || 'todos';
+  const stockSearchTerm = searchParams.get('stockSearch') || '';
+  const stockBrandFilter = searchParams.get('stockBrand') || '';
+  const peopleStatusFilter = searchParams.get('peopleStatus') || 'todos';
   const groupBy = searchParams.get('groupBy') || 'nenhum';
 
   useEffect(() => {
@@ -114,13 +119,46 @@ export const ReportPrint = () => {
       const estoque = p.estoque_atual || 0;
       const minimo = p.estoque_minimo || 0;
       
+      let matchesStatus = true;
       switch (stockStatusFilter) {
-        case 'minimo': return estoque > 0 && estoque <= minimo;
-        case 'regular': return estoque > minimo;
-        case 'negativo': return estoque < 0;
-        case 'zerado': return estoque === 0;
-        default: return true;
+        case 'minimo': matchesStatus = estoque > 0 && estoque <= minimo; break;
+        case 'regular': matchesStatus = estoque > minimo; break;
+        case 'negativo': matchesStatus = estoque < 0; break;
+        case 'zerado': matchesStatus = estoque === 0; break;
+        default: matchesStatus = true;
       }
+      
+      const matchesGroup = stockGroupFilter === "todos" || p.grupo_id?.toString() === stockGroupFilter;
+      const matchesType = stockTypeFilter === "todos" || p.tipo === stockTypeFilter;
+      const matchesBrand = !stockBrandFilter || p.marca?.toLowerCase().includes(stockBrandFilter.toLowerCase());
+      
+      let matchesSearchTerm = true;
+      if (stockSearchTerm) {
+        const lowerTerm = stockSearchTerm.toLowerCase();
+        matchesSearchTerm = (p.nome && p.nome.toLowerCase().includes(lowerTerm)) || 
+                            (p.codigo_barras && p.codigo_barras.toLowerCase().includes(lowerTerm));
+      }
+
+      return matchesStatus && matchesGroup && matchesType && matchesBrand && matchesSearchTerm;
+    });
+  } else if (type === 'people') {
+    filteredData = data.filter(p => {
+      if (peopleStatusFilter === 'aniversariantes') {
+        if (!p.data_aniversario) return false;
+        const dateStr = p.data_aniversario.includes('T') ? p.data_aniversario : p.data_aniversario + 'T12:00:00';
+        const bday = new Date(dateStr);
+        if (isNaN(bday.getTime())) return false;
+        
+        const sDate = startDate ? new Date(startDate + 'T00:00:00') : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const eDate = endDate ? new Date(endDate + 'T23:59:59') : new Date();
+        
+        // Translated birthday to the current year
+        const currentYear = sDate.getFullYear();
+        const bdayThisYear = new Date(currentYear, bday.getMonth(), bday.getDate(), 12, 0, 0);
+        
+        return bdayThisYear >= sDate && bdayThisYear <= eDate;
+      }
+      return true;
     });
   }
 
@@ -138,22 +176,12 @@ export const ReportPrint = () => {
     <div className="bg-white min-h-screen p-8 text-slate-900 font-sans">
       <div className="max-w-4xl mx-auto border border-slate-200 p-8 rounded-lg shadow-sm print:shadow-none print:border-none print:p-0">
         <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6 mb-6">
-          <div className="flex-1">
-            <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{company?.nome_fantasia || user?.nome}</h2>
-            {company?.razao_social && <p className="text-sm font-bold text-slate-700">{company.razao_social}</p>}
-            <div className="mt-2 text-xs text-slate-500 space-y-0.5">
-              {company?.cnpj && <p><span className="font-bold text-slate-700">CNPJ/CPF:</span> {company.cnpj}</p>}
-              {(company?.telefone_fixo || company?.telefone_celular) && (
-                <p>
-                  <span className="font-bold text-slate-700">Fone:</span> {company.telefone_fixo} {company.telefone_fixo && company.telefone_celular ? ' / ' : ''} {company.telefone_celular}
-                </p>
-              )}
-              {company?.email && <p><span className="font-bold text-slate-700">E-mail:</span> {company.email}</p>}
-              {company?.endereco && (
-                <p>
-                  <span className="font-bold text-slate-700">Endereço:</span> {company.endereco}, {company.numero} - {company.cidade}/{company.estado} - CEP: {company.cep}
-                </p>
-              )}
+          <div className="flex-1 flex items-start gap-4">
+            {company?.logo && (
+              <img src={company.logo} alt="Logo" className="h-16 object-contain" />
+            )}
+            <div>
+              <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{company?.nome_fantasia || user?.nome}</h2>
             </div>
           </div>
           <div className="text-right shrink-0">
@@ -243,7 +271,9 @@ export const ReportPrint = () => {
                   <td colSpan={2} className="py-4 text-right space-y-1">
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500">Total de Itens:</span>
-                      <span className="text-slate-900">{filteredData.reduce((sum, p) => sum + (p.estoque_atual || 0), 0)}</span>
+                      <span className="text-slate-900">
+                        {filteredData.reduce((sum, p) => sum + (parseFloat(p.estoque_atual) || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+                      </span>
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-slate-500">Total Valor Custo:</span>
@@ -365,15 +395,19 @@ export const ReportPrint = () => {
                   <th className="py-2 font-bold text-slate-900">Tipo</th>
                   <th className="py-2 font-bold text-slate-900">CPF/CNPJ</th>
                   <th className="py-2 font-bold text-slate-900">Contato</th>
+                  <th className="py-2 font-bold text-slate-900 text-right">Aniversário</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {data.map(p => (
+                {filteredData.map(p => (
                   <tr key={`people-${p.id}`}>
                     <td className="py-2 text-slate-700 font-medium">{p.razao_social || p.nome}</td>
                     <td className="py-2 text-slate-700 capitalize">{p.tipo_pessoa}</td>
                     <td className="py-2 text-slate-700 font-mono text-xs">{p.cpf_cnpj}</td>
                     <td className="py-2 text-slate-700">{p.telefone_celular || p.telefone}</td>
+                    <td className="py-2 text-slate-700 text-right">
+                      {p.data_aniversario ? new Date(p.data_aniversario.includes('T') ? p.data_aniversario : p.data_aniversario + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '-'}
+                    </td>
                   </tr>
                 ))}
               </tbody>

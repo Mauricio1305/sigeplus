@@ -1,0 +1,85 @@
+525:app.use(helmet({
+529:app.use(cors());
+546:app.use("/api/", globalLimiter);
+547:app.use("/api/auth/", authLimiter);
+550:app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async (req, res) => {
+668:app.use(express.json({ limit: '50mb' }));
+669:app.use(express.urlencoded({ limit: '50mb', extended: true }));
+806:app.post("/api/auth/register", async (req, res) => {
+899:app.get("/api/plans", async (req, res) => {
+904:app.post("/api/auth/login", async (req, res) => {
+977:app.get("/api/auth/me", authMiddleware, async (req: any, res) => {
+1014:app.post("/api/auth/forgot-password", async (req, res) => {
+1046:app.post("/api/auth/reset-password", async (req, res) => {
+1069:app.put("/api/auth/profile", authMiddleware, async (req: any, res) => {
+1099:app.post("/api/stripe/create-checkout-session", authMiddleware, async (req: any, res) => {
+1152:app.post("/api/stripe/create-portal-session", authMiddleware, async (req: any, res) => {
+1176:app.post("/api/stripe/verify-session", authMiddleware, async (req: any, res) => {
+1218:app.get("/api/dashboard/stats", authMiddleware, planMiddleware('dashboard'), async (req: any, res) => {
+1279:app.get("/api/dashboard/chart-data", authMiddleware, planMiddleware('dashboard'), async (req: any, res) => {
+1332:app.get("/api/dashboard/top-products", authMiddleware, planMiddleware('dashboard'), async (req: any, res) => {
+1372:app.get("/api/products", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
+1382:app.post("/api/products", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
+1396:app.put("/api/products/:id", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
+1420:app.get("/api/pessoas", authMiddleware, planMiddleware('cadastros'), async (req: any, res) => {
+1425:app.post("/api/pessoas", authMiddleware, async (req: any, res) => {
+1444:app.put("/api/pessoas/:id", authMiddleware, async (req: any, res) => {
+1466:app.get("/api/clients", authMiddleware, async (req: any, res) => {
+1472:app.post("/api/sales", authMiddleware, planMiddleware('vendas'), async (req: any, res) => {
+1616:app.post("/api/sales/:id/cancel", authMiddleware, async (req: any, res) => {
+1665:app.get("/api/sales/:id", authMiddleware, async (req: any, res) => {
+1716:app.put("/api/sales/:id", authMiddleware, async (req: any, res) => {
+1862:app.get("/api/settings/groups", authMiddleware, async (req: any, res) => {
+1872:app.post("/api/settings/groups", authMiddleware, async (req: any, res) => {
+1886:app.put("/api/settings/groups/:id", authMiddleware, async (req: any, res) => {
+1906:app.delete("/api/settings/groups/:id", authMiddleware, async (req: any, res) => {
+1925:app.get("/api/settings/users", authMiddleware, planMiddleware('configuracoes'), async (req: any, res) => {
+1940:app.post("/api/settings/users", authMiddleware, async (req: any, res) => {
+1989:app.put("/api/settings/users/:id", authMiddleware, async (req: any, res) => {
+2010:app.get("/api/company/settings", authMiddleware, planMiddleware('configuracoes'), async (req: any, res) => {
+2026:app.put("/api/company/settings", authMiddleware, async (req: any, res) => {
+2056:app.get("/api/inventory/groups", authMiddleware, async (req: any, res) => {
+2066:app.post("/api/inventory/groups", authMiddleware, async (req: any, res) => {
+2077:app.put("/api/inventory/groups/:id", authMiddleware, async (req: any, res) => {
+2089:app.delete("/api/inventory/groups/:id", authMiddleware, async (req: any, res) => {
+2100:app.get("/api/inventory/layouts", authMiddleware, async (req: any, res) => {
+2110:app.post("/api/inventory/layouts", authMiddleware, async (req: any, res) => {
+2124:app.put("/api/inventory/layouts/:id", authMiddleware, async (req: any, res) => {
+2139:app.delete("/api/inventory/layouts/:id", authMiddleware, async (req: any, res) => {
+2152:app.get("/api/admin/companies", authMiddleware, async (req: any, res) => {
+2162:app.get("/api/admin/companies/:id/stripe-status", authMiddleware, async (req: any, res) => {
+2252:app.put("/api/admin/companies/:id", authMiddleware, async (req: any, res) => {
+2268:app.post("/api/admin/plans", authMiddleware, async (req: any, res) => {
+2285:app.put("/api/admin/plans/:id", authMiddleware, async (req: any, res) => {
+2300:app.delete("/api/admin/plans/:id", authMiddleware, async (req: any, res) => {
+2331:app.get("/api/finance/receivable", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
+2342:app.get("/api/finance/movements/banco", authMiddleware, async (req: any, res) => {
+2355:app.get("/api/finance/movements/cartao", authMiddleware, async (req: any, res) => {
+2368:app.get("/api/finance/payable", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
+2380:app.get("/api/sales", authMiddleware, planMiddleware('vendas'), async (req: any, res) => {
+2400:app.get("/api/finance/sales-movements", authMiddleware, async (req: any, res) => {
+2430:app.get("/api/finance/dre", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
+2563:app.get("/api/finance/accounts", authMiddleware, async (req: any, res) => {
+2622:app.get("/api/finance/payment-types", authMiddleware, async (req: any, res) => {
+2627:app.post("/api/finance/payment-types", authMiddleware, async (req: any, res) => {
+2646:app.put("/api/finance/payment-types/:id", authMiddleware, async (req: any, res) => {
+2668:app.get("/api/finance/categories", authMiddleware, async (req: any, res) => {
+2703:app.post("/api/finance/categories", authMiddleware, async (req: any, res) => {
+2712:app.put("/api/finance/categories/:id", authMiddleware, async (req: any, res) => {
+2723:app.post("/api/finance/receivable/:id/pay", authMiddleware, async (req: any, res) => {
+2779:app.post("/api/finance/payable/:id/pay", authMiddleware, async (req: any, res) => {
+2834:app.post("/api/finance/movements/:table/:id/cancel", authMiddleware, async (req: any, res) => {
+2853:app.post("/api/finance/movements/:table/:id/estorno", authMiddleware, async (req: any, res) => {
+2914:app.get("/api/finance/cashier/current", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
+2919:app.post("/api/finance/cashier/open", authMiddleware, async (req: any, res) => {
+2933:app.post("/api/finance/cashier/close", authMiddleware, async (req: any, res) => {
+2948:app.post("/api/finance/cashier/manual-entry", authMiddleware, async (req: any, res) => {
+2968:app.get("/api/finance/cashier/:id/report", authMiddleware, async (req: any, res) => {
+2980:app.post("/api/finance/receivable", authMiddleware, async (req: any, res) => {
+2992:app.post("/api/finance/payable", authMiddleware, async (req: any, res) => {
+3013:      app.use(vite.middlewares);
+3016:      app.use("*", async (req, res, next) => {
+3035:      app.use(express.static(distPath));
+3036:      app.get("*", (req, res) => {
+3041:      app.use(express.static(process.cwd()));
+3042:      app.get("*", (req, res) => {
