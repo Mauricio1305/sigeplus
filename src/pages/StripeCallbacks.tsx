@@ -28,7 +28,7 @@ export const StripeSuccess = () => {
               method: 'POST',
               headers: { 
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` 
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
               },
               body: JSON.stringify({ sessionId })
             });
@@ -36,17 +36,30 @@ export const StripeSuccess = () => {
             if (verifyRes.ok) {
               const verifyData = await verifyRes.json();
               if (verifyData.success) {
-                const meRes = await fetch('/api/auth/me', {
-                  headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (meRes.ok) {
-                  const meData = await meRes.json();
-                  if (meData.user.status_assinatura === 'ativo') {
-                    useAuthStore.getState().setAuth(meData.user, token);
-                    setStatus('Pagamento confirmado! Redirecionando...');
-                    setTimeout(() => navigate('/dashboard', { replace: true }), 2000);
-                    return;
+                if (verifyData.token && verifyData.user) {
+                  // The backend returned a token for us to auto-login!
+                  useAuthStore.getState().setAuth(verifyData.user, verifyData.token);
+                  setStatus('Pagamento confirmado! Redirecionando...');
+                  setTimeout(() => navigate('/dashboard', { replace: true }), 2000);
+                  return;
+                } else if (token) {
+                  const meRes = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  if (meRes.ok) {
+                    const meData = await meRes.json();
+                    if (meData.user.status_assinatura === 'ativo') {
+                      useAuthStore.getState().setAuth(meData.user, token);
+                      setStatus('Pagamento confirmado! Redirecionando...');
+                      setTimeout(() => navigate('/dashboard', { replace: true }), 2000);
+                      return;
+                    }
                   }
+                } else {
+                  // Unauthenticated user -> just go to login
+                  setStatus('Pagamento confirmado! Por favor, faça o login.');
+                  setTimeout(() => navigate('/login', { replace: true }), 3000);
+                  return;
                 }
               }
             }

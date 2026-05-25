@@ -448,22 +448,7 @@ async function initDB() {
       `);
 
       // Seed Plans if not exists
-      const [existingPlans] = await pool.query("SELECT COUNT(*) as count FROM planos") as any[];
-      if (existingPlans[0].count === 0) {
-        const defaultModules = JSON.stringify(['financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes']);
-        const startModules = JSON.stringify(['financeiro', 'vendas', 'pdv', 'cadastros']); // Restricted
-        
-        const plansToSeed = [
-          ['Bronze', 49.90, 3, startModules, 'price_1T9qwJD69xPL9EMAIzuI14xh'],
-          ['Prata', 99.90, 10, defaultModules, 'price_1T9qwJD69xPL9EMAIzuI14xi'],
-          ['Ouro', 199.90, 9999, defaultModules, 'price_1T9qwJD69xPL9EMAIzuI14xj'],
-          ['System', 0.00, 9999, defaultModules, 'price_system']
-        ];
-        for (const plan of plansToSeed) {
-          await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, modulos, stripe_price_id) VALUES (?, ?, ?, ?, ?)", plan);
-        }
-        console.log("Seeded initial plans.");
-      }
+      // Removed automatic plan creation as per user request
 
       // Ensure "Grupo Padrão" exists for all tenants
       const [tenantsQuery] = await pool.query("SELECT DISTINCT tenant_id FROM empresas") as any[];
@@ -493,7 +478,7 @@ async function initDB() {
 
     const [existingSystemCompany] = await pool.query("SELECT * FROM empresas WHERE tenant_id = 'system'") as any[];
     if ((existingSystemCompany as any[]).length === 0) {
-      await pool.query("INSERT INTO empresas (tenant_id, nome_fantasia, email, plano_id) VALUES (?, ?, ?, ?)", ['system', 'Sige Plus', 'admin@saas.com', 4]);
+      await pool.query("INSERT INTO empresas (tenant_id, nome_fantasia, email, plano_id) VALUES (?, ?, ?, NULL)", ['system', 'Sige Plus', 'admin@saas.com']);
     }
 
     const [existingAdmin] = await pool.query("SELECT * FROM usuarios WHERE email = 'admin@saas.com'") as any[];
@@ -566,6 +551,28 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
 
   // Handle the event
   try {
+    const payloadStr = JSON.stringify(event);
+    let tenant_id = null;
+    
+    const obj = event.data.object as any;
+    if (obj.client_reference_id) {
+       tenant_id = obj.client_reference_id;
+    } else if (obj.customer) {
+       const [companies] = await pool.query("SELECT tenant_id FROM empresas WHERE stripe_customer_id = ?", [obj.customer]) as any[];
+       if (companies.length > 0) {
+         tenant_id = companies[0].tenant_id;
+       }
+    }
+
+    try {
+      await pool.query(
+        "INSERT INTO stripe_logs (tenant_id, event_type, payload) VALUES (?, ?, ?)",
+        [tenant_id, event.type, payloadStr]
+      );
+    } catch(e: any) {
+      console.error("Error inserting stripe log:", e.message);
+    }
+
     const stripe = getStripe();
     switch (event.type) {
       case 'checkout.session.completed': {
@@ -594,7 +601,14 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
               console.warn(`Webhook: Price ID "${priceId}" not found in database. Defaulting to plan 1.`);
             }
 
-            const vencimento = new Date(subscription.current_period_end * 1000);
+            let vencimento = new Date();
+            if (subscription.current_period_end) {
+              vencimento = new Date(subscription.current_period_end * 1000);
+            }
+            if (isNaN(vencimento.getTime())) {
+              vencimento = new Date();
+              vencimento.setDate(vencimento.getDate() + 30);
+            }
 
             await pool.query(
               "UPDATE empresas SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_price_id = ?, plano_id = ?, status_assinatura = 'ativo', vencimento_assinatura = ? WHERE tenant_id = ?",
@@ -615,7 +629,14 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
           if (invoice.subscription) {
             const subscriptionId = invoice.subscription as string;
             const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
-            const vencimento = new Date(subscription.current_period_end * 1000);
+            let vencimento = new Date();
+            if (subscription.current_period_end) {
+               vencimento = new Date(subscription.current_period_end * 1000);
+            }
+            if (isNaN(vencimento.getTime())) {
+               vencimento = new Date();
+               vencimento.setDate(vencimento.getDate() + 30);
+            }
             
             await pool.query(
               "UPDATE empresas SET status_assinatura = 'ativo', vencimento_assinatura = ? WHERE stripe_subscription_id = ?",
@@ -638,7 +659,14 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
             status = 'Cancelamento Solicitado';
           }
 
-          const vencimento = new Date(subscription.current_period_end * 1000);
+          let vencimento = new Date();
+          if (subscription.current_period_end) {
+             vencimento = new Date(subscription.current_period_end * 1000);
+          }
+          if (isNaN(vencimento.getTime())) {
+             vencimento = new Date();
+             vencimento.setDate(vencimento.getDate() + 30);
+          }
 
           if (subscription.status === 'canceled') {
             await pool.query(
@@ -687,6 +715,9 @@ const planMiddleware = (module: string) => {
       // Superadmins bypass all restrictions
       if (req.user.perfil === 'superadmin') return next();
 
+      // SYSTEM tenant always has access to everything
+      if (req.user.tenant_id === 'system') return next();
+
       // Dynamic module resolution based on type (for shared routes like sales)
       let currentModule = module;
       if (module === 'vendas' && req.body && req.body.tipo) {
@@ -701,7 +732,7 @@ const planMiddleware = (module: string) => {
       const [companies] = await pool.query(`
         SELECT p.modulos 
         FROM empresas e 
-        JOIN planos p ON e.plano_id = p.id 
+        LEFT JOIN planos p ON e.plano_id = p.id 
         WHERE e.tenant_id = ?
       `, [tenant_id]) as any[];
       
@@ -1121,6 +1152,18 @@ app.post("/api/stripe/create-checkout-session", authMiddleware, async (req: any,
     
     let customerId = company?.stripe_customer_id;
     
+    if (customerId) {
+      try {
+        await stripe.customers.retrieve(customerId);
+      } catch (err: any) {
+        if (err.type === 'StripeInvalidRequestError' && err.message.includes('No such customer')) {
+          customerId = null;
+        } else {
+          throw err;
+        }
+      }
+    }
+    
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: userEmail,
@@ -1135,14 +1178,17 @@ app.post("/api/stripe/create-checkout-session", authMiddleware, async (req: any,
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: `${process.env.APP_URL || 'http://localhost:3000'}/stripe-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.APP_URL || 'http://localhost:3000'}/settings?canceled=true`,
+      success_url: `${process.env.APP_URL || 'http://localhost:3000'}/stripe/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.APP_URL || 'http://localhost:3000'}/subscription?canceled=true`,
       client_reference_id: tenant_id,
     });
 
     console.log(`Stripe Checkout Session created for tenant ${tenant_id}: ${session.url}`);
     res.json({ url: session.url });
   } catch (err: any) {
+    if (err.type === 'StripeInvalidRequestError' && err.message.includes('No such price')) {
+      return res.status(400).json({ error: "O plano selecionado não existe no Stripe. Verifique as configurações de preço no painel administrativo." });
+    }
     console.error("Stripe Checkout Error:", err);
     res.status(500).json({ error: err.message });
   }
@@ -1160,21 +1206,28 @@ app.post("/api/stripe/create-portal-session", authMiddleware, async (req: any, r
       return res.status(400).json({ error: "Nenhum cliente Stripe encontrado para esta empresa." });
     }
 
-    const session = await stripe.billingPortal.sessions.create({
-      customer: company.stripe_customer_id,
-      return_url: `${process.env.APP_URL || 'http://localhost:3000'}/stripe-portal-return`,
-    });
+    try {
+      const session = await stripe.billingPortal.sessions.create({
+        customer: company.stripe_customer_id,
+        return_url: `${process.env.APP_URL || 'http://localhost:3000'}/stripe-portal-return`,
+      });
 
-    res.json({ url: session.url });
+      res.json({ url: session.url });
+    } catch (err: any) {
+      if (err.type === 'StripeInvalidRequestError' && err.message.includes('No such customer')) {
+        await pool.query("UPDATE empresas SET stripe_customer_id = NULL, stripe_subscription_id = NULL, status_assinatura = 'cancelado' WHERE tenant_id = ?", [tenant_id]);
+        return res.status(400).json({ error: "Cliente não encontrado no Stripe. A assinatura foi cancelada localmente." });
+      }
+      throw err;
+    }
   } catch (err: any) {
     console.error("Stripe Portal Error:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/api/stripe/verify-session", authMiddleware, async (req: any, res) => {
+app.post("/api/stripe/verify-session", async (req: any, res) => {
   const { sessionId } = req.body;
-  const { tenant_id } = req.user;
 
   try {
     const stripe = getStripe();
@@ -1184,8 +1237,48 @@ app.post("/api/stripe/verify-session", authMiddleware, async (req: any, res) => 
       const customerId = session.customer as string;
       const subscriptionId = session.subscription as string;
       
-      const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
-      const priceId = subscription.items.data[0].price.id;
+      let tenant_id = session.client_reference_id;
+
+      if (!tenant_id && session.customer_details?.email) {
+        const [users] = await pool.query("SELECT tenant_id FROM usuarios WHERE email = ?", [session.customer_details.email]) as any[];
+        if (users.length > 0) {
+          tenant_id = users[0].tenant_id;
+        }
+      }
+
+      if (!tenant_id && customerId) {
+        const [empresas] = await pool.query("SELECT tenant_id FROM empresas WHERE stripe_customer_id = ?", [customerId]) as any[];
+        if (empresas.length > 0) {
+          tenant_id = empresas[0].tenant_id;
+        }
+      }
+
+      if (!tenant_id) {
+        // Fallback: Check if there's an authenticated user via optional auth header
+        const authHeader = req.headers.authorization;
+        if (authHeader) {
+           try {
+             const token = authHeader.split(' ')[1];
+             const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any;
+             tenant_id = decoded.tenant_id;
+           } catch(e) {}
+        }
+      }
+
+      let priceId: string;
+      let vencimento = new Date();
+      vencimento.setDate(vencimento.getDate() + 30); // fallback of 30 days
+      
+      if (subscriptionId) {
+        const subscription = await stripe.subscriptions.retrieve(subscriptionId) as any;
+        priceId = subscription.items.data[0].price.id;
+        if (subscription.current_period_end) {
+          vencimento = new Date(subscription.current_period_end * 1000);
+        }
+      } else {
+        const lineItems = await stripe.checkout.sessions.listLineItems(sessionId);
+        priceId = lineItems.data[0]?.price?.id || '';
+      }
 
       // Map price ID to plan ID from database
       const [plans] = await pool.query("SELECT id FROM planos WHERE stripe_price_id = ?", [priceId]) as any[];
@@ -1195,16 +1288,63 @@ app.post("/api/stripe/verify-session", authMiddleware, async (req: any, res) => 
         console.warn(`Verify Session: Price ID "${priceId}" not found in database. Defaulting to plan 1.`);
       }
 
-      const vencimento = new Date(subscription.current_period_end * 1000);
+      let tokenToReturn = null;
+      let userObj = null;
 
-      await pool.query(
-        "UPDATE empresas SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_price_id = ?, plano_id = ?, status_assinatura = 'ativo', vencimento_assinatura = ? WHERE tenant_id = ?",
-        [customerId, subscriptionId, priceId, plano_id, vencimento, tenant_id]
-      );
-      
-      console.log(`Verify Session: Updated company ${tenant_id} to plan ${plano_id} with expiry ${vencimento}`);
+      if (!tenant_id && session.customer_details?.email) {
+        // Auto create tenant and user if not found
+        const email = session.customer_details.email;
+        const nome = session.customer_details.name || email.split('@')[0];
+        tenant_id = `t_${Date.now()}`;
+        
+        await pool.query(
+          "INSERT INTO empresas (tenant_id, nome_fantasia, razao_social, email, status_assinatura) VALUES (?, ?, ?, ?, 'ativo')",
+          [tenant_id, nome, nome, email]
+        );
 
-      res.json({ success: true, message: "Assinatura verificada e ativada!" });
+        const salt = bcrypt.genSaltSync(10);
+        const hashed = bcrypt.hashSync('mudar@123', salt);
+        
+        // We do insert
+        await pool.query(
+          "INSERT INTO usuarios (tenant_id, nome, email, senha, perfil) VALUES (?, ?, ?, ?, 'admin')",
+          [tenant_id, nome, email, hashed]
+        );
+      }
+
+      if (tenant_id) {
+        // format the date explicitly for pg so that we do not send invalid Date strings.
+        // Even if vencimento is invalid we fall back to a valid date
+        if (isNaN(vencimento.getTime())) {
+             vencimento = new Date();
+             vencimento.setDate(vencimento.getDate() + 30);
+        }
+
+        await pool.query(
+          "UPDATE empresas SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_price_id = ?, plano_id = ?, status_assinatura = 'ativo', vencimento_assinatura = ? WHERE tenant_id = ?",
+          [customerId, subscriptionId, priceId, plano_id, vencimento, tenant_id]
+        );
+        
+        console.log(`Verify Session: Updated company ${tenant_id} to plan ${plano_id} with expiry ${vencimento}`);
+
+        // Try to autologin if no token passed
+        if (!req.headers.authorization) {
+          const [adminUsers] = await pool.query("SELECT id, email, nome, perfil, tenant_id, avatar, grupo_id FROM usuarios WHERE tenant_id = ? ORDER BY id ASC LIMIT 1", [tenant_id]) as any[];
+          if (adminUsers.length > 0) {
+            const au = adminUsers[0];
+            tokenToReturn = jwt.sign(
+              { id: au.id, email: au.email, tenant_id: au.tenant_id, perfil: au.perfil },
+              process.env.JWT_SECRET || "secret",
+              { expiresIn: "24h" }
+            );
+            userObj = { ...au, status_assinatura: 'ativo', plano_id };
+          }
+        }
+
+        res.json({ success: true, message: "Assinatura verificada e ativada!", token: tokenToReturn, user: userObj });
+      } else {
+        res.status(400).json({ error: "Não foi possível vincular o pagamento à sua conta. Entre em contato com o suporte." });
+      }
     } else {
       res.status(400).json({ error: "Pagamento ainda não confirmado." });
     }
@@ -2177,27 +2317,34 @@ app.get("/api/admin/companies/:id/stripe-status", authMiddleware, async (req: an
     const stripe = getStripe();
     let subscription;
 
-    if (company.stripe_customer_id && company.stripe_customer_id !== 'null') {
-      // First, try to get the latest ACTIVE subscription
-      const activeSubs = await stripe.subscriptions.list({
-        customer: company.stripe_customer_id,
-        limit: 1,
-        status: 'active'
-      });
-      
-      if (activeSubs.data.length > 0) {
-        subscription = activeSubs.data[0];
-      } else {
-        // Fallback to any subscription if no active ones exist
-        const allSubs = await stripe.subscriptions.list({
+    try {
+      if (company.stripe_customer_id && company.stripe_customer_id !== 'null') {
+        // First, try to get the latest ACTIVE subscription
+        const activeSubs = await stripe.subscriptions.list({
           customer: company.stripe_customer_id,
           limit: 1,
-          status: 'all'
+          status: 'active'
         });
-        subscription = allSubs.data[0];
+        
+        if (activeSubs.data.length > 0) {
+          subscription = activeSubs.data[0];
+        } else {
+          // Fallback to any subscription if no active ones exist
+          const allSubs = await stripe.subscriptions.list({
+            customer: company.stripe_customer_id,
+            limit: 1,
+            status: 'all'
+          });
+          subscription = allSubs.data[0];
+        }
+      } else if (company.stripe_subscription_id && company.stripe_subscription_id !== 'null') {
+        subscription = await stripe.subscriptions.retrieve(company.stripe_subscription_id);
       }
-    } else if (company.stripe_subscription_id && company.stripe_subscription_id !== 'null') {
-      subscription = await stripe.subscriptions.retrieve(company.stripe_subscription_id);
+    } catch (err: any) {
+      if (err.type === 'StripeInvalidRequestError' && (err.message.includes('No such customer') || err.message.includes('No such subscription'))) {
+         return res.status(404).json({ error: "Cliente ou assinatura não encontrado no Stripe." });
+      }
+      throw err;
     }
 
     if (!subscription) {

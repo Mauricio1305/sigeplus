@@ -91,7 +91,14 @@ export const Login = () => {
           if (from) {
             navigate(from.pathname + from.search, { replace: true });
           } else {
-            const isExpired = data.user.status_assinatura !== 'ativo' || (data.user.vencimento_assinatura && new Date(data.user.vencimento_assinatura) < new Date());
+            let daysSinceExpiration = -1;
+            if (data.user.vencimento_assinatura) {
+              const expirationDate = new Date(data.user.vencimento_assinatura);
+              const today = new Date();
+              daysSinceExpiration = Math.floor((today.getTime() - expirationDate.getTime()) / (1000 * 60 * 60 * 24));
+            }
+            
+            const isExpired = data.user.status_assinatura === 'cancelado' || daysSinceExpiration > 10;
             
             if (data.user.perfil === 'superadmin') {
               navigate('/admin');

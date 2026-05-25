@@ -266,12 +266,6 @@ CREATE TABLE IF NOT EXISTS movimentacoes_cartao (
     FOREIGN KEY (categoria_id) REFERENCES categorias_contas(id) ON DELETE RESTRICT
 );
 
--- Seed Initial Plans
-INSERT INTO planos (id, nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (1, 'Start', 49.90, 1, 'price_1T9qwJD69xPL9EMAIzuI14xh') ON CONFLICT DO NOTHING;
-INSERT INTO planos (id, nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (2, 'Basic', 69.90, 2, 'price_1T9qwJD69xPL9EMAIzuI14xh') ON CONFLICT DO NOTHING;
-INSERT INTO planos (id, nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (3, 'Essential', 99.90, 5, 'price_1T9qwJD69xPL9EMAIzuI14xh') ON CONFLICT DO NOTHING;
-INSERT INTO planos (id, nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (4, 'Enterprise', 149.90, 9999, 'price_1T9qwJD69xPL9EMAIzuI14xh') ON CONFLICT DO NOTHING;
-
 CREATE TABLE IF NOT EXISTS recuperacao_senha (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
@@ -319,3 +313,12 @@ CREATE INDEX IF NOT EXISTS idx_movimentacoes_banco_tenant_id ON movimentacoes_ba
 CREATE INDEX IF NOT EXISTS idx_movimentacoes_cartao_tenant_id ON movimentacoes_cartao (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_recuperacao_senha_email ON recuperacao_senha (email);
 CREATE INDEX IF NOT EXISTS idx_recuperacao_senha_codigo ON recuperacao_senha (codigo);
+
+CREATE TABLE IF NOT EXISTS stripe_logs (
+    id SERIAL PRIMARY KEY,
+    tenant_id VARCHAR(255),
+    event_type VARCHAR(255) NOT NULL,
+    payload JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_stripe_logs_tenant_id ON stripe_logs (tenant_id);

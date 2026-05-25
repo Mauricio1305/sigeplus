@@ -298,12 +298,6 @@ CREATE TABLE IF NOT EXISTS movimentacoes_cartao (
     INDEX idx_movimentacoes_cartao_tenant_id (tenant_id)
 );
 
--- Seed Initial Plans
-INSERT IGNORE INTO planos (id, nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (1, 'Start', 49.90, 1, 'price_1T9qwJD69xPL9EMAIzuI14xh');
-INSERT IGNORE INTO planos (id, nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (2, 'Basic', 69.90, 2, 'price_1T9qwJD69xPL9EMAIzuI14xh');
-INSERT IGNORE INTO planos (id, nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (3, 'Essential', 99.90, 5, 'price_1T9qwJD69xPL9EMAIzuI14xh');
-INSERT IGNORE INTO planos (id, nome, valor_mensal, limite_usuarios, stripe_price_id) VALUES (4, 'Enterprise', 149.90, 9999, 'price_1T9qwJD69xPL9EMAIzuI14xh');
-
 CREATE TABLE IF NOT EXISTS recuperacao_senha (
     id INTEGER PRIMARY KEY AUTO_INCREMENT,
     email VARCHAR(255) NOT NULL,
@@ -317,3 +311,12 @@ CREATE TABLE IF NOT EXISTS recuperacao_senha (
 
 -- Migrations
 -- Handled in server.ts initDB()
+
+CREATE TABLE IF NOT EXISTS stripe_logs (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    tenant_id VARCHAR(255),
+    event_type VARCHAR(255) NOT NULL,
+    payload JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stripe_logs_tenant_id (tenant_id)
+);

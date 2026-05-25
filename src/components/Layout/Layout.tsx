@@ -27,37 +27,44 @@ const SubscriptionWarning = () => {
   const navigate = useNavigate();
   if (!user || user.perfil === 'superadmin') return null;
 
-  const isExpired = user.status_assinatura !== 'ativo' || (user.vencimento_assinatura && new Date(user.vencimento_assinatura) < new Date());
-  const isGraceValue = 7; // days
-  const daysRemaining = user.vencimento_assinatura ? Math.ceil((new Date(user.vencimento_assinatura).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
+  let daysSinceExpiration = -1;
+  if (user.vencimento_assinatura) {
+    const expirationDate = new Date(user.vencimento_assinatura);
+    const today = new Date();
+    daysSinceExpiration = Math.floor((today.getTime() - expirationDate.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  // Se a conta já tiver sido cancelada explicitamente, mostramos um aviso
+  const isCanceled = user.status_assinatura === 'cancelado';
   
-  if (!isExpired && daysRemaining > isGraceValue) return null;
+  // Condição para mostrar aviso: Mais de 5 dias após o vencimento, OU cancelado explícito.
+  if (daysSinceExpiration <= 5 && !isCanceled) return null;
 
   return (
     <div className={`fixed bottom-4 right-4 z-[9999] max-w-sm w-full transition-all duration-500 animate-in slide-in-from-bottom-10`}>
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className={`p-6 rounded-3xl shadow-2xl border ${isExpired ? 'bg-rose-600 border-rose-500 shadow-rose-200' : 'bg-amber-500 border-amber-400 shadow-amber-200'} text-white`}
+        className={`p-6 rounded-3xl shadow-2xl border bg-rose-600 border-rose-500 shadow-rose-200 text-white`}
       >
         <div className="flex items-center gap-3 mb-4">
           <div className="bg-white/20 p-2 rounded-xl">
             <AlertCircle className="w-6 h-6" />
           </div>
           <h4 className="font-black uppercase tracking-tight">
-            {isExpired ? 'Assinatura Expirada' : 'Assinatura Vence em Breve'}
+            Problema com a Assinatura
           </h4>
         </div>
         <p className="text-sm font-medium mb-6 text-white/90 leading-relaxed">
-          {isExpired 
-            ? 'Sua assinatura expirou. Para continuar utilizando todos os recursos do sistema, por favor realize o pagamento.'
-            : `Sua assinatura vence em ${daysRemaining} ${daysRemaining === 1 ? 'dia' : 'dias'}. Evite a interrupção dos seus serviços.`}
+          {daysSinceExpiration > 10 || isCanceled
+            ? 'Sua assinatura expirou ou foi cancelada e o uso foi bloqueado. Por favor, regularize para continuar utilizando o sistema.'
+            : `Sua assinatura está vencida há ${daysSinceExpiration} dias. Em breve não será mais possível utilizar o sistema.`}
         </p>
         <button
           onClick={() => navigate('/subscription')}
           className="w-full bg-white text-slate-900 py-3 rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-slate-50 transition-all shadow-lg active:scale-95"
         >
-          {isExpired ? 'Ir para Pagamento' : 'Ok, ir para Assinatura'}
+          Ir para Assinatura
         </button>
       </motion.div>
     </div>
