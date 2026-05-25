@@ -188,16 +188,34 @@ async function initDB() {
 
     // Migrations for existing tables
     try {
+      // Helper to check columns
+      const getColumns = async (tableName: string) => {
+        if (isPg) {
+           const [rows] = await pool.query("SELECT column_name as field FROM information_schema.columns WHERE table_name = ?", [tableName]) as any[];
+           return (rows as any[]).map(r => r.field);
+        } else {
+           const [rows] = await pool.query(`SHOW COLUMNS FROM ${tableName}`) as any[];
+           return (rows as any[]).map(r => r.Field);
+        }
+      };
+
       // Check if 'clientes' exists and rename to 'pessoas'
-      const [tables] = await pool.query("SHOW TABLES LIKE 'clientes'");
-      if ((tables as any[]).length > 0) {
+      const checkTable = async (tableName: string) => {
+        if (isPg) {
+           const [rows] = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_name = ?", [tableName]) as any[];
+           return (rows as any[]).length > 0;
+        } else {
+           const [rows] = await pool.query(`SHOW TABLES LIKE '${tableName}'`) as any[];
+           return (rows as any[]).length > 0;
+        }
+      };
+
+      if (await checkTable('clientes')) {
         await pool.query("RENAME TABLE clientes TO pessoas");
         console.log("Renamed clientes to pessoas");
       }
 
-      const [vendasColumns] = await pool.query("SHOW COLUMNS FROM vendas") as any[];
-      const vendasColNames = (vendasColumns as any[]).map((c: any) => c.Field);
-      
+      const vendasColNames = await getColumns('vendas');
       if (!vendasColNames.includes('solicitacao')) {
         await pool.query("ALTER TABLE vendas ADD COLUMN solicitacao TEXT");
       }
@@ -208,20 +226,18 @@ async function initDB() {
         await pool.query("ALTER TABLE vendas ADD COLUMN sequencial_id INTEGER");
       }
       if (!vendasColNames.includes('origem')) {
-        await pool.query("ALTER TABLE vendas ADD COLUMN origem VARCHAR(50) DEFAULT 'Balcao'");
+        await pool.query(`ALTER TABLE vendas ADD COLUMN origem VARCHAR(50) DEFAULT 'Balcao'`);
       }
 
-      const [empresasColumns] = await pool.query("SHOW COLUMNS FROM empresas") as any[];
-      const empresasColNames = (empresasColumns as any[]).map((c: any) => c.Field);
-      
+      const empresasColNames = await getColumns('empresas');
       if (!empresasColNames.includes('plano_id')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN plano_id INTEGER");
       }
       if (!empresasColNames.includes('status_assinatura')) {
-        await pool.query("ALTER TABLE empresas ADD COLUMN status_assinatura VARCHAR(50) DEFAULT 'ativo'");
+        await pool.query(`ALTER TABLE empresas ADD COLUMN status_assinatura VARCHAR(50) DEFAULT 'ativo'`);
       }
       if (!empresasColNames.includes('vencimento_assinatura')) {
-        await pool.query("ALTER TABLE empresas ADD COLUMN vencimento_assinatura DATETIME");
+        await pool.query(`ALTER TABLE empresas ADD COLUMN vencimento_assinatura ${isPg ? 'TIMESTAMP' : 'DATETIME'}`);
       }
       if (!empresasColNames.includes('stripe_customer_id')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN stripe_customer_id VARCHAR(255)");
@@ -241,10 +257,39 @@ async function initDB() {
         }
       }
 
-      const [osColumns] = await pool.query("SHOW COLUMNS FROM ordens_servico") as any[];
-      const osColNames = (osColumns as any[]).map((c: any) => c.Field);
+      // Stripe Logs table migration
+      if (isPg) {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS stripe_logs (
+            id SERIAL PRIMARY KEY,
+            tenant_id VARCHAR(255),
+            stripe_event_id VARCHAR(255) UNIQUE,
+            event_type VARCHAR(255) NOT NULL,
+            status VARCHAR(50),
+            payload JSONB,
+            previous_attributes JSONB,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+      } else {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS stripe_logs (
+            id INTEGER PRIMARY KEY AUTO_INCREMENT,
+            tenant_id VARCHAR(255),
+            stripe_event_id VARCHAR(255) UNIQUE,
+            event_type VARCHAR(255) NOT NULL,
+            status VARCHAR(50),
+            payload JSON,
+            previous_attributes JSON,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+      }
+      console.log("Verified stripe_logs table existence");
+
+      const osColNames = await getColumns('ordens_servico');
       if (!osColNames.includes('sequencial_id')) {
-        await pool.query("ALTER TABLE ordens_servico ADD COLUMN sequencial_id INTEGER");
+        await pool.query(`ALTER TABLE ordens_servico ADD COLUMN sequencial_id INTEGER`);
       }
 
       // Migration: Populate sequencial_id for existing OS
@@ -552,6 +597,7 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
   // Handle the event
   try {
     const payloadStr = JSON.stringify(event);
+    const previousAttributesStr = event.data.previous_attributes ? JSON.stringify(event.data.previous_attributes) : null;
     let tenant_id = null;
     let logStatus = 'processado';
     
@@ -575,15 +621,20 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
       logStatus = 'cancelamento_solicitado';
     }
 
+    console.log(`Stripe Webhook: Received ${event.type} für tenant ${tenant_id}. Status detected: ${logStatus}`);
+
     try {
       await pool.query(
-        "INSERT INTO stripe_logs (tenant_id, stripe_event_id, event_type, status, payload) VALUES (?, ?, ?, ?, ?)",
-        [tenant_id, event.id, event.type, logStatus, payloadStr]
+        "INSERT INTO stripe_logs (tenant_id, stripe_event_id, event_type, status, payload, previous_attributes) VALUES (?, ?, ?, ?, ?, ?)",
+        [tenant_id, event.id, event.type, logStatus, payloadStr, previousAttributesStr]
       );
+      console.log(`Stripe Webhook: Log inserted successfully (Event ID: ${event.id})`);
     } catch(e: any) {
-      // Ignore unique constraint errors
+      // Ignore unique constraint errors but log others
       if (!e.message.includes('unique') && !e.message.includes('Duplicate')) {
-        console.error("Error inserting stripe log:", e.message);
+        console.error("Error inserting stripe log to database:", e.message);
+      } else {
+        console.warn(`Stripe Webhook: Duplicate event ${event.id} ignored.`);
       }
     }
 

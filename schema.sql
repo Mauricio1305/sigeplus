@@ -319,5 +319,6 @@ CREATE TABLE IF NOT EXISTS stripe_logs (
     event_type VARCHAR(255) NOT NULL,
     status VARCHAR(50),
     payload JSON,
+    previous_attributes JSON,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );

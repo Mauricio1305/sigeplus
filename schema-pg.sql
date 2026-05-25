@@ -321,6 +321,7 @@ CREATE TABLE IF NOT EXISTS stripe_logs (
     event_type VARCHAR(255) NOT NULL,
     status VARCHAR(50),
     payload JSONB,
+    previous_attributes JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_stripe_logs_tenant_id ON stripe_logs (tenant_id);
