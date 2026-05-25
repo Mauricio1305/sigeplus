@@ -36,29 +36,37 @@ const SubscriptionWarning = () => {
 
   // Se a conta já tiver sido cancelada explicitamente, mostramos um aviso
   const isCanceled = user.status_assinatura === 'cancelado';
+  const isCancellationRequested = user.status_assinatura === 'Cancelamento Solicitado';
   
-  // Condição para mostrar aviso: Mais de 5 dias após o vencimento, OU cancelado explícito.
-  if (daysSinceExpiration <= 5 && !isCanceled) return null;
+  // Condição para mostrar aviso: 
+  // - Mais de 5 dias após o vencimento
+  // - Cancelamento já efetivado
+  // - Cancelamento solicitado
+  if (daysSinceExpiration <= 5 && !isCanceled && !isCancellationRequested) return null;
+
+  const isBlocked = isCanceled || daysSinceExpiration > 10;
 
   return (
     <div className={`fixed bottom-4 right-4 z-[9999] max-w-sm w-full transition-all duration-500 animate-in slide-in-from-bottom-10`}>
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className={`p-6 rounded-3xl shadow-2xl border bg-rose-600 border-rose-500 shadow-rose-200 text-white`}
+        className={`p-6 rounded-3xl shadow-2xl border ${isBlocked ? 'bg-rose-600 border-rose-500 shadow-rose-200' : 'bg-amber-500 border-amber-400 shadow-amber-200'} text-white`}
       >
         <div className="flex items-center gap-3 mb-4">
           <div className="bg-white/20 p-2 rounded-xl">
             <AlertCircle className="w-6 h-6" />
           </div>
           <h4 className="font-black uppercase tracking-tight">
-            Problema com a Assinatura
+            {isBlocked ? 'Assinatura Bloqueada' : 'Aviso de Assinatura'}
           </h4>
         </div>
         <p className="text-sm font-medium mb-6 text-white/90 leading-relaxed">
-          {daysSinceExpiration > 10 || isCanceled
-            ? 'Sua assinatura expirou ou foi cancelada e o uso foi bloqueado. Por favor, regularize para continuar utilizando o sistema.'
-            : `Sua assinatura está vencida há ${daysSinceExpiration} dias. Em breve não será mais possível utilizar o sistema.`}
+          {isBlocked
+            ? 'Sua assinatura expirou ou foi cancelada e o acesso foi bloqueado.'
+            : isCancellationRequested
+              ? `Você solicitou o cancelamento. O acesso será interrompido após o vencimento em ${new Date(user.vencimento_assinatura).toLocaleDateString()}.`
+              : `Sua assinatura está vencida há ${daysSinceExpiration} dias. Em breve o acesso será bloqueado.`}
         </p>
         <button
           onClick={() => navigate('/subscription')}

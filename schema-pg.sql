@@ -317,7 +317,9 @@ CREATE INDEX IF NOT EXISTS idx_recuperacao_senha_codigo ON recuperacao_senha (co
 CREATE TABLE IF NOT EXISTS stripe_logs (
     id SERIAL PRIMARY KEY,
     tenant_id VARCHAR(255),
+    stripe_event_id VARCHAR(255) UNIQUE,
     event_type VARCHAR(255) NOT NULL,
+    status VARCHAR(50),
     payload JSONB,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

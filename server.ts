@@ -553,6 +553,7 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
   try {
     const payloadStr = JSON.stringify(event);
     let tenant_id = null;
+    let logStatus = 'processado';
     
     const obj = event.data.object as any;
     if (obj.client_reference_id) {
@@ -564,13 +565,26 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
        }
     }
 
+    // Identify special status
+    if (event.type === 'customer.subscription.deleted') {
+      logStatus = 'cancelamento_efetivado';
+    } else if (
+      (event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.created') && 
+      (obj.cancel_at_period_end || obj.cancel_at || obj.cancellation_details?.reason === 'cancellation_requested')
+    ) {
+      logStatus = 'cancelamento_solicitado';
+    }
+
     try {
       await pool.query(
-        "INSERT INTO stripe_logs (tenant_id, event_type, payload) VALUES (?, ?, ?)",
-        [tenant_id, event.type, payloadStr]
+        "INSERT INTO stripe_logs (tenant_id, stripe_event_id, event_type, status, payload) VALUES (?, ?, ?, ?, ?)",
+        [tenant_id, event.id, event.type, logStatus, payloadStr]
       );
     } catch(e: any) {
-      console.error("Error inserting stripe log:", e.message);
+      // Ignore unique constraint errors
+      if (!e.message.includes('unique') && !e.message.includes('Duplicate')) {
+        console.error("Error inserting stripe log:", e.message);
+      }
     }
 
     const stripe = getStripe();
@@ -610,11 +624,16 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
               vencimento.setDate(vencimento.getDate() + 30);
             }
 
+            let status = 'ativo';
+            if (subscription.cancel_at_period_end || subscription.cancel_at) {
+              status = 'Cancelamento Solicitado';
+            }
+
             await pool.query(
-              "UPDATE empresas SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_price_id = ?, plano_id = ?, status_assinatura = 'ativo', vencimento_assinatura = ? WHERE tenant_id = ?",
-              [customerId, subscriptionId, priceId, plano_id, vencimento, tenant_id]
+              "UPDATE empresas SET stripe_customer_id = ?, stripe_subscription_id = ?, stripe_price_id = ?, plano_id = ?, status_assinatura = ?, vencimento_assinatura = ? WHERE tenant_id = ?",
+              [customerId, subscriptionId, priceId, plano_id, status, vencimento, tenant_id]
             );
-            console.log(`Webhook: Updated company ${tenant_id} to plan ${plano_id} with expiry ${vencimento}`);
+            console.log(`Webhook: Updated company ${tenant_id} to plan ${plano_id} with status ${status} and expiry ${vencimento}`);
           } else {
             console.warn("Webhook: checkout.session.completed missing client_reference_id (tenant_id)");
           }
@@ -638,11 +657,16 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
                vencimento.setDate(vencimento.getDate() + 30);
             }
             
+            let status = 'ativo';
+            if (subscription.cancel_at_period_end || subscription.cancel_at) {
+              status = 'Cancelamento Solicitado';
+            }
+
             await pool.query(
-              "UPDATE empresas SET status_assinatura = 'ativo', vencimento_assinatura = ? WHERE stripe_subscription_id = ?",
-              [vencimento, subscriptionId]
+              "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ? WHERE stripe_subscription_id = ?",
+              [status, vencimento, subscriptionId]
             );
-            console.log(`Webhook: Payment succeeded for subscription ${subscriptionId}. Expiry updated to ${vencimento}`);
+            console.log(`Webhook: Payment succeeded for subscription ${subscriptionId}. Status: ${status}, Expiry: ${vencimento}`);
           }
         } catch (err: any) {
           console.error("Webhook Error in invoice.payment_succeeded:", err.message);
@@ -655,8 +679,12 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
           const subscription = event.data.object as any;
           let status = subscription.status === 'active' ? 'ativo' : 'suspenso';
           
-          if (subscription.cancel_at_period_end) {
+          if (subscription.cancel_at_period_end || subscription.cancel_at || subscription.cancellation_details?.reason === 'cancellation_requested') {
             status = 'Cancelamento Solicitado';
+          }
+
+          if (subscription.status === 'canceled' || event.type === 'customer.subscription.deleted') {
+            status = 'cancelado';
           }
 
           let vencimento = new Date();
@@ -730,7 +758,7 @@ const planMiddleware = (module: string) => {
 
       const { tenant_id } = req.user;
       const [companies] = await pool.query(`
-        SELECT p.modulos 
+        SELECT p.modulos, e.status_assinatura, e.vencimento_assinatura 
         FROM empresas e 
         LEFT JOIN planos p ON e.plano_id = p.id 
         WHERE e.tenant_id = ?
@@ -738,6 +766,24 @@ const planMiddleware = (module: string) => {
       
       const company = companies[0];
       if (!company) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      // Subscription block logic: 10 days grace period
+      let daysSinceExpiration = -1;
+      if (company.vencimento_assinatura) {
+        const expirationDate = new Date(company.vencimento_assinatura);
+        const today = new Date();
+        daysSinceExpiration = Math.floor((today.getTime() - expirationDate.getTime()) / (1000 * 60 * 60 * 24));
+      }
+
+      // Block if canceled OR if overdue by more than 10 days
+      const isBlocked = company.status_assinatura === 'cancelado' || daysSinceExpiration > 10;
+      
+      if (isBlocked) {
+        return res.status(403).json({ 
+          error: "Assinatura expirada ou bloqueada. Por favor, regularize seu pagamento para continuar acessando este recurso.",
+          blocked: true
+        });
+      }
 
       // Check Plan level
       const additionalModules = ['vendas', 'os', 'mesas', 'pdv'];

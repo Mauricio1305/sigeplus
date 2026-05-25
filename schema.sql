@@ -315,8 +315,9 @@ CREATE TABLE IF NOT EXISTS recuperacao_senha (
 CREATE TABLE IF NOT EXISTS stripe_logs (
     id INTEGER PRIMARY KEY AUTO_INCREMENT,
     tenant_id VARCHAR(255),
+    stripe_event_id VARCHAR(255) UNIQUE,
     event_type VARCHAR(255) NOT NULL,
+    status VARCHAR(50),
     payload JSON,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_stripe_logs_tenant_id (tenant_id)
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
