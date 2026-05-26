@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS empresas (
     razao_social VARCHAR(255),
     cnpj VARCHAR(20),
     email VARCHAR(255) NOT NULL,
+    whatsapp VARCHAR(20),
     telefone_fixo VARCHAR(20),
     telefone_celular VARCHAR(20),
     endereco TEXT,

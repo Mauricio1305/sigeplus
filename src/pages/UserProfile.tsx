@@ -433,7 +433,7 @@ export const UserProfile = () => {
                   <p className="font-medium text-slate-900">{company?.nome_fantasia || 'Não informado'}</p>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-slate-400 uppercase mb-1">Tenant ID</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase mb-1">ID Cliente</p>
                   <p className="font-mono text-xs text-slate-600 bg-slate-50 p-2 rounded-lg inline-block border border-slate-100">{company?.tenant_id || 'Não informado'}</p>
                 </div>
               </div>

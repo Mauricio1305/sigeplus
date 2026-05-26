@@ -293,7 +293,7 @@ export const SuperAdmin = () => {
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input 
                   type="text" 
-                  placeholder="Buscar empresa ou Tenant ID..."
+                  placeholder="Buscar empresa ou ID Cliente..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                   className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -329,7 +329,7 @@ export const SuperAdmin = () => {
               <thead className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
                 <tr>
                   <th className="px-6 py-4 font-semibold">Empresa</th>
-                  <th className="px-6 py-4 font-semibold">Tenant ID</th>
+                  <th className="px-6 py-4 font-semibold">ID Cliente</th>
                   <th className="px-6 py-4 font-semibold">Plano</th>
                   <th className="px-6 py-4 font-semibold">Status</th>
                   <th className="px-6 py-4 font-semibold">Vencimento</th>

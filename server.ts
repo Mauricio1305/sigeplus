@@ -230,6 +230,9 @@ async function initDB() {
       }
 
       const empresasColNames = await getColumns('empresas');
+      if (!empresasColNames.includes('whatsapp')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN whatsapp VARCHAR(20)");
+      }
       if (!empresasColNames.includes('plano_id')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN plano_id INTEGER");
       }
@@ -931,7 +934,16 @@ const sendWelcomeEmail = async (toEmail: string, userName: string, companyName: 
 };
 
 app.post("/api/auth/register", async (req, res) => {
-  const { companyName, email, password, name, plano_id } = req.body;
+  const { companyName, email, password, name, whatsapp, plano_id } = req.body;
+
+  if (!whatsapp) {
+    return res.status(400).json({ error: "O número de WhatsApp é obrigatório para o cadastro." });
+  }
+
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: "A senha deve ter pelo menos 6 caracteres." });
+  }
+
   const tenant_id = `tenant_${Date.now()}`;
   
   const connection = await pool.getConnection();
@@ -962,8 +974,8 @@ app.post("/api/auth/register", async (req, res) => {
     
     // Create Company
     await connection.query(
-      "INSERT INTO empresas (tenant_id, nome_fantasia, email, plano_id, status_assinatura, vencimento_assinatura) VALUES (?, ?, ?, ?, ?, ?)",
-      [tenant_id, companyName, email, plano_id, status_assinatura, formattedExpirationDate]
+      "INSERT INTO empresas (tenant_id, nome_fantasia, email, whatsapp, plano_id, status_assinatura, vencimento_assinatura) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [tenant_id, companyName, email, whatsapp || null, plano_id, status_assinatura, formattedExpirationDate]
     );
     
     // Create Admin User
@@ -2262,7 +2274,7 @@ app.get("/api/company/settings", authMiddleware, planMiddleware('configuracoes')
 app.put("/api/company/settings", authMiddleware, async (req: any, res) => {
   const { tenant_id } = req.user;
   const { 
-    nome_fantasia, razao_social, cnpj, email, 
+    nome_fantasia, razao_social, cnpj, email, whatsapp,
     telefone_fixo, telefone_celular, endereco, 
     numero, cep, cidade, estado, logo
   } = req.body;
@@ -2270,13 +2282,13 @@ app.put("/api/company/settings", authMiddleware, async (req: any, res) => {
   try {
     await pool.query(`
       UPDATE empresas 
-      SET nome_fantasia = ?, razao_social = ?, cnpj = ?, email = ?, 
+      SET nome_fantasia = ?, razao_social = ?, cnpj = ?, email = ?, whatsapp = ?, 
           telefone_fixo = ?, telefone_celular = ?, endereco = ?, 
           numero = ?, cep = ?, cidade = ?, estado = ?, logo = ?,
           updated_at = CURRENT_TIMESTAMP 
       WHERE tenant_id = ?
     `, [
-      nome_fantasia, razao_social, cnpj, email, 
+      nome_fantasia, razao_social, cnpj, email, whatsapp, 
       telefone_fixo, telefone_celular, endereco, 
       numero, cep, cidade, estado, logo,
       tenant_id

@@ -11,6 +11,7 @@ export const Login = () => {
   const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [companyName, setCompanyName] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [name, setName] = useState('');
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<number | null>(null);
@@ -28,7 +29,7 @@ export const Login = () => {
         .then(data => {
           const uniquePlans = data.filter((plan: any, index: number, self: any[]) =>
             index === self.findIndex((p: any) => p.nome === plan.nome)
-          );
+          ).sort((a: any, b: any) => a.id - b.id);
           setPlans(uniquePlans);
           if (uniquePlans.length > 0 && !selectedPlan) {
             setSelectedPlan(uniquePlans[0].id);
@@ -36,20 +37,40 @@ export const Login = () => {
         })
         .catch(err => console.error("Error fetching plans:", err));
     }
-  }, [isRegistering, selectedPlan]);
+  }, [isRegistering]);
+
+  const formatWhatsApp = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+  };
 
   const validate = () => {
     const errors: Record<string, string> = {};
-    if (!email) errors.email = 'E-mail é obrigatório';
-    else if (!/\S+@\S+\.\S+/.test(email)) errors.email = 'E-mail inválido';
+    if (!email) {
+      errors.email = 'E-mail é obrigatório';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = 'Informe um e-mail válido (ex: nome@empresa.com)';
+    }
     
-    if (!password) errors.password = 'Senha é obrigatória';
-    else if (password.length < 6) errors.password = 'A senha deve ter pelo menos 6 caracteres';
+    if (!password) {
+      errors.password = 'Senha é obrigatória';
+    } else if (password.length < 6) {
+      errors.password = 'A senha deve ter pelo menos 6 caracteres';
+    }
 
     if (isRegistering) {
       if (!companyName) errors.companyName = 'Nome da empresa é obrigatório';
       if (!name) errors.name = 'Seu nome é obrigatório';
       if (!selectedPlan) errors.selectedPlan = 'Selecione um plano para continuar';
+      
+      const whatsappDigits = whatsapp.replace(/\D/g, '');
+      if (!whatsappDigits) {
+        errors.whatsapp = 'WhatsApp é obrigatório';
+      } else if (whatsappDigits.length < 10 || whatsappDigits.length > 11) {
+        errors.whatsapp = 'Número de WhatsApp inválido. Informe o DDD e o número';
+      }
     }
 
     setFieldErrors(errors);
@@ -66,7 +87,7 @@ export const Login = () => {
     try {
       const endpoint = isRegistering ? '/api/auth/register' : '/api/auth/login';
       const body = isRegistering 
-        ? { companyName, email, password, name, plano_id: selectedPlan } 
+        ? { companyName, email, password, name, whatsapp, plano_id: selectedPlan } 
         : { email, password };
 
       const res = await fetch(endpoint, {
@@ -136,7 +157,7 @@ export const Login = () => {
           </div>
           <h2 className="text-3xl font-bold text-slate-900">Sige Plus</h2>
           <p className="text-slate-500 mt-2">
-            {isRegistering ? 'Crie sua conta multi-tenant' : 'Bem-vindo de volta'}
+            {isRegistering ? 'Cria sua conta' : 'Bem-vindo de volta'}
           </p>
         </div>
 
@@ -162,6 +183,21 @@ export const Login = () => {
                   onChange={e => {
                     setCompanyName(e.target.value);
                     if (fieldErrors.companyName) setFieldErrors({...fieldErrors, companyName: ''});
+                  }}
+                />
+              </FormField>
+              <FormField label="WhatsApp" error={fieldErrors.whatsapp} required>
+                <input 
+                  type="text" 
+                  placeholder="(00) 00000-0000"
+                  className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${fieldErrors.whatsapp ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                  value={whatsapp}
+                  onChange={e => {
+                    const formatted = formatWhatsApp(e.target.value);
+                    if (formatted.length <= 15) {
+                      setWhatsapp(formatted);
+                    }
+                    if (fieldErrors.whatsapp) setFieldErrors({...fieldErrors, whatsapp: ''});
                   }}
                 />
               </FormField>
@@ -218,7 +254,12 @@ export const Login = () => {
               }}
             />
           </FormField>
-          <FormField label="Senha" error={fieldErrors.password} required>
+          <FormField 
+            label="Senha" 
+            error={fieldErrors.password} 
+            required 
+            helpText={isRegistering ? "No mínimo 6 caracteres" : undefined}
+          >
             <input 
               type="password" 
               className={`w-full px-4 py-3 rounded-xl border outline-none transition-all ${fieldErrors.password ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}

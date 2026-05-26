@@ -21,6 +21,7 @@ export const Settings = () => {
     razao_social: '',
     cnpj: '',
     email: '',
+    whatsapp: '',
     telefone_fixo: '',
     telefone_celular: '',
     endereco: '',
@@ -158,11 +159,27 @@ export const Settings = () => {
     }
   }, [activeTab, token]);
 
+  const formatWhatsApp = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
     if (!company.nome_fantasia) errors.nome_fantasia = 'Nome Fantasia é obrigatório';
-    if (!company.email) errors.email = 'E-mail é obrigatório';
+    if (!company.email) {
+      errors.email = 'E-mail é obrigatório';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(company.email)) {
+      errors.email = 'E-mail inválido';
+    }
+    
+    const whatsappDigits = (company.whatsapp || '').replace(/\D/g, '');
+    if (whatsappDigits && (whatsappDigits.length < 10 || whatsappDigits.length > 11)) {
+      errors.whatsapp = 'Número de WhatsApp inválido';
+    }
     
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
@@ -415,6 +432,24 @@ export const Settings = () => {
                     </FormField>
                   </div>
                   <div>
+                    <FormField label="WhatsApp" error={fieldErrors.whatsapp}>
+                      <input 
+                        type="text" 
+                        placeholder="(00) 00000-0000"
+                        maxLength={15}
+                        className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.whatsapp ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                        value={company.whatsapp || ''}
+                        onChange={e => {
+                          const formatted = formatWhatsApp(e.target.value);
+                          if (formatted.length <= 15) {
+                            setCompany({...company, whatsapp: formatted});
+                          }
+                          if (fieldErrors.whatsapp) setFieldErrors({...fieldErrors, whatsapp: ''});
+                        }}
+                      />
+                    </FormField>
+                  </div>
+                  <div>
                     <FormField label="Telefone Fixo">
                       <input 
                         type="text" 
@@ -535,7 +570,7 @@ export const Settings = () => {
                     Editar Perfil
                   </Link>
                   <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Tenant ID</label>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">ID Cliente</label>
                     <div className="p-3 bg-slate-50 rounded-lg text-slate-600 font-mono text-xs break-all">
                       {user?.tenant_id}
                     </div>

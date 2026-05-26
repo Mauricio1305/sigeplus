@@ -16,7 +16,7 @@ export const Subscription = () => {
 
   useEffect(() => {
     fetch('/api/plans').then(res => res.json()).then(data => {
-      setPlans(data);
+      setPlans(data.sort((a: any, b: any) => a.id - b.id));
       if (user?.plano_id) {
         const userPlan = data.find((p: any) => p.id === user.plano_id);
         if (userPlan && !userPlan.is_trial) {
