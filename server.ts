@@ -570,9 +570,10 @@ const globalLimiter = rateLimit({
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 20, // Limit each IP to 20 auth attempts per hour
-  message: { error: "Muitas tentativas dessa IP, favor tentar novamente após uma hora." },
+  message: { error: "Muitas tentativas desse IP, favor tentar novamente após uma hora." },
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true,
 });
 
 app.use("/api/", globalLimiter);
@@ -622,22 +623,45 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
       (obj.cancel_at_period_end || obj.cancel_at || obj.cancellation_details?.reason === 'cancellation_requested')
     ) {
       logStatus = 'cancelamento_solicitado';
+    } else if (event.type === 'customer.subscription.updated' && event.data.previous_attributes) {
+      const prev = event.data.previous_attributes as any;
+      if (prev.cancel_at_period_end || prev.cancel_at || prev.cancellation_details?.reason === 'cancellation_requested') {
+        logStatus = 'renovacao_assinatura';
+      }
     }
 
-    console.log(`Stripe Webhook: Received ${event.type} für tenant ${tenant_id}. Status detected: ${logStatus}`);
+    console.log(`Stripe Webhook: Processing ${event.type} for tenant ${tenant_id}. Status detected: ${logStatus}`);
+    
+    // Log details about the event for debugging
+    if (!tenant_id) {
+       console.warn(`Stripe Webhook Warning: Could not resolve tenant_id for event ${event.id} (${event.type})`);
+    }
 
     try {
+      // Use standard JSON.stringify but wrap in try-catch to avoid blocking the whole webhook
+      let safePayload = null;
+      let safePrev = null;
+      try {
+        safePayload = JSON.stringify(event);
+        safePrev = event.data.previous_attributes ? JSON.stringify(event.data.previous_attributes) : null;
+      } catch (jsonErr: any) {
+        console.error("Stripe Webhook Error serializing event data:", jsonErr.message);
+        // Fallback to simple description if full stringification fails
+        safePayload = JSON.stringify({ id: event.id, type: event.type, error: "Failed to stringify full event" });
+      }
+
       await pool.query(
         "INSERT INTO stripe_logs (tenant_id, stripe_event_id, event_type, status, payload, previous_attributes) VALUES (?, ?, ?, ?, ?, ?)",
-        [tenant_id, event.id, event.type, logStatus, payloadStr, previousAttributesStr]
+        [tenant_id, event.id, event.type, logStatus, safePayload, safePrev]
       );
-      console.log(`Stripe Webhook: Log inserted successfully (Event ID: ${event.id})`);
+      console.log(`Stripe Webhook: Log record created in database (Event: ${event.id})`);
     } catch(e: any) {
-      // Ignore unique constraint errors but log others
-      if (!e.message.includes('unique') && !e.message.includes('Duplicate')) {
-        console.error("Error inserting stripe log to database:", e.message);
+      if (e.message.includes('unique') || e.message.includes('Duplicate')) {
+        console.warn(`Stripe Webhook: Event ${event.id} is a duplicate, skipping log entry.`);
+        return res.json({ received: true, ignored: 'duplicate' });
       } else {
-        console.warn(`Stripe Webhook: Duplicate event ${event.id} ignored.`);
+        console.error("Stripe Webhook CRITICAL: Database error inserting log:", e.message);
+        console.error("Stack trace:", e.stack);
       }
     }
 
@@ -669,17 +693,16 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
               console.warn(`Webhook: Price ID "${priceId}" not found in database. Defaulting to plan 1.`);
             }
 
+            // Prefer subscription current_period_end if available, fallback to 30 days
             let vencimento = new Date();
-            if (subscription.current_period_end) {
+            if (subscription && subscription.current_period_end) {
               vencimento = new Date(subscription.current_period_end * 1000);
-            }
-            if (isNaN(vencimento.getTime())) {
-              vencimento = new Date();
+            } else {
               vencimento.setDate(vencimento.getDate() + 30);
             }
 
             let status = 'ativo';
-            if (subscription.cancel_at_period_end || subscription.cancel_at) {
+            if (subscription.cancel_at_period_end || subscription.cancel_at || (subscription.cancellation_details && subscription.cancellation_details.reason === 'cancellation_requested')) {
               status = 'Cancelamento Solicitado';
             }
 
@@ -727,6 +750,22 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
         }
         break;
       }
+      case 'invoice.payment_failed': {
+        try {
+          const invoice = event.data.object as any;
+          if (invoice.subscription) {
+            const subscriptionId = invoice.subscription as string;
+            await pool.query(
+              "UPDATE empresas SET status_assinatura = 'pagamento_falhou' WHERE stripe_subscription_id = ?",
+              [subscriptionId]
+            );
+            console.log(`Webhook: Payment failed for subscription ${subscriptionId}. Status set to pagamento_falhou`);
+          }
+        } catch (err: any) {
+          console.error("Webhook Error in invoice.payment_failed:", err.message);
+        }
+        break;
+      }
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         try {
@@ -739,6 +778,18 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
 
           if (subscription.status === 'canceled' || event.type === 'customer.subscription.deleted') {
             status = 'cancelado';
+          }
+
+          // Check for renewal (undoing cancellation)
+          if (event.type === 'customer.subscription.updated' && event.data.previous_attributes) {
+            const prev = event.data.previous_attributes as any;
+            const wasCancelling = prev.cancel_at_period_end || prev.cancel_at || prev.cancellation_details?.reason === 'cancellation_requested';
+            const isNotCancelling = !subscription.cancel_at_period_end && !subscription.cancel_at && subscription.cancellation_details?.reason !== 'cancellation_requested';
+            
+            if (wasCancelling && isNotCancelling && subscription.status === 'active') {
+              console.log(`Webhook: Subscription renewal (undo cancellation) detected for ${subscription.id}`);
+              status = 'ativo';
+            }
           }
 
           let vencimento = new Date();
@@ -760,6 +811,7 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
               "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ? WHERE stripe_subscription_id = ?",
               [status, vencimento, subscription.id]
             );
+            console.log(`Webhook: Subscription ${subscription.id} updated. Status: ${status}, Vencimento: ${vencimento}`);
           }
         } catch (err: any) {
           console.error(`Webhook Error in ${event.type}:`, err.message);
@@ -1059,12 +1111,58 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     const [companies] = await pool.query(`
-      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, p.modulos 
+      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, e.stripe_subscription_id, p.modulos 
       FROM empresas e 
       LEFT JOIN planos p ON e.plano_id = p.id 
       WHERE e.tenant_id = ?
     `, [user.tenant_id]) as any[];
-    const company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1, modulos: [] };
+    let company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1, stripe_subscription_id: null, modulos: [] };
+
+    if (company.stripe_subscription_id) {
+      try {
+        const stripe = getStripe();
+        const subscription = (await stripe.subscriptions.retrieve(company.stripe_subscription_id)) as any;
+        
+        const stripeStatus = subscription.status;
+        const currentPeriodEnd = subscription.current_period_end;
+        
+        let newVencimento = new Date(currentPeriodEnd * 1000);
+        if (isNaN(newVencimento.getTime())) {
+          newVencimento = company.vencimento_assinatura ? new Date(company.vencimento_assinatura) : new Date();
+        }
+
+        let newStatus = company.status_assinatura;
+
+        if (stripeStatus === 'active' || stripeStatus === 'trialing') {
+          if (subscription.cancel_at_period_end) {
+            newStatus = 'Cancelamento Solicitado';
+          } else {
+            newStatus = 'ativo';
+          }
+        } else if (stripeStatus === 'past_due') {
+          newStatus = 'pagamento_pendente';
+        } else {
+          // Se cancelado no Stripe, verificamos se o vencimento local ainda é válido
+          const localVencimento = company.vencimento_assinatura ? new Date(company.vencimento_assinatura) : null;
+          if (localVencimento && localVencimento > new Date()) {
+            newStatus = 'Cancelamento Solicitado'; // Mantém acesso até expirar
+          } else {
+            newStatus = 'cancelado';
+          }
+        }
+
+        if (newStatus !== company.status_assinatura || Math.abs(newVencimento.getTime() - (company.vencimento_assinatura?.getTime() || 0)) > 3600000) {
+          await pool.query(
+            "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ? WHERE tenant_id = ?",
+            [newStatus, newVencimento, user.tenant_id]
+          );
+          company.status_assinatura = newStatus;
+          company.vencimento_assinatura = newVencimento;
+        }
+      } catch (stripeErr: any) {
+        console.warn(`Stripe auto-verification failed for tenant ${user.tenant_id} during login:`, stripeErr.message);
+      }
+    }
 
     let permissoes = {};
     if (user.grupo_id) {
@@ -1120,12 +1218,58 @@ app.get("/api/auth/me", authMiddleware, async (req: any, res) => {
     if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
 
     const [companies] = await pool.query(`
-      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, p.modulos 
+      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, e.stripe_subscription_id, p.modulos 
       FROM empresas e 
       LEFT JOIN planos p ON e.plano_id = p.id 
       WHERE e.tenant_id = ?
     `, [user.tenant_id]) as any[];
-    const company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1, modulos: [] };
+    let company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1, stripe_subscription_id: null, modulos: [] };
+
+    if (company.stripe_subscription_id) {
+       try {
+         const stripe = getStripe();
+         const subscription = (await stripe.subscriptions.retrieve(company.stripe_subscription_id)) as any;
+         
+         const nowTime = Math.floor(Date.now() / 1000);
+         const stripeStatus = subscription.status;
+         const currentPeriodEnd = subscription.current_period_end;
+         
+         let newVencimento = new Date(currentPeriodEnd * 1000);
+         if (isNaN(newVencimento.getTime())) {
+           newVencimento = company.vencimento_assinatura ? new Date(company.vencimento_assinatura) : new Date();
+         }
+
+         let newStatus = company.status_assinatura;
+
+         if (stripeStatus === 'active' || stripeStatus === 'trialing') {
+           if (subscription.cancel_at_period_end) {
+             newStatus = 'Cancelamento Solicitado';
+           } else {
+             newStatus = 'ativo';
+           }
+         } else if (stripeStatus === 'past_due') {
+           newStatus = 'pagamento_pendente';
+         } else {
+           const localVencimento = company.vencimento_assinatura ? new Date(company.vencimento_assinatura) : null;
+           if (localVencimento && localVencimento > new Date()) {
+             newStatus = 'Cancelamento Solicitado';
+           } else {
+             newStatus = 'cancelado';
+           }
+         }
+
+         if (newStatus !== company.status_assinatura || Math.abs(newVencimento.getTime() - (company.vencimento_assinatura?.getTime() || 0)) > 3600000) {
+           await pool.query(
+             "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ? WHERE tenant_id = ?",
+             [newStatus, newVencimento, user.tenant_id]
+           );
+           company.status_assinatura = newStatus;
+           company.vencimento_assinatura = newVencimento;
+         }
+       } catch (stripeErr: any) {
+         console.warn(`Stripe auto-verification failed for tenant ${user.tenant_id} during auth/me:`, stripeErr.message);
+       }
+    }
 
     let permissoes = {};
     if (user.grupo_id) {

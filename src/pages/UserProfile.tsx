@@ -79,8 +79,9 @@ export const UserProfile = () => {
       });
       const data = await res.json();
       if (data.url) {
-        const stripeWindow = window.open(data.url, 'stripe_checkout', 'width=600,height=700');
-        if (!stripeWindow) {
+        if (window.self !== window.top) {
+          window.open(data.url, '_blank');
+        } else {
           window.location.href = data.url;
         }
       } else {
@@ -104,8 +105,9 @@ export const UserProfile = () => {
       });
       const data = await res.json();
       if (data.url) {
-        const portalWindow = window.open(data.url, 'stripe_portal', 'width=600,height=700');
-        if (!portalWindow) {
+        if (window.self !== window.top) {
+          window.open(data.url, '_blank');
+        } else {
           window.location.href = data.url;
         }
       } else {

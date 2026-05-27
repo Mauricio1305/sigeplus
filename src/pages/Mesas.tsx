@@ -838,7 +838,17 @@ export default function Mesas() {
                     <select 
                       className="w-full border border-slate-200 rounded-xl px-4 py-2 bg-slate-50 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
                       value={currentPayment.tipo_pagamento_id}
-                      onChange={e => setCurrentPayment({...currentPayment, tipo_pagamento_id: e.target.value, parcelas: 1})}
+                      onChange={e => {
+                        const selectedTypeId = e.target.value;
+                        const alreadyPaid = pagamentos.reduce((acc, p) => acc + p.valor, 0);
+                        const suggestedValue = Math.max(0, calculateTotals().total - alreadyPaid);
+                        setCurrentPayment({
+                          ...currentPayment, 
+                          tipo_pagamento_id: selectedTypeId, 
+                          parcelas: 1,
+                          valor: selectedTypeId ? suggestedValue : 0
+                        });
+                      }}
                     >
                       <option value="">Forma...</option>
                       {paymentTypes.map(t => (
@@ -847,10 +857,16 @@ export default function Mesas() {
                     </select>
                     <input 
                       type="number" 
+                      min="0"
+                      step="0.01"
                       placeholder="Valor R$"
-                      className="w-full border border-slate-200 rounded-xl px-4 py-2 bg-white"
-                      value={currentPayment.valor || ''}
-                      onChange={e => setCurrentPayment({...currentPayment, valor: parseFloat(e.target.value) || 0})}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      value={currentPayment.valor === 0 ? '' : currentPayment.valor}
+                      onChange={e => {
+                        let val = parseFloat(e.target.value);
+                        if (isNaN(val) || val < 0) val = 0;
+                        setCurrentPayment({...currentPayment, valor: val});
+                      }}
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -948,7 +964,7 @@ export default function Mesas() {
 
               <div className="p-4 space-y-3 pt-0">
                 <button 
-                  onClick={() => { window.open('/print/venda/' + (finishedSaleData?.id || finishedSaleData?.sequencial_id) + '?t=' + token, '_blank') }}
+                  onClick={() => { window.open('/print/venda/' + (finishedSaleData?.sequencial_id || finishedSaleData?.id) + '?t=' + token, '_blank') }}
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-md"
                 >
                   <FileText className="w-5 h-5" /> Imprimir Pedido de Venda

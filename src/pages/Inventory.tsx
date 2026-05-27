@@ -598,7 +598,8 @@ export const Inventory = () => {
                       <td className="p-3">
                         <div className="flex items-center justify-center gap-2">
                            <input 
-                            type="number" 
+                            type="number"
+                            min="1"
                             className="w-16 px-2 py-1 rounded border border-slate-200 text-center" 
                             value={item.quantity}
                             onChange={e => {
@@ -809,20 +810,22 @@ export const Inventory = () => {
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Qtd Atual</label>
                 <input 
                   type="number" 
+                  min="0"
                   step="any"
                   className="w-full px-4 py-2 rounded-xl border border-slate-200"
                   value={newProduct.estoque_atual}
-                  onChange={e => setNewProduct({...newProduct, estoque_atual: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                  onChange={e => setNewProduct({...newProduct, estoque_atual: e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value))})}
                 />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Estoque Mínimo</label>
                 <input 
                   type="number" 
+                  min="0"
                   step="any"
                   className="w-full px-4 py-2 rounded-xl border border-slate-200"
                   value={newProduct.estoque_minimo}
-                  onChange={e => setNewProduct({...newProduct, estoque_minimo: e.target.value === '' ? '' : parseFloat(e.target.value)})}
+                  onChange={e => setNewProduct({...newProduct, estoque_minimo: e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value))})}
                 />
               </div>
               <div className="col-span-2 flex items-center gap-2 py-2">

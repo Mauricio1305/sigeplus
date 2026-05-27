@@ -356,15 +356,22 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newSale.items.length === 0 || isSaving) {
-      if (newSale.items.length === 0) alert("Adicione pelo menos um item à venda.");
+    const allowEmptyItems = newSale.tipo === 'os' && newSale.status === 'orcamento';
+
+    if ((newSale.items.length === 0 && !allowEmptyItems) || isSaving) {
+      if (newSale.items.length === 0) alert("Adicione pelo menos um item.");
+      return;
+    }
+
+    if (newSale.status === 'finalizada' && (!newSale.pagamentos || newSale.pagamentos.length === 0) && newSale.valor_total > 0) {
+      alert("Para o status 'Finalizado', é obrigatório informar pelo menos um pagamento.");
       return;
     }
 
     setIsSaving(true);
     try {
-      const url = newSale.id ? `/api/sales/${newSale.id}` : '/api/sales';
-      const method = newSale.id ? 'PUT' : 'POST';
+      const url = newSale.sequencial_id ? `/api/sales/${newSale.sequencial_id}` : '/api/sales';
+      const method = newSale.sequencial_id ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
@@ -606,19 +613,19 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
             <p className="text-slate-500 mb-6 text-sm">Escolha como deseja emitir o recibo para <br/><strong>Pedido #${printModalSale.sequencial_id}</strong></p>
             <div className="grid grid-cols-1 gap-3">
               <button 
-                onClick={() => { window.open('/print/venda/' + (printModalSale.id || printModalSale.sequencial_id) + '?t=' + token, '_blank') }}
+                onClick={() => { window.open('/print/venda/' + (printModalSale.sequencial_id || printModalSale.id) + '?t=' + token, '_blank') }}
                 className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-md"
               >
                 <FileText className="w-5 h-5" /> Imprimir Pedido de Venda
               </button>
               <button 
-                onClick={() => handlePrintSale(printModalSale.id || printModalSale.sequencial_id, 'print')}
+                onClick={() => handlePrintSale(printModalSale.sequencial_id || printModalSale.id, 'print')}
                 className="w-full py-3.5 bg-slate-800 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-slate-900 transition-all shadow-md"
               >
                 <Printer className="w-5 h-5" /> Imprimir Recibo Não Fiscal
               </button>
               <button 
-                onClick={() => handlePrintSale(printModalSale.id || printModalSale.sequencial_id, 'whatsapp')}
+                onClick={() => handlePrintSale(printModalSale.sequencial_id || printModalSale.id, 'whatsapp')}
                 className="w-full py-3.5 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-md"
               >
                 <MessageCircle className="w-5 h-5" /> Enviar via WhatsApp
@@ -686,7 +693,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                       )}
                     </div>
                   )}
-                  <input type="number" className="w-20 px-4 py-2 rounded-xl border" value={quantity} onChange={e => setQuantity(parseInt(e.target.value))} />
+                  <input type="number" min="1" className="w-20 px-4 py-2 rounded-xl border" value={quantity} onChange={e => { let val = parseInt(e.target.value); if (isNaN(val) || val < 1) val = 1; setQuantity(val); }} />
                   <button type="button" onClick={handleAddItem} className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium">Add</button>
                 </div>
                 {newSale.items.map((item: any, idx: number) => (
@@ -702,7 +709,21 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
               <div className="border p-4 rounded-xl bg-slate-50">
                 <h3 className="font-bold mb-4">Pagamentos</h3>
                 <div className="flex gap-2">
-                  <select className="flex-1 px-4 py-2 rounded-xl border border-slate-200" value={currentPayment.tipo_pagamento_id} onChange={e => setCurrentPayment({...currentPayment, tipo_pagamento_id: e.target.value, parcelas: 1})}>
+                  <select 
+                    className="flex-1 px-4 py-2 rounded-xl border border-slate-200" 
+                    value={currentPayment.tipo_pagamento_id} 
+                    onChange={e => {
+                      const selectedTypeId = e.target.value;
+                      const alreadyPaid = (newSale.pagamentos || []).reduce((acc: number, p: any) => acc + p.valor, 0);
+                      const suggestedValue = Math.max(0, newSale.valor_total - alreadyPaid);
+                      setCurrentPayment({
+                        ...currentPayment, 
+                        tipo_pagamento_id: selectedTypeId, 
+                        parcelas: 1, 
+                        valor: selectedTypeId ? suggestedValue : 0
+                      });
+                    }}
+                  >
                     <option value="">Tipo...</option>
                     {paymentTypes.map(pt => <option key={pt.id} value={pt.id}>{pt.nome}</option>)}
                   </select>
@@ -716,7 +737,19 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                       <option key={n} value={n}>{n}x</option>
                     ))}
                   </select>
-                  <input type="number" className="w-32 px-4 py-2 rounded-xl border border-slate-200" placeholder="Valor" value={currentPayment.valor || ''} onChange={e => setCurrentPayment({...currentPayment, valor: parseFloat(e.target.value) || 0})} />
+                  <input 
+                    type="number" 
+                    min="0"
+                    step="0.01"
+                    className="w-32 px-4 py-2 rounded-xl border border-slate-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                    placeholder="Valor" 
+                    value={currentPayment.valor === 0 ? '' : currentPayment.valor} 
+                    onChange={e => {
+                      let val = parseFloat(e.target.value);
+                      if (isNaN(val) || val < 0) val = 0;
+                      setCurrentPayment({...currentPayment, valor: val});
+                    }} 
+                  />
                   <button type="button" onClick={handleAddPayment} className="bg-indigo-600 text-white px-4 py-2 rounded-xl">Add</button>
                 </div>
                 {newSale.pagamentos?.map((p: any, idx: number) => (
@@ -726,7 +759,16 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                   </div>
                 ))}
               </div>
-              <button type="submit" className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold">Finalizar</button>
+              <button 
+                type="submit" 
+                disabled={
+                  (newSale.status === 'finalizada' && (!newSale.pagamentos || newSale.pagamentos.length === 0) && (newSale.valor_total || 0) > 0) ||
+                  (newSale.items.length === 0 && !(newSale.tipo === 'os' && newSale.status === 'orcamento'))
+                }
+                className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Finalizar
+              </button>
             </form>
           </motion.div>
         </div>

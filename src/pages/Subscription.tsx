@@ -15,15 +15,26 @@ export const Subscription = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('/api/plans').then(res => res.json()).then(data => {
-      setPlans(data.sort((a: any, b: any) => a.id - b.id));
-      if (user?.plano_id) {
-        const userPlan = data.find((p: any) => p.id === user.plano_id);
-        if (userPlan && !userPlan.is_trial) {
-           setSelectedPlanId(user.plano_id);
+    fetch('/api/plans')
+      .then(res => {
+        if (!res.ok) throw new Error('Não foi possível carregar os planos');
+        return res.json();
+      })
+      .then(data => {
+        setPlans(data.sort((a: any, b: any) => a.id - b.id));
+        if (user?.plano_id) {
+          const userPlan = data.find((p: any) => p.id === user.plano_id);
+          if (userPlan && !userPlan.is_trial) {
+             setSelectedPlanId(user.plano_id);
+          }
         }
-      }
-    });
+      })
+      .catch(err => {
+        console.error("Error loading plans:", err);
+        setError('Erro ao carregar planos. Verifique sua conexão.');
+        // Set an empty array to stop the loading spinner if fetch fails
+        setPlans([]);
+      });
   }, [user?.plano_id]);
 
   const selectedPlan = plans.find(p => p.id === selectedPlanId);
@@ -42,104 +53,11 @@ export const Subscription = () => {
       });
       const data = await res.json();
       if (data.url) {
-        // Open Stripe Checkout in a popup
-        const width = 600;
-        const height = 800;
-        const left = window.screenX + (window.outerWidth - width) / 2;
-        const top = window.screenY + (window.outerHeight - height) / 2;
-        
-        const popup = window.open(
-          data.url, 
-          'Stripe Checkout', 
-          `width=${width},height=${height},left=${left},top=${top}`
-        );
-
-        if (!popup) {
-          setError('Por favor, habilite popups no seu navegador para realizar o pagamento.');
-          setLoading(false);
-          return;
+        if (window.self !== window.top) {
+          window.open(data.url, '_blank');
+        } else {
+          window.location.href = data.url;
         }
-
-        const checkPopupClosed = setInterval(() => {
-          if (popup.closed) {
-            clearInterval(checkPopupClosed);
-            setLoading(false);
-          }
-        }, 1000);
-
-        const handleMessage = async (event: MessageEvent) => {
-          const origin = event.origin;
-          if (!origin.endsWith('.run.app') && !origin.includes('localhost')) return;
-          
-          if (event.data?.type === 'STRIPE_SUCCESS') {
-            clearInterval(checkPopupClosed);
-            window.removeEventListener('message', handleMessage);
-            
-            // Poll for subscription status update
-            let attempts = 0;
-            const maxAttempts = 10;
-            
-            const checkStatus = async () => {
-              try {
-                const sessionId = event.data.sessionId;
-                if (sessionId) {
-                  const verifyRes = await fetch('/api/stripe/verify-session', {
-                    method: 'POST',
-                    headers: { 
-                      'Content-Type': 'application/json',
-                      'Authorization': `Bearer ${token}` 
-                    },
-                    body: JSON.stringify({ sessionId })
-                  });
-                  
-                  if (verifyRes.ok) {
-                    const verifyData = await verifyRes.json();
-                    if (verifyData.success) {
-                      const meRes = await fetch('/api/auth/me', {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                      });
-                      if (meRes.ok) {
-                        const meData = await meRes.json();
-                        if (meData.user.status_assinatura === 'ativo') {
-                          useAuthStore.getState().setAuth(meData.user, token!);
-                          window.location.href = '/dashboard';
-                          return;
-                        }
-                      }
-                    }
-                  }
-                } else {
-                  // Fallback if no sessionId provided
-                  const meRes = await fetch('/api/auth/me', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                  });
-                  if (meRes.ok) {
-                    const meData = await meRes.json();
-                    if (meData.user.status_assinatura === 'ativo') {
-                      useAuthStore.getState().setAuth(meData.user, token!);
-                      window.location.href = '/dashboard';
-                      return;
-                    }
-                  }
-                }
-              } catch (e) {
-                console.error("Error checking status:", e);
-              }
-              
-              attempts++;
-              if (attempts < maxAttempts) {
-                setTimeout(checkStatus, 2000); // Check every 2 seconds
-              } else {
-                setError('O pagamento foi recebido, mas a ativação está demorando. Por favor, atualize a página em alguns instantes.');
-                setLoading(false);
-              }
-            };
-            
-            checkStatus();
-          }
-        };
-
-        window.addEventListener('message', handleMessage);
       } else {
         setError(data.error || 'Erro ao iniciar sessão de pagamento.');
         setLoading(false);
@@ -151,8 +69,8 @@ export const Subscription = () => {
     }
   };
 
-  // If we haven't loaded plans, show a loader
-  if (plans.length === 0) {
+  // If we haven't loaded plans and there's no error, show a loader
+  if (plans.length === 0 && !error) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="text-center">
@@ -187,41 +105,43 @@ export const Subscription = () => {
           </motion.div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 mb-8 text-left">
-          {plans.filter(p => !p.is_trial).map(p => (
-            <label 
-              key={p.id} 
-              className={`flex flex-col p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                selectedPlanId === p.id ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 hover:border-slate-200'
-              }`}
-            >
-              <input 
-                type="radio" 
-                name="plan" 
-                className="hidden" 
-                value={p.id} 
-                checked={selectedPlanId === p.id}
-                onChange={() => setSelectedPlanId(p.id)}
-              />
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-bold text-slate-900 text-lg">{p.nome}</span>
-                <span className="bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold">
-                  R$ {formatMoney(p.valor_mensal)}/mês
-                </span>
-              </div>
-              <ul className="space-y-1">
-                <li className="flex items-center gap-2 text-sm text-slate-600">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  {p.limite_usuarios === 9999 ? 'Usuários Ilimitados' : `${p.limite_usuarios} Usuários`}
-                </li>
-                <li className="flex items-center gap-2 text-sm text-slate-600">
-                  <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  {p.modulos?.length > 0 ? `${p.modulos.length} módulos adicionais` : 'Módulos básicos'}
-                </li>
-              </ul>
-            </label>
-          ))}
-        </div>
+        {plans.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 mb-8 text-left">
+            {plans.filter(p => !p.is_trial).map(p => (
+              <label 
+                key={p.id} 
+                className={`flex flex-col p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                  selectedPlanId === p.id ? 'border-indigo-600 bg-indigo-50' : 'border-slate-100 hover:border-slate-200'
+                }`}
+              >
+                <input 
+                  type="radio" 
+                  name="plan" 
+                  className="hidden" 
+                  value={p.id} 
+                  checked={selectedPlanId === p.id}
+                  onChange={() => setSelectedPlanId(p.id)}
+                />
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-bold text-slate-900 text-lg">{p.nome}</span>
+                  <span className="bg-indigo-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+                    R$ {formatMoney(p.valor_mensal)}/mês
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  <li className="flex items-center gap-2 text-sm text-slate-600">
+                    <CheckCircle className="w-4 h-4 text-emerald-500" />
+                    {p.limite_usuarios === 9999 ? 'Usuários Ilimitados' : `${p.limite_usuarios} Usuários`}
+                  </li>
+                  <li className="flex items-center gap-2 text-sm text-slate-600">
+                    <CheckCircle className="w-4 h-4 text-emerald-500" />
+                    {p.modulos?.length > 0 ? `${p.modulos.length} módulos adicionais` : 'Módulos básicos'}
+                  </li>
+                </ul>
+              </label>
+            ))}
+          </div>
+        )}
 
         <button 
           onClick={() => selectedPlan?.id && handleSubscribe(selectedPlan.id)}
@@ -241,12 +161,49 @@ export const Subscription = () => {
           )}
         </button>
         
-        <button 
-          onClick={() => useAuthStore.getState().logout()}
-          className="mt-6 text-slate-400 font-semibold hover:text-slate-600 transition-all text-sm"
-        >
-          Sair e entrar com outra conta
-        </button>
+        <div className="flex flex-col gap-3 mt-6">
+          <button 
+            disabled={loading}
+            onClick={async () => {
+              setLoading(true);
+              setError('');
+              try {
+                const res = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (res.ok) {
+                  const data = await res.json();
+                  if (data.user?.status_assinatura === 'ativo') {
+                    useAuthStore.getState().setAuth(data.user, token!);
+                    window.location.href = '/dashboard';
+                    return;
+                  } else if (data.user?.status_assinatura === 'cancelado') {
+                    setError('Sua assinatura anterior foi cancelada ou não foi encontrada. Por favor, escolha um plano abaixo para realizar uma nova assinatura.');
+                  } else {
+                    setError('Pagamento não identificado. Se você acabou de pagar, aguarde um minuto e tente novamente.');
+                  }
+                }
+              } catch (e) {
+                setError('Erro ao verificar status. Tente novamente em instantes.');
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="text-indigo-600 font-bold hover:text-indigo-800 transition-all text-sm bg-indigo-50 px-4 py-3 rounded-xl mx-auto w-fit"
+          >
+            Já realizei o pagamento (verificar)
+          </button>
+
+          <button 
+            type="button"
+            onClick={() => {
+              useAuthStore.getState().logout();
+              // Force redirect back to login if navigate in store didn't happen
+              window.location.href = '/login';
+            }}
+            className="text-slate-400 font-semibold hover:text-slate-600 transition-all text-sm"
+          >
+            Sair e entrar com outra conta
+          </button>
+        </div>
       </motion.div>
     </div>
   );

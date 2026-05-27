@@ -39,10 +39,15 @@ const SubscriptionWarning = () => {
   const isCancellationRequested = user.status_assinatura === 'Cancelamento Solicitado';
   
   // Condição para mostrar aviso: 
-  // - Mais de 5 dias após o vencimento
-  // - Cancelamento já efetivado
-  // - Cancelamento solicitado
-  if (daysSinceExpiration <= 5 && !isCanceled && !isCancellationRequested) return null;
+  // - Menos de 7 dias para expirar (aviso antecipado)
+  // - Vencido (mesmo com os 10 dias de tolerância)
+  // - Cancelamento já efetivado ou solicitado
+  const today = new Date();
+  const expirationDate = user.vencimento_assinatura ? new Date(user.vencimento_assinatura) : null;
+  const isExpiredSoon = expirationDate && (expirationDate.getTime() - today.getTime()) < (7 * 24 * 60 * 60 * 1000);
+  const isVencido = expirationDate && expirationDate < today;
+
+  if (!isVencido && !isCanceled && !isCancellationRequested && !isExpiredSoon) return null;
 
   const isBlocked = isCanceled || daysSinceExpiration > 10;
 
@@ -65,8 +70,12 @@ const SubscriptionWarning = () => {
           {isBlocked
             ? 'Sua assinatura expirou ou foi cancelada e o acesso foi bloqueado.'
             : isCancellationRequested
-              ? `Você solicitou o cancelamento. O acesso será interrompido após o vencimento em ${new Date(user.vencimento_assinatura).toLocaleDateString()}.`
-              : `Sua assinatura está vencida há ${daysSinceExpiration} dias. Em breve o acesso será bloqueado.`}
+              ? `Acesso liberado até ${new Date(user.vencimento_assinatura).toLocaleDateString()}, porém a renovação automática está desativada no Stripe.`
+              : isVencido
+                ? `Sua assinatura está vencida há ${daysSinceExpiration} dias. Em breve o acesso será bloqueado.`
+                : isExpiredSoon 
+                  ? `Sua assinatura vencerá em breve (${new Date(user.vencimento_assinatura).toLocaleDateString()}). Verifique seus pagamentos.`
+                  : 'Há um problema com sua assinatura. Verifique os detalhes do plano.'}
         </p>
         <button
           onClick={() => navigate('/subscription')}

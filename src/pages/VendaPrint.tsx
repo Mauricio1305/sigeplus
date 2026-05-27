@@ -97,7 +97,7 @@ export const VendaPrint = () => {
             <div className="bg-slate-900 text-white px-4 py-2 rounded-lg mb-2">
               <h1 className="text-xl font-black uppercase tracking-widest">{sale.tipo === 'os' ? 'Ordem de Serviço' : 'Pedido de Venda'}</h1>
             </div>
-            <p className="text-2xl font-black text-slate-900">#{sale.id.toString().padStart(6, '0')}</p>
+            <p className="text-2xl font-black text-slate-900">#{(sale.sequencial_id || sale.id).toString().padStart(6, '0')}</p>
             <p className="text-slate-500 text-xs font-bold uppercase mt-1">Data: {sale.data_venda ? new Date(sale.data_venda).toLocaleDateString() : ''}</p>
           </div>
         </div>
