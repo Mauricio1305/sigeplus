@@ -1,20 +1,60 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# Sige Plus - Sistema de Gestão Inteligente
 
-# Run and deploy your AI Studio app
+O **Sige Plus** é um sistema SaaS (Software as a Service) completo desenvolvido para simplificar a gestão de pequenas e médias empresas. Oferece uma solução robusta para controle de estoque, financeiro, vendas (PDV), ordens de serviço e gestão multi-tenant.
 
-This contains everything you need to run your app locally.
+## 🚀 Tecnologias Utilizadas
 
-View your app in AI Studio: https://ai.studio/apps/4842554c-686d-4ec3-8d73-5542dfa0358c
+O sistema utiliza uma stack moderna e performática:
 
-## Run Locally
+- **Frontend:**
+  - [React](https://reactjs.org/) (com Vite)
+  - [Tailwind CSS](https://tailwindcss.com/) para estilização
+  - [Zustand](https://docs.pmnd.rs/zustand/getting-started/introduction) para gerenciamento de estado
+  - [Motion](https://motion.dev/) para animações
+  - [Lucide React](https://lucide.dev/) para ícones
+- **Backend:**
+  - [Node.js](https://nodejs.org/) com [Express](https://expressjs.com/)
+  - [TypeScript](https://www.typescriptlang.org/) para segurança de tipos
+  - [MySQL](https://www.mysql.com/) / [PostgreSQL](https://www.postgresql.org/) (via Pool de conexões)
+- **Integrações:**
+  - [Stripe](https://stripe.com/) para pagamentos e assinaturas
+  - [Nodemailer](https://nodemailer.com/) para envio de e-mails transacionais (boas-vindas, recuperação de senha)
 
-**Prerequisites:**  Node.js
+## 📁 Estrutura do Projeto
 
+- `/src/pages`: Componentes de página (PDV, Financeiro, Estoque, etc.)
+- `/src/components`: Componentes reutilizáveis (UI, Layout, Auth)
+- `/src/store`: Gerenciamento de estado global com Zustand
+- `/src/utils`: Funções utilitárias (formatação, validação)
+- `server.ts`: Ponto de entrada do backend API
+- `schema.sql`: Definição do banco de dados relacional
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🛠️ Como Iniciar
+
+1. **Instalação:**
+   ```bash
+   npm install
+   ```
+
+2. **Configuração de Ambiente:**
+   Crie um arquivo `.env` baseado no `.env.example` com suas credenciais de banco de dados e chaves de API.
+
+3. **Inicialização (Desenvolvimento):**
+   ```bash
+   npm run dev
+   ```
+
+4. **Build para Produção:**
+   ```bash
+   npm run build
+   npm start
+   ```
+
+## 📖 Documentação Detalhada
+
+Para mais informações sobre partes específicas do sistema, consulte:
+
+- [Documentação de Banco de Dados](DATABASE.md)
+- [Documentação de API](API.md)
+- [Guia de Funcionalidades](FEATURES.md)
+- [Regras de Negócio](BUSINESS_RULES.md)

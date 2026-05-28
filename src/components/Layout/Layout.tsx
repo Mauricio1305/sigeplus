@@ -185,12 +185,7 @@ export const Layout = () => {
     if (!user) return false;
     if (user.perfil === 'superadmin') return true;
 
-    // Check plan restriction first
-    let requiredPlanModule = module;
-    if (module === 'os' || module === 'mesas') requiredPlanModule = 'vendas';
-    if (module === 'dashboard') requiredPlanModule = 'dashboard';
-
-    const planHasModule = requiredPlanModule === 'dashboard' ? true : user.modulos?.includes(requiredPlanModule);
+    const planHasModule = module === 'dashboard' ? true : user.modulos?.includes(module);
     if (!planHasModule) return false;
 
     // Admin passes group check automatically

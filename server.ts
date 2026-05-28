@@ -891,12 +891,11 @@ const planMiddleware = (module: string) => {
         });
       }
 
-      // Check Plan level
-      const additionalModules = ['vendas', 'os', 'mesas', 'pdv'];
+      // Check Plan level: verify if the module is allowed in the user's plan
       const allowedModules = company.modulos || [];
       
       let planHasModule = true;
-      if (additionalModules.includes(currentModule)) {
+      if (currentModule !== 'dashboard') {
          planHasModule = allowedModules.includes(currentModule);
       }
 

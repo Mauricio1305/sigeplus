@@ -3,6 +3,7 @@ import { Plus, Search, Edit2, X, Save, Upload, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney } from '../utils/format';
+import { getDirectImageUrl } from '../utils/image';
 import * as XLSX from 'xlsx';
 
 export const Inventory = () => {
@@ -338,6 +339,7 @@ export const Inventory = () => {
         },
         body: JSON.stringify({
           ...newProduct,
+          foto: getDirectImageUrl(newProduct.foto),
           custo: newProduct.custo || 0,
           preco_venda: newProduct.preco_venda || 0,
           estoque_atual: newProduct.estoque_atual || 0,
@@ -451,6 +453,7 @@ export const Inventory = () => {
           <thead className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
             <tr>
               <th className="px-6 py-4 font-semibold">Cód.</th>
+              <th className="px-6 py-4 font-semibold">Foto</th>
               <th className="px-6 py-4 font-semibold">Cód. Barras</th>
               <th className="px-6 py-4 font-semibold">Nome</th>
               <th className="px-6 py-4 font-semibold">Tipo</th>
@@ -471,6 +474,22 @@ export const Inventory = () => {
             }).map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4 font-medium text-slate-500 text-xs">#{p.id}</td>
+                <td className="px-6 py-4">
+                  {p.foto ? (
+                    <img 
+                      src={getDirectImageUrl(p.foto)} 
+                      alt={p.nome} 
+                      className="w-10 h-10 object-cover rounded-lg border border-slate-100 shadow-sm"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=Err';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-bold uppercase">
+                      Off
+                    </div>
+                  )}
+                </td>
                 <td className="px-6 py-4 text-slate-600 font-mono text-xs">{p.codigo_barras || '-'}</td>
                 <td className="px-6 py-4 font-medium text-slate-900">{p.nome}</td>
                 <td className="px-6 py-4">
@@ -726,11 +745,18 @@ export const Inventory = () => {
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Foto do Produto</label>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">URL da Imagem (Google Drive, Dropbox, etc.)</label>
                 <div className="flex items-center gap-4">
                   {newProduct.foto ? (
-                    <div className="relative group">
-                      <img src={newProduct.foto} alt="Foto" className="h-16 w-16 object-cover rounded-xl border border-slate-200 shadow-sm transition-transform group-hover:scale-105" />
+                    <div className="relative group shrink-0">
+                      <img 
+                        src={getDirectImageUrl(newProduct.foto)} 
+                        alt="Preview" 
+                        className="h-20 w-20 object-cover rounded-xl border border-slate-200 shadow-sm transition-transform group-hover:scale-105" 
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=IMG+Inv%C3%A1lida';
+                        }}
+                      />
                       <button 
                         type="button" 
                         onClick={() => setNewProduct({ ...newProduct, foto: '' })}
@@ -740,38 +766,21 @@ export const Inventory = () => {
                       </button>
                     </div>
                   ) : (
-                    <div className="h-16 w-16 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 text-slate-400">
-                      IMG
+                    <div className="h-20 w-20 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center bg-slate-50 text-slate-400 shrink-0 text-[10px] font-bold">
+                      SEM FOTO
                     </div>
                   )}
                   <div className="flex-1">
                     <input 
-                      type="file" 
-                      accept="image/*"
-                      className="w-full px-4 py-2 rounded-xl border border-slate-200 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer"
-                      disabled={isUploading}
-                      onChange={e => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          if (file.size > 2 * 1024 * 1024) {
-                            return alert("A imagem é muito grande. O limite para o banco de dados é 2MB. Tente uma imagem menor.");
-                          }
-                          setIsUploading(true);
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            setNewProduct({ ...newProduct, foto: reader.result as string });
-                            setIsUploading(false);
-                          };
-                          reader.onerror = () => {
-                            alert("Erro ao ler o arquivo.");
-                            setIsUploading(false);
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
+                      type="url" 
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-sm"
+                      placeholder="https://exemplo.com/imagem.jpg"
+                      value={newProduct.foto || ''}
+                      onChange={e => setNewProduct({...newProduct, foto: e.target.value})}
                     />
-                    {isUploading && <p className="text-xs text-indigo-600 mt-1 font-bold animate-pulse">Processando imagem...</p>}
-                    {!isUploading && <p className="text-[10px] text-slate-400 mt-1">Formatos aceitos: JPG, PNG, WEBP. Máx: 2MB.</p>}
+                    <p className="text-[10px] text-slate-400 mt-1.5 leading-tight">
+                      Insira o link direto da imagem. Para Google Drive ou Dropbox, certifique-se de que o link é de visualização pública.
+                    </p>
                   </div>
                 </div>
               </div>

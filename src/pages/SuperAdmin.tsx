@@ -28,6 +28,10 @@ export const SuperAdmin = () => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const availableModules = [
+    { id: 'financeiro', label: 'Financeiro' },
+    { id: 'estoque', label: 'Estoque' },
+    { id: 'cadastros', label: 'Cadastros (Pessoas)' },
+    { id: 'configuracoes', label: 'Configurações' },
     { id: 'vendas', label: 'Pedidos e Orçamentos' },
     { id: 'os', label: 'Ordens de Serviço' },
     { id: 'mesas', label: 'Mesas & Comandas' },
@@ -431,223 +435,271 @@ export const SuperAdmin = () => {
 
       {isNewPlanModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col max-h-[90vh]"
+          >
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center shrink-0">
               <h2 className="text-2xl font-bold text-slate-900">Novo Plano</h2>
-              <button onClick={() => {
-                setIsNewPlanModalOpen(false);
-                setFieldErrors({});
-              }}><X className="text-slate-400" /></button>
+              <button 
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                onClick={() => {
+                  setIsNewPlanModalOpen(false);
+                  setFieldErrors({});
+                }}
+              >
+                <X className="text-slate-400" />
+              </button>
             </div>
-            <form onSubmit={handleCreatePlan} className="space-y-4" noValidate>
-              <FormField label="Nome do Plano" error={fieldErrors.nome} required>
-                <input 
-                  type="text" 
-                  className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.nome ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                  value={newPlan.nome}
-                  onChange={e => {
-                    setNewPlan({...newPlan, nome: e.target.value});
-                    if (fieldErrors.nome) setFieldErrors({...fieldErrors, nome: ''});
-                  }}
-                />
-              </FormField>
-              <FormField label="Valor Mensal (R$)" error={fieldErrors.valor_mensal} required>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.valor_mensal ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                  value={newPlan.valor_mensal}
-                  onChange={e => {
-                    setNewPlan({...newPlan, valor_mensal: parseFloat(e.target.value)});
-                    if (fieldErrors.valor_mensal) setFieldErrors({...fieldErrors, valor_mensal: ''});
-                  }}
-                />
-              </FormField>
-              <FormField label="Limite de Usuários" error={fieldErrors.limite_usuarios} required>
-                <input 
-                  type="number" 
-                  className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.limite_usuarios ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                  value={newPlan.limite_usuarios}
-                  onChange={e => {
-                    setNewPlan({...newPlan, limite_usuarios: parseInt(e.target.value)});
-                    if (fieldErrors.limite_usuarios) setFieldErrors({...fieldErrors, limite_usuarios: ''});
-                  }}
-                />
-              </FormField>
-              <div className="flex items-center gap-2 mt-4 ml-1">
-                <input 
-                  type="checkbox" 
-                  id="new-is-trial"
-                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                  checked={newPlan.is_trial}
-                  onChange={e => setNewPlan({...newPlan, is_trial: e.target.checked})}
-                />
-                <label htmlFor="new-is-trial" className="text-sm font-semibold text-slate-700 cursor-pointer">
-                  Plano de Teste Grátis (Trial)
-                </label>
-              </div>
+            
+            <div className="p-8 overflow-y-auto">
+              <form onSubmit={handleCreatePlan} className="space-y-6" noValidate>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField label="Nome do Plano" error={fieldErrors.nome} required>
+                    <input 
+                      type="text" 
+                      className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.nome ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      value={newPlan.nome}
+                      onChange={e => {
+                        setNewPlan({...newPlan, nome: e.target.value});
+                        if (fieldErrors.nome) setFieldErrors({...fieldErrors, nome: ''});
+                      }}
+                    />
+                  </FormField>
+                  <FormField label="Valor Mensal (R$)" error={fieldErrors.valor_mensal} required>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.valor_mensal ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      value={newPlan.valor_mensal}
+                      onChange={e => {
+                        setNewPlan({...newPlan, valor_mensal: parseFloat(e.target.value)});
+                        if (fieldErrors.valor_mensal) setFieldErrors({...fieldErrors, valor_mensal: ''});
+                      }}
+                    />
+                  </FormField>
+                </div>
 
-              {newPlan.is_trial ? (
-                <FormField label="Dias de Teste" error={fieldErrors.trial_days} required>
-                  <input 
-                    type="number" 
-                    className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.trial_days ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                    value={newPlan.trial_days}
-                    onChange={e => {
-                      setNewPlan({...newPlan, trial_days: parseInt(e.target.value)});
-                      if (fieldErrors.trial_days) setFieldErrors({...fieldErrors, trial_days: ''});
-                    }}
-                  />
-                </FormField>
-              ) : (
-                <FormField label="ID do Preço no Stripe" error={fieldErrors.stripe_price_id} required>
-                  <input 
-                    type="text" 
-                    className={`w-full px-4 py-2 rounded-xl border font-mono text-sm outline-none transition-all ${fieldErrors.stripe_price_id ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                    placeholder="price_..."
-                    value={newPlan.stripe_price_id}
-                    onChange={e => {
-                      setNewPlan({...newPlan, stripe_price_id: e.target.value});
-                      if (fieldErrors.stripe_price_id) setFieldErrors({...fieldErrors, stripe_price_id: ''});
-                    }}
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-slate-100 px-1 rounded text-indigo-600">price_...</code> e <strong>NÃO</strong> o ID do Produto (<code className="bg-slate-100 px-1 rounded text-red-500">prod_...</code>).
-                  </p>
-                </FormField>
-              )}
-
-              <div className="space-y-3">
-                <label className="block text-sm font-semibold text-slate-700">Módulos Inclusos</label>
-                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  {availableModules.map(mod => (
-                    <label key={mod.id} className="flex items-center gap-2 cursor-pointer group">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField label="Limite de Usuários" error={fieldErrors.limite_usuarios} required>
+                    <input 
+                      type="number" 
+                      className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.limite_usuarios ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      value={newPlan.limite_usuarios}
+                      onChange={e => {
+                        setNewPlan({...newPlan, limite_usuarios: parseInt(e.target.value)});
+                        if (fieldErrors.limite_usuarios) setFieldErrors({...fieldErrors, limite_usuarios: ''});
+                      }}
+                    />
+                  </FormField>
+                  
+                  <div className="flex flex-col justify-center pt-2">
+                    <div className="flex items-center gap-2 ml-1">
                       <input 
                         type="checkbox" 
-                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                        checked={(newPlan.modulos || []).includes(mod.id)}
-                        onChange={() => handleModuleToggle(mod.id, false)}
+                        id="new-is-trial"
+                        className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        checked={newPlan.is_trial}
+                        onChange={e => setNewPlan({...newPlan, is_trial: e.target.checked})}
                       />
-                      <span className="text-sm text-slate-600 group-hover:text-indigo-600 transition-colors">{mod.label}</span>
-                    </label>
-                  ))}
+                      <label htmlFor="new-is-trial" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+                        Plano de Teste Grátis (Trial)
+                      </label>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold mt-4 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">Cadastrar Plano</button>
-            </form>
+                {newPlan.is_trial ? (
+                  <FormField label="Dias de Teste" error={fieldErrors.trial_days} required>
+                    <input 
+                      type="number" 
+                      className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.trial_days ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      value={newPlan.trial_days}
+                      onChange={e => {
+                        setNewPlan({...newPlan, trial_days: parseInt(e.target.value)});
+                        if (fieldErrors.trial_days) setFieldErrors({...fieldErrors, trial_days: ''});
+                      }}
+                    />
+                  </FormField>
+                ) : (
+                  <FormField label="ID do Preço no Stripe" error={fieldErrors.stripe_price_id} required>
+                    <input 
+                      type="text" 
+                      className={`w-full px-4 py-3 rounded-xl border font-mono text-sm outline-none transition-all ${fieldErrors.stripe_price_id ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      placeholder="price_..."
+                      value={newPlan.stripe_price_id}
+                      onChange={e => {
+                        setNewPlan({...newPlan, stripe_price_id: e.target.value});
+                        if (fieldErrors.stripe_price_id) setFieldErrors({...fieldErrors, stripe_price_id: ''});
+                      }}
+                    />
+                    <p className="text-[10px] text-slate-500 mt-2 bg-indigo-50 p-2 rounded-lg border border-indigo-100 italic">
+                      * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-white px-1 rounded text-indigo-600 border border-slate-200">price_...</code> e <strong>NÃO</strong> o ID do Produto.
+                    </p>
+                  </FormField>
+                )}
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-slate-800">Módulos Inclusos</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    {availableModules.map(mod => (
+                      <label key={mod.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white transition-all cursor-pointer group border border-transparent hover:border-slate-100">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                          checked={(newPlan.modulos || []).includes(mod.id)}
+                          onChange={() => handleModuleToggle(mod.id, false)}
+                        />
+                        <span className="text-sm font-medium text-slate-600 group-hover:text-indigo-600 transition-colors select-none">{mod.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 shrink-0">
+                  <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-[0.98]">
+                    Cadastrar Plano
+                  </button>
+                </div>
+              </form>
+            </div>
           </motion.div>
         </div>
       )}
 
       {editingPlan && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            className="bg-white w-full max-w-lg rounded-3xl shadow-2xl flex flex-col max-h-[90vh]"
+          >
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center shrink-0">
               <h2 className="text-2xl font-bold text-slate-900">Editar Plano</h2>
-              <button onClick={() => {
-                setEditingPlan(null);
-                setFieldErrors({});
-              }}><X className="text-slate-400" /></button>
+              <button 
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                onClick={() => {
+                  setEditingPlan(null);
+                  setFieldErrors({});
+                }}
+              >
+                <X className="text-slate-400" />
+              </button>
             </div>
-            <form onSubmit={handleUpdatePlan} className="space-y-4" noValidate>
-              <FormField label="Nome do Plano" error={fieldErrors.nome} required>
-                <input 
-                  type="text" 
-                  className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.nome ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                  value={editingPlan.nome}
-                  onChange={e => {
-                    setEditingPlan({...editingPlan, nome: e.target.value});
-                    if (fieldErrors.nome) setFieldErrors({...fieldErrors, nome: ''});
-                  }}
-                />
-              </FormField>
-              <FormField label="Valor Mensal (R$)" error={fieldErrors.valor_mensal} required>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.valor_mensal ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                  value={editingPlan.valor_mensal}
-                  onChange={e => {
-                    setEditingPlan({...editingPlan, valor_mensal: parseFloat(e.target.value)});
-                    if (fieldErrors.valor_mensal) setFieldErrors({...fieldErrors, valor_mensal: ''});
-                  }}
-                />
-              </FormField>
-              <FormField label="Limite de Usuários" error={fieldErrors.limite_usuarios} required>
-                <input 
-                  type="number" 
-                  className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.limite_usuarios ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                  value={editingPlan.limite_usuarios}
-                  onChange={e => {
-                    setEditingPlan({...editingPlan, limite_usuarios: parseInt(e.target.value)});
-                    if (fieldErrors.limite_usuarios) setFieldErrors({...fieldErrors, limite_usuarios: ''});
-                  }}
-                />
-                <p className="text-[10px] text-slate-400 mt-1">* Use 9999 para ilimitado</p>
-              </FormField>
-              <div className="flex items-center gap-2 mt-4 ml-1">
-                <input 
-                  type="checkbox" 
-                  id="edit-is-trial"
-                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                  checked={editingPlan.is_trial}
-                  onChange={e => setEditingPlan({...editingPlan, is_trial: e.target.checked})}
-                />
-                <label htmlFor="edit-is-trial" className="text-sm font-semibold text-slate-700 cursor-pointer">
-                  Plano de Teste Grátis (Trial)
-                </label>
-              </div>
+            
+            <div className="p-8 overflow-y-auto">
+              <form onSubmit={handleUpdatePlan} className="space-y-6" noValidate>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField label="Nome do Plano" error={fieldErrors.nome} required>
+                    <input 
+                      type="text" 
+                      className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.nome ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      value={editingPlan.nome}
+                      onChange={e => {
+                        setEditingPlan({...editingPlan, nome: e.target.value});
+                        if (fieldErrors.nome) setFieldErrors({...fieldErrors, nome: ''});
+                      }}
+                    />
+                  </FormField>
+                  <FormField label="Valor Mensal (R$)" error={fieldErrors.valor_mensal} required>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.valor_mensal ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      value={editingPlan.valor_mensal}
+                      onChange={e => {
+                        setEditingPlan({...editingPlan, valor_mensal: parseFloat(e.target.value)});
+                        if (fieldErrors.valor_mensal) setFieldErrors({...fieldErrors, valor_mensal: ''});
+                      }}
+                    />
+                  </FormField>
+                </div>
 
-              {editingPlan.is_trial ? (
-                <FormField label="Dias de Teste" error={fieldErrors.trial_days} required>
-                  <input 
-                    type="number" 
-                    className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.trial_days ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                    value={editingPlan.trial_days || ''}
-                    onChange={e => {
-                      setEditingPlan({...editingPlan, trial_days: parseInt(e.target.value)});
-                      if (fieldErrors.trial_days) setFieldErrors({...fieldErrors, trial_days: ''});
-                    }}
-                  />
-                </FormField>
-              ) : (
-                <FormField label="ID do Preço no Stripe" error={fieldErrors.stripe_price_id} required>
-                  <input 
-                    type="text" 
-                    className={`w-full px-4 py-2 rounded-xl border font-mono text-sm outline-none transition-all ${fieldErrors.stripe_price_id ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
-                    placeholder="price_..."
-                    value={editingPlan.stripe_price_id || ''}
-                    onChange={e => {
-                      setEditingPlan({...editingPlan, stripe_price_id: e.target.value});
-                      if (fieldErrors.stripe_price_id) setFieldErrors({...fieldErrors, stripe_price_id: ''});
-                    }}
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-slate-100 px-1 rounded text-indigo-600">price_...</code> e <strong>NÃO</strong> o ID do Produto (<code className="bg-slate-100 px-1 rounded text-red-500">prod_...</code>).
-                  </p>
-                </FormField>
-              )}
-
-              <div className="space-y-3">
-                <label className="block text-sm font-semibold text-slate-700">Módulos Inclusos</label>
-                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  {availableModules.map(mod => (
-                    <label key={mod.id} className="flex items-center gap-2 cursor-pointer group">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField label="Limite de Usuários" error={fieldErrors.limite_usuarios} required>
+                    <input 
+                      type="number" 
+                      className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.limite_usuarios ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      value={editingPlan.limite_usuarios}
+                      onChange={e => {
+                        setEditingPlan({...editingPlan, limite_usuarios: parseInt(e.target.value)});
+                        if (fieldErrors.limite_usuarios) setFieldErrors({...fieldErrors, limite_usuarios: ''});
+                      }}
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">* Use 9999 para ilimitado</p>
+                  </FormField>
+                  
+                  <div className="flex flex-col justify-start pt-2">
+                    <div className="flex items-center gap-2 ml-1">
                       <input 
                         type="checkbox" 
-                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
-                        checked={(editingPlan.modulos || []).includes(mod.id)}
-                        onChange={() => handleModuleToggle(mod.id, true)}
+                        id="edit-is-trial"
+                        className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        checked={editingPlan.is_trial}
+                        onChange={e => setEditingPlan({...editingPlan, is_trial: e.target.checked})}
                       />
-                      <span className="text-sm text-slate-600 group-hover:text-indigo-600 transition-colors">{mod.label}</span>
-                    </label>
-                  ))}
+                      <label htmlFor="edit-is-trial" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+                        Plano de Teste Grátis (Trial)
+                      </label>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold mt-4 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100">Salvar Alterações</button>
-            </form>
+                {editingPlan.is_trial ? (
+                  <FormField label="Dias de Teste" error={fieldErrors.trial_days} required>
+                    <input 
+                      type="number" 
+                      className={`w-full px-4 py-2 rounded-xl border outline-none transition-all ${fieldErrors.trial_days ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      value={editingPlan.trial_days || ''}
+                      onChange={e => {
+                        setEditingPlan({...editingPlan, trial_days: parseInt(e.target.value)});
+                        if (fieldErrors.trial_days) setFieldErrors({...fieldErrors, trial_days: ''});
+                      }}
+                    />
+                  </FormField>
+                ) : (
+                  <FormField label="ID do Preço no Stripe" error={fieldErrors.stripe_price_id} required>
+                    <input 
+                      type="text" 
+                      className={`w-full px-4 py-3 rounded-xl border font-mono text-sm outline-none transition-all ${fieldErrors.stripe_price_id ? 'border-rose-500 bg-rose-50 focus:ring-rose-200' : 'border-slate-200 focus:ring-indigo-500'}`}
+                      placeholder="price_..."
+                      value={editingPlan.stripe_price_id || ''}
+                      onChange={e => {
+                        setEditingPlan({...editingPlan, stripe_price_id: e.target.value});
+                        if (fieldErrors.stripe_price_id) setFieldErrors({...fieldErrors, stripe_price_id: ''});
+                      }}
+                    />
+                    <p className="text-[10px] text-slate-500 mt-2 bg-indigo-50 p-2 rounded-lg border border-indigo-100 italic">
+                      * Atenção: Use o <strong>ID da Tarifa (Price ID)</strong> que começa com <code className="bg-white px-1 rounded text-indigo-600 border border-slate-200">price_...</code> e <strong>NÃO</strong> o ID do Produto.
+                    </p>
+                  </FormField>
+                )}
+
+                <div className="space-y-3">
+                  <label className="block text-sm font-bold text-slate-800">Módulos Inclusos</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    {availableModules.map(mod => (
+                      <label key={mod.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white transition-all cursor-pointer group border border-transparent hover:border-slate-100">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                          checked={(editingPlan.modulos || []).includes(mod.id)}
+                          onChange={() => handleModuleToggle(mod.id, true)}
+                        />
+                        <span className="text-sm font-medium text-slate-600 group-hover:text-indigo-600 transition-colors select-none">{mod.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-4 shrink-0">
+                  <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 active:scale-[0.98]">
+                    Salvar Alterações
+                  </button>
+                </div>
+              </form>
+            </div>
           </motion.div>
         </div>
       )}

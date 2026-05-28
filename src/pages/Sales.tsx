@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Wrench, Search, Plus, Edit2, MoreVertical, Printer, MessageCircle, Trash2, Ban, AlertCircle, X, FileText } from 'lucide-react';
+import { ShoppingCart, Wrench, Search, Plus, Edit2, MoreVertical, Printer, MessageCircle, Trash2, Ban, AlertCircle, X, FileText, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney } from '../utils/format';
@@ -643,133 +643,290 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
 
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-3xl rounded-3xl p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-slate-900">{newSale.id ? `Editar ${mode === 'os' ? 'OS' : 'Pedido'}` : `Nov${mode === 'os' ? 'a OS' : 'o Pedido'}`}</h2>
-              <button onClick={() => setIsModalOpen(false)}><X className="text-slate-400" /></button>
-            </div>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="relative">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Cliente</label>
-                  <input type="text" className="w-full px-4 py-2 rounded-xl border border-slate-200" placeholder="Pesquisar cliente..." value={clientSearchTerm} onChange={e => { setClientSearchTerm(e.target.value); setShowClientDropdown(true); }} onFocus={() => setShowClientDropdown(true)} />
-                  {showClientDropdown && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
-                      <div className="px-4 py-3 hover:bg-indigo-50 border-b border-slate-100 cursor-pointer italic text-slate-600" onClick={() => { setNewSale({...newSale, pessoa_id: ''}); setClientSearchTerm('Consumidor Final'); setShowClientDropdown(false); }}>Consumidor Final</div>
-                      {pessoas.filter(p => (p.tipo_pessoa === 'cliente' || p.tipo_pessoa === 'ambos') && (p.nome || '').toLowerCase().includes(clientSearchTerm.toLowerCase())).map(p => (
-                        <div key={p.id} className="px-4 py-3 hover:bg-indigo-50 border-b border-slate-100 last:border-0 cursor-pointer font-medium text-slate-800" onClick={() => { setNewSale({...newSale, pessoa_id: p.id}); setClientSearchTerm(p.razao_social || p.nome); setShowClientDropdown(false); }}>{p.razao_social || p.nome}</div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1">Status</label>
-                  <select className="w-full px-4 py-2 rounded-xl border border-slate-200" value={newSale.status} onChange={e => setNewSale({...newSale, status: e.target.value})}>
-                    <option value="finalizada">Finalizada</option>
-                    <option value="orcamento">Orçamento</option>
-                  </select>
-                </div>
-              </div>
-              {mode === 'os' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <textarea placeholder="Solicitação" className="w-full px-4 py-2 rounded-xl border border-slate-200 h-24" value={newSale.solicitacao || ''} onChange={e => setNewSale({...newSale, solicitacao: e.target.value})} />
-                  <textarea placeholder="Laudo Técnico" className="w-full px-4 py-2 rounded-xl border border-slate-200 h-24" value={newSale.laudo_tecnico || ''} onChange={e => setNewSale({...newSale, laudo_tecnico: e.target.value})} />
-                </div>
-              )}
-              <div className="border p-4 rounded-xl bg-slate-50">
-                <h3 className="font-bold mb-4">Itens</h3>
-                <div className="flex gap-2 relative">
-                  <input type="text" className="flex-1 px-4 py-2 rounded-xl border" placeholder="Pesquisar item..." value={productSearchTerm} onChange={e => { setProductSearchTerm(e.target.value); setShowProductDropdown(e.target.value.length >= 3); }} />
-                  {showProductDropdown && (
-                    <div className="absolute z-50 top-11 left-0 bg-white border border-slate-200 rounded-xl w-[calc(100%-130px)] max-h-60 overflow-y-auto shadow-2xl">
-                      {produtos.filter(p => (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase())).map(p => (
-                        <div key={p.id} className="p-3 hover:bg-indigo-50 border-b border-slate-100 last:border-0 cursor-pointer" onClick={() => { setSelectedProduct(p.id.toString()); setProductSearchTerm(p.nome); setShowProductDropdown(false); }}>
-                          <span className="font-bold text-slate-800">{p.nome}</span>
-                          <span className="block text-sm text-slate-500">R$ {formatMoney(p.preco_venda)}</span>
-                        </div>
-                      ))}
-                      {produtos.filter(p => (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase())).length === 0 && (
-                        <div className="p-4 text-center text-slate-500 text-sm">Nenhum produto encontrado.</div>
-                      )}
-                    </div>
-                  )}
-                  <input type="number" min="1" className="w-20 px-4 py-2 rounded-xl border" value={quantity} onChange={e => { let val = parseInt(e.target.value); if (isNaN(val) || val < 1) val = 1; setQuantity(val); }} />
-                  <button type="button" onClick={handleAddItem} className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium">Add</button>
-                </div>
-                {newSale.items.map((item: any, idx: number) => (
-                  <div key={idx} className="flex justify-between py-2 border-b">
-                    <span>{item.nome} x{item.quantidade}</span>
-                    <span>R$ {formatMoney(item.subtotal)} <button onClick={() => handleRemoveItem(idx)}><Trash2 className="w-4 h-4 text-rose-500" /></button></span>
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-between items-center bg-indigo-50 p-4 rounded-xl">
-                <span className="font-bold">Total: R$ {formatMoney(newSale.valor_total)}</span>
-              </div>
-              <div className="border p-4 rounded-xl bg-slate-50">
-                <h3 className="font-bold mb-4">Pagamentos</h3>
-                <div className="flex gap-2">
-                  <select 
-                    className="flex-1 px-4 py-2 rounded-xl border border-slate-200" 
-                    value={currentPayment.tipo_pagamento_id} 
-                    onChange={e => {
-                      const selectedTypeId = e.target.value;
-                      const alreadyPaid = (newSale.pagamentos || []).reduce((acc: number, p: any) => acc + p.valor, 0);
-                      const suggestedValue = Math.max(0, newSale.valor_total - alreadyPaid);
-                      setCurrentPayment({
-                        ...currentPayment, 
-                        tipo_pagamento_id: selectedTypeId, 
-                        parcelas: 1, 
-                        valor: selectedTypeId ? suggestedValue : 0
-                      });
-                    }}
-                  >
-                    <option value="">Tipo...</option>
-                    {paymentTypes.map(pt => <option key={pt.id} value={pt.id}>{pt.nome}</option>)}
-                  </select>
-                  <select
-                    className="w-20 px-3 py-2 rounded-xl border border-slate-200"
-                    value={currentPayment.parcelas}
-                    onChange={e => setCurrentPayment({...currentPayment, parcelas: parseInt(e.target.value)})}
-                    disabled={!currentPayment.tipo_pagamento_id || paymentTypes.find(p => p.id === parseInt(currentPayment.tipo_pagamento_id))?.nome.toLowerCase() === 'dinheiro'}
-                  >
-                    {Array.from({ length: paymentTypes.find(p => p.id === parseInt(currentPayment.tipo_pagamento_id))?.qtd_parcelas || 1 }, (_, i) => i + 1).map(n => (
-                      <option key={n} value={n}>{n}x</option>
-                    ))}
-                  </select>
-                  <input 
-                    type="number" 
-                    min="0"
-                    step="0.01"
-                    className="w-32 px-4 py-2 rounded-xl border border-slate-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
-                    placeholder="Valor" 
-                    value={currentPayment.valor === 0 ? '' : currentPayment.valor} 
-                    onChange={e => {
-                      let val = parseFloat(e.target.value);
-                      if (isNaN(val) || val < 0) val = 0;
-                      setCurrentPayment({...currentPayment, valor: val});
-                    }} 
-                  />
-                  <button type="button" onClick={handleAddPayment} className="bg-indigo-600 text-white px-4 py-2 rounded-xl">Add</button>
-                </div>
-                {newSale.pagamentos?.map((p: any, idx: number) => (
-                  <div key={idx} className="flex justify-between py-1">
-                    <span>{p.nome}</span>
-                    <span>R$ {formatMoney(p.valor)} <button onClick={() => handleRemovePayment(idx)}><Trash2 className="w-4 h-4 text-rose-500" /></button></span>
-                  </div>
-                ))}
-              </div>
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }} 
+            className="bg-white w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+          >
+            <div className="p-8 border-b border-slate-100 flex justify-between items-center shrink-0">
+              <h2 className="text-2xl font-bold text-slate-900">
+                {newSale.id ? `Editar ${mode === 'os' ? 'OS' : 'Pedido'}` : `Nov${mode === 'os' ? 'a OS' : 'o Pedido'}`}
+              </h2>
               <button 
-                type="submit" 
-                disabled={
-                  (newSale.status === 'finalizada' && (!newSale.pagamentos || newSale.pagamentos.length === 0) && (newSale.valor_total || 0) > 0) ||
-                  (newSale.items.length === 0 && !(newSale.tipo === 'os' && newSale.status === 'orcamento'))
-                }
-                className="w-full py-4 bg-emerald-600 text-white rounded-xl font-bold disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="p-2 hover:bg-slate-100 rounded-full transition-colors"
+                onClick={() => setIsModalOpen(false)}
               >
-                Finalizar
+                <X className="text-slate-400" />
               </button>
-            </form>
+            </div>
+            
+            <div className="p-8 overflow-y-auto">
+              <form onSubmit={handleSubmit} className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                  <div className="relative">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Cliente</label>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold bg-white" 
+                        placeholder="Pesquisar cliente..." 
+                        value={clientSearchTerm} 
+                        onChange={e => { setClientSearchTerm(e.target.value); setShowClientDropdown(true); }} 
+                        onFocus={() => setShowClientDropdown(true)} 
+                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
+                        <Search className="w-5 h-5" />
+                      </div>
+                    </div>
+                    {showClientDropdown && (
+                      <div className="absolute z-50 w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl max-h-60 overflow-y-auto">
+                        <div 
+                          className="px-4 py-4 hover:bg-indigo-50 border-b border-slate-100 cursor-pointer italic text-slate-500 font-medium transition-colors" 
+                          onClick={() => { setNewSale({...newSale, pessoa_id: ''}); setClientSearchTerm('Consumidor Final'); setShowClientDropdown(false); }}
+                        >
+                          Consumidor Final
+                        </div>
+                        {pessoas.filter(p => (p.tipo_pessoa === 'cliente' || p.tipo_pessoa === 'ambos') && (p.nome || '').toLowerCase().includes(clientSearchTerm.toLowerCase())).map(p => (
+                          <div 
+                            key={p.id} 
+                            className="px-4 py-4 hover:bg-indigo-50 border-b border-slate-100 last:border-0 cursor-pointer font-bold text-slate-800 transition-colors" 
+                            onClick={() => { setNewSale({...newSale, pessoa_id: p.id}); setClientSearchTerm(p.razao_social || p.nome); setShowClientDropdown(false); }}
+                          >
+                            <p>{p.razao_social || p.nome}</p>
+                            {p.documento && <p className="text-[10px] text-slate-400 font-normal uppercase tracking-wider mt-1">{p.documento}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Status do Pedido</label>
+                    <select 
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold bg-white" 
+                      value={newSale.status} 
+                      onChange={e => setNewSale({...newSale, status: e.target.value})}
+                    >
+                      <option value="orcamento">Orçamento</option>
+                      <option value="finalizada">Finalizada</option>
+                    </select>
+                  </div>
+                </div>
+
+                {mode === 'os' && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Solicitação / Defeitos</label>
+                       <textarea 
+                        placeholder="Quais problemas o cliente relatou?" 
+                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 h-32 focus:ring-2 focus:ring-indigo-500 transition-all outline-none resize-none" 
+                        value={newSale.solicitacao || ''} 
+                        onChange={e => setNewSale({...newSale, solicitacao: e.target.value})} 
+                       />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Laudo Técnico / Serviços</label>
+                       <textarea 
+                        placeholder="O que foi constatado e quais serviços realizar?" 
+                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 h-32 focus:ring-2 focus:ring-indigo-500 transition-all outline-none resize-none bg-slate-50/50" 
+                        value={newSale.laudo_tecnico || ''} 
+                        onChange={e => setNewSale({...newSale, laudo_tecnico: e.target.value})} 
+                       />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Produtos e Serviços</h3>
+                  </div>
+                  <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-sm">
+                    <div className="flex flex-col sm:flex-row gap-4 relative">
+                      <div className="relative flex-1">
+                        <input 
+                          type="text" 
+                          className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" 
+                          placeholder="Buscar item pelo nome..." 
+                          value={productSearchTerm} 
+                          onChange={e => { setProductSearchTerm(e.target.value); setShowProductDropdown(e.target.value.length >= 2); }} 
+                        />
+                        {showProductDropdown && (
+                          <div className="absolute z-50 top-full left-0 mt-2 bg-white border border-slate-200 rounded-2xl w-full max-h-60 overflow-y-auto shadow-2xl">
+                            {produtos.filter(p => (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase())).map(p => (
+                              <div 
+                                key={p.id} 
+                                className="p-4 hover:bg-emerald-50 border-b border-slate-100 last:border-0 cursor-pointer transition-colors" 
+                                onClick={() => { setSelectedProduct(p.id.toString()); setProductSearchTerm(p.nome); setShowProductDropdown(false); }}
+                              >
+                                <p className="font-bold text-slate-800">{p.nome}</p>
+                                <p className="text-xs font-black text-emerald-600 mt-1">R$ {formatMoney(p.preco_venda)}</p>
+                              </div>
+                            ))}
+                            {produtos.filter(p => (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase())).length === 0 && (
+                              <div className="p-6 text-center text-slate-400 italic text-sm">Nenhum produto encontrado.</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <div className="w-24">
+                          <input 
+                            type="number" 
+                            min="1" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-center font-bold" 
+                            value={quantity} 
+                            onChange={e => { let val = parseInt(e.target.value); if (isNaN(val) || val < 1) val = 1; setQuantity(val); }} 
+                          />
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={handleAddItem} 
+                          className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all active:scale-[0.98] flex items-center gap-2 shadow-lg shadow-emerald-100"
+                        >
+                          <Plus className="w-5 h-5" /> Adicionar
+                        </button>
+                      </div>
+                    </div>
+
+                    {newSale.items.length > 0 ? (
+                      <div className="space-y-2 border-t border-slate-100 pt-6">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Itens Adicionados</label>
+                        <div className="grid grid-cols-1 gap-2">
+                          {newSale.items.map((item: any, idx: number) => (
+                            <div key={idx} className="flex justify-between items-center p-4 bg-slate-50/50 rounded-2xl border border-slate-100 group hover:border-indigo-200 transition-all">
+                              <div className="flex-1 min-w-0 pr-4">
+                                <span className="font-bold text-slate-800 truncate block">{item.nome}</span>
+                                <span className="text-xs text-slate-400 font-medium">Qtd: <span className="text-slate-900 font-bold">{item.quantidade}</span> × R$ {formatMoney(item.preco_unitario)}</span>
+                              </div>
+                              <div className="flex items-center gap-4 shrink-0">
+                                <span className="font-black text-slate-900">R$ {formatMoney(item.subtotal)}</span>
+                                <button 
+                                  onClick={() => handleRemoveItem(idx)}
+                                  className="p-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex justify-between items-center bg-indigo-600 p-6 rounded-2xl shadow-xl shadow-indigo-100 mt-6">
+                          <span className="text-indigo-100 font-bold uppercase tracking-widest text-xs">Total do Pedido</span>
+                          <span className="text-white text-3xl font-black">R$ {formatMoney(newSale.valor_total)}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 border-2 border-dashed border-slate-100 rounded-2xl">
+                        <p className="text-slate-400 text-sm italic">Nenhum item adicionado ao pedido.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider px-1">Informações de Pagamento</h3>
+                  <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-6">
+                    <div className="flex flex-col lg:flex-row gap-4">
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-1">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Forma</label>
+                          <select 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-bold outline-none focus:ring-2 focus:ring-indigo-500" 
+                            value={currentPayment.tipo_pagamento_id} 
+                            onChange={e => {
+                              const selectedTypeId = e.target.value;
+                              const alreadyPaid = (newSale.pagamentos || []).reduce((acc: number, p: any) => acc + p.valor, 0);
+                              const suggestedValue = Math.max(0, newSale.valor_total - alreadyPaid);
+                              setCurrentPayment({
+                                ...currentPayment, 
+                                tipo_pagamento_id: selectedTypeId, 
+                                parcelas: 1, 
+                                valor: selectedTypeId ? suggestedValue : 0
+                              });
+                            }}
+                          >
+                            <option value="">Selecione...</option>
+                            {paymentTypes.map(pt => <option key={pt.id} value={pt.id}>{pt.nome}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Parc.</label>
+                          <select
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-bold outline-none disabled:opacity-50"
+                            value={currentPayment.parcelas}
+                            onChange={e => setCurrentPayment({...currentPayment, parcelas: parseInt(e.target.value)})}
+                            disabled={!currentPayment.tipo_pagamento_id || paymentTypes.find(p => p.id === parseInt(currentPayment.tipo_pagamento_id))?.nome.toLowerCase() === 'dinheiro'}
+                          >
+                            {Array.from({ length: paymentTypes.find(p => p.id === parseInt(currentPayment.tipo_pagamento_id))?.qtd_parcelas || 1 }, (_, i) => i + 1).map(n => (
+                              <option key={n} value={n}>{n}x</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1">Valor</label>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            step="0.01" 
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-black outline-none focus:ring-2 focus:ring-indigo-500 [appearance:textfield]" 
+                            placeholder="0,00" 
+                            value={currentPayment.valor === 0 ? '' : currentPayment.valor} 
+                            onChange={e => {
+                              let val = parseFloat(e.target.value);
+                              if (isNaN(val) || val < 0) val = 0;
+                              setCurrentPayment({...currentPayment, valor: val});
+                            }} 
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-end">
+                        <button 
+                          type="button" 
+                          onClick={handleAddPayment} 
+                          className="w-full lg:w-auto px-8 py-3.5 bg-slate-800 text-white rounded-xl font-bold hover:bg-black transition-all active:scale-[0.98] shadow-lg"
+                        >
+                          Lançar Pagamento
+                        </button>
+                      </div>
+                    </div>
+
+                    {(newSale.pagamentos || []).length > 0 && (
+                      <div className="grid grid-cols-1 gap-2 pt-2">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Pagamentos Recebidos</label>
+                        {newSale.pagamentos?.map((p: any, idx: number) => (
+                          <div key={idx} className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl">
+                            <div className="flex items-center gap-3">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                              <span className="font-bold text-slate-700">{p.nome}</span>
+                              {p.parcelas > 1 && <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold">{p.parcelas}x</span>}
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <span className="font-black text-slate-900">R$ {formatMoney(p.valor)}</span>
+                              <button onClick={() => handleRemovePayment(idx)} className="p-1.5 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-4 shrink-0 pb-4">
+                  <button 
+                    type="submit" 
+                    disabled={
+                      (newSale.status === 'finalizada' && (!newSale.pagamentos || newSale.pagamentos.length === 0) && (newSale.valor_total || 0) > 0) ||
+                      (newSale.items.length === 0 && !(newSale.tipo === 'os' && newSale.status === 'orcamento'))
+                    }
+                    className="w-full py-5 bg-emerald-500 text-white rounded-2xl font-black text-lg tracking-wider transition-all disabled:opacity-30 disabled:grayscale shadow-2xl shadow-emerald-100 enabled:hover:bg-emerald-600 enabled:active:scale-[0.98] flex items-center justify-center gap-3"
+                  >
+                    <CheckCircle className="w-6 h-6" />
+                    Finalizar {mode === 'os' ? 'Ordem de Serviço' : 'Pedido de Venda'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </motion.div>
         </div>
       )}

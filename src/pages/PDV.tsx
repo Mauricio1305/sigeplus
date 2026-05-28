@@ -19,6 +19,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { validatePayment } from '../utils/paymentValidation';
+import { getDirectImageUrl } from '../utils/image';
 
 function formatMoney(value: any): string {
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -409,11 +410,21 @@ export default function PDV() {
               <button 
                 key={produto.id}
                 onClick={() => addToCart(produto)}
-                className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100 transition-all text-left flex flex-col justify-between min-h-[8rem] active:scale-95 group"
+                className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100 transition-all text-left flex flex-col justify-between min-h-[9rem] active:scale-95 group"
               >
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm sm:text-base line-clamp-3 leading-tight group-hover:text-indigo-700 transition-colors">{produto.nome}</h3>
-                  <p className="text-[10px] sm:text-xs text-slate-400 mt-1 truncate">{produto.codigo_barras || 'Sem código'}</p>
+                <div className="flex gap-3">
+                  {produto.foto && (
+                    <img 
+                      src={getDirectImageUrl(produto.foto)} 
+                      alt={produto.nome} 
+                      className="w-12 h-12 object-cover rounded-lg border border-slate-100 flex-shrink-0"
+                      onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=Err' }}
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-800 text-sm sm:text-base line-clamp-2 leading-tight group-hover:text-indigo-700 transition-colors">{produto.nome}</h3>
+                    <p className="text-[10px] sm:text-xs text-slate-400 mt-1 truncate">{produto.codigo_barras || 'Sem código'}</p>
+                  </div>
                 </div>
                 <div className="flex flex-col sm:flex-row justify-between sm:items-end mt-3 gap-1 sm:gap-0">
                   <span className="font-black text-indigo-600 text-sm sm:text-base">R$ {formatMoney(produto.preco_venda)}</span>

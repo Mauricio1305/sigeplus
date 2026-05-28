@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { getDirectImageUrl } from '../utils/image';
 import { 
   Coffee, Plus, X, Search, CheckCircle, CreditCard, ShoppingCart, Minus, Printer, Users, MessageCircle, Trash2, FileText
 } from 'lucide-react';
@@ -733,10 +734,20 @@ export default function Mesas() {
                       <button 
                         key={produto.id}
                         onClick={() => addProductToMesa(produto)}
-                        className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:border-indigo-500 transition-all text-left flex flex-col justify-between h-28 active:scale-95"
+                        className="bg-white p-3 rounded-xl shadow-sm border border-slate-200 hover:border-indigo-500 transition-all text-left flex flex-col justify-between h-32 active:scale-95 group"
                       >
-                         <h3 className="font-bold text-slate-800 line-clamp-2 leading-tight text-sm">{produto.nome}</h3>
-                         <span className="font-black text-indigo-600 mt-2">R$ {formatMoney(produto.preco_venda)}</span>
+                         <div className="flex gap-2">
+                           {produto.foto && (
+                             <img 
+                               src={getDirectImageUrl(produto.foto)} 
+                               alt={produto.nome} 
+                               className="w-10 h-10 object-cover rounded-md border border-slate-100 shrink-0"
+                               onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=Err' }}
+                             />
+                           )}
+                           <h3 className="font-bold text-slate-800 line-clamp-2 leading-tight text-xs group-hover:text-indigo-700 transition-colors">{produto.nome}</h3>
+                         </div>
+                         <span className="font-black text-indigo-600 mt-2 text-sm">R$ {formatMoney(produto.preco_venda)}</span>
                       </button>
                     ))}
                     {filteredProdutos.length === 0 && (
@@ -809,32 +820,38 @@ export default function Mesas() {
              initial={{ opacity: 0, y: 100, scale: 0.9 }}
              animate={{ opacity: 1, y: 0, scale: 1 }}
              exit={{ opacity: 0, y: 100, scale: 0.9 }}
-             className="bg-white w-full max-w-md rounded-2xl shadow-2xl relative z-10 overflow-hidden"
+             className="bg-white w-full max-w-lg rounded-2xl shadow-2xl relative z-10 flex flex-col max-h-[90vh]"
            >
-             <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+             <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                  <CreditCard className="w-5 h-5 text-indigo-600" />
                  Finalizar Mesa
                </h3>
-               <button onClick={() => setIsFinishing(false)} className="text-slate-400 hover:text-slate-600"><X className="w-6 h-6" /></button>
-                 <div className="p-6 space-y-4">
-                <div className="bg-indigo-50 p-4 rounded-xl flex justify-between items-center text-indigo-900 font-medium">
-                  <span>Subtotal + Taxa</span>
-                  <span>R$ {formatMoney(calculateTotals().subtotal + calculateTotals().service)}</span>
-                </div>
-               
-                <div>
-                   <label className="block text-sm font-bold text-slate-700 mb-1">Desconto R$</label>
-                   <input type="number" min="0" step="0.01" value={discount === 0 ? '' : discount} onChange={e => setDiscount(parseFloat(e.target.value) || 0)} className="w-full border border-slate-300 rounded-lg px-4 py-3 bg-white" placeholder="0,00" />
+               <button onClick={() => setIsFinishing(false)} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-6 h-6" /></button>
+             </div>
+
+             <div className="p-6 overflow-y-auto space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">Desconto R$</label>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="0.01" 
+                      value={discount === 0 ? '' : discount} 
+                      onChange={e => setDiscount(parseFloat(e.target.value) || 0)} 
+                      className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" 
+                      placeholder="0,00" 
+                    />
+                  </div>
+                  <div className="flex flex-col justify-end text-right">
+                    <p className="text-slate-500 font-medium text-xs uppercase tracking-wider mb-1">Total a Pagar</p>
+                    <p className="text-3xl font-black text-slate-900 tracking-tight leading-none">R$ {formatMoney(calculateTotals().total)}</p>
+                  </div>
                 </div>
 
-                <div className="text-center py-4 border-b border-dashed">
-                  <p className="text-slate-500 font-medium mb-1">Total a Pagar</p>
-                  <p className="text-4xl font-black text-slate-900 tracking-tight">R$ {formatMoney(calculateTotals().total)}</p>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="space-y-3 pt-4 border-t border-slate-100">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <select 
                       className="w-full border border-slate-200 rounded-xl px-4 py-2 bg-slate-50 text-slate-900 font-medium focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
                       value={currentPayment.tipo_pagamento_id}
@@ -880,65 +897,73 @@ export default function Mesas() {
                         <option key={n} value={n}>{n}x</option>
                       ))}
                     </select>
-                    <button 
-                      type="button"
-                      onClick={handleAddPayment}
-                      className="bg-indigo-600 text-white font-bold py-2 rounded-xl hover:bg-indigo-700 transition-all"
-                    >
-                      Adicionar
-                    </button>
+                    <div className="flex items-end">
+                      <button 
+                        type="button"
+                        onClick={handleAddPayment}
+                        className="w-full bg-indigo-600 text-white font-bold h-[48px] rounded-xl hover:bg-indigo-700 transition-all active:scale-[0.98] shadow-md shadow-indigo-100 flex items-center justify-center gap-2"
+                      >
+                        <Plus className="w-5 h-5" /> Adicionar Pagamento
+                      </button>
+                    </div>
                   </div>
                 </div>
 
                 {pagamentos.length > 0 && (
-                  <div className="space-y-2 mt-4 max-h-40 overflow-y-auto pr-1">
-                    {pagamentos.map((p, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs">
-                        <div>
-                          <span className="font-bold text-slate-700">{p.nome}</span>
-                          <span className="text-slate-500 ml-2">{p.parcelas}x</span>
+                  <div className="space-y-2 mt-4 pt-4 border-t border-slate-100">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Pagamentos Lançados</label>
+                    <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-1">
+                      {pagamentos.map((p, idx) => (
+                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm transition-all hover:border-indigo-200">
+                          <div>
+                            <span className="font-bold text-slate-800">{p.nome}</span>
+                            <span className="text-slate-500 ml-2 text-xs bg-slate-100 px-2 py-0.5 rounded-full font-bold">{p.parcelas}x</span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <span className="font-black text-slate-900">R$ {formatMoney(p.valor)}</span>
+                            <button type="button" onClick={() => handleRemovePayment(idx)} className="text-rose-500 hover:text-rose-600 p-1.5 hover:bg-rose-50 rounded-lg transition-all">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="font-bold text-slate-900">R$ {formatMoney(p.valor)}</span>
-                          <button type="button" onClick={() => handleRemovePayment(idx)} className="text-rose-500 hover:text-rose-700">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                <div className="mt-4 pt-4 border-t border-slate-100 space-y-1 text-sm">
-                  <div className="flex justify-between font-medium">
+                <div className="mt-4 pt-4 border-t-2 border-slate-100 border-dashed space-y-2">
+                  <div className="flex justify-between font-bold text-lg">
                     <span className="text-slate-500">Total Pago:</span>
-                    <span className="text-slate-900 font-bold">R$ {formatMoney(pagamentos.reduce((acc, p) => acc + p.valor, 0))}</span>
+                    <span className="text-indigo-600">R$ {formatMoney(pagamentos.reduce((acc, p) => acc + p.valor, 0))}</span>
                   </div>
+                  
+                  <div className="flex justify-between font-bold">
+                    <span className="text-slate-500">Restante:</span>
+                    <span className={`${calculateTotals().total - pagamentos.reduce((acc, p) => acc + p.valor, 0) < 0.01 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      R$ {formatMoney(Math.max(0, calculateTotals().total - pagamentos.reduce((acc, p) => acc + p.valor, 0)))}
+                    </span>
+                  </div>
+
                   {change > 0 && (
-                    <div className="flex justify-between font-medium text-emerald-600 bg-emerald-50 p-2 rounded-lg mt-2">
-                      <span>Troco:</span>
-                      <span className="font-black">R$ {formatMoney(change)}</span>
+                    <div className="flex justify-between font-bold text-emerald-600 bg-emerald-50 p-3 rounded-xl border border-emerald-100 mt-2">
+                      <span className="flex items-center gap-1"><span className="text-xs uppercase tracking-wider">Troco:</span></span>
+                      <span className="text-xl font-black">R$ {formatMoney(change)}</span>
                     </div>
                   )}
-                  <div className="flex justify-between font-medium">
-                   <span className="text-slate-500">Restante:</span>
-                   <span className={`font-bold ${calculateTotals().total - pagamentos.reduce((acc, p) => acc + p.valor, 0) < 0.01 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                     R$ {formatMoney(Math.max(0, calculateTotals().total - pagamentos.reduce((acc, p) => acc + p.valor, 0)))}
-                   </span>
-                  </div>
                 </div>
 
-                <button 
-                  onClick={handleFinishMesa}
-                  disabled={calculateTotals().total - pagamentos.reduce((acc, p) => acc + p.valor, 0) > 0.01}
-                  className="w-full mt-4 bg-emerald-500 disabled:bg-slate-300 hover:bg-emerald-600 text-white font-bold py-4 rounded-xl transition-all shadow-lg"
-                >
-                  Confirmar Pagamento
-                </button>
+                <div className="pt-4 shrink-0">
+                  <button 
+                    onClick={handleFinishMesa}
+                    disabled={calculateTotals().total - pagamentos.reduce((acc, p) => acc + p.valor, 0) > 0.01 || isFinishingMesa}
+                    className="w-full bg-emerald-500 disabled:bg-slate-200 disabled:text-slate-400 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl transition-all shadow-xl shadow-emerald-100 active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    {isFinishingMesa ? 'Processando...' : <><CheckCircle className="w-5 h-5" /> Confirmar Pagamento</>}
+                  </button>
+                </div>
               </div>
-           </div>
-           </motion.div>
-         </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

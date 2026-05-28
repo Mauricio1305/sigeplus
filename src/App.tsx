@@ -33,11 +33,7 @@ const ModuleGuard = ({ module, children }: { module: string, children: React.Rea
   if (!user) return <Navigate to="/login" replace />;
   if (user.perfil === 'superadmin') return <>{children}</>;
   
-  let requiredPlanModule = module;
-  if (module === 'os' || module === 'mesas') requiredPlanModule = 'vendas';
-  if (module === 'dashboard') requiredPlanModule = 'dashboard';
-
-  const planHasModule = requiredPlanModule === 'dashboard' ? true : user.modulos?.includes(requiredPlanModule);
+  const planHasModule = module === 'dashboard' ? true : user.modulos?.includes(module);
   
   let hasGroupAccess = false;
   if (user.perfil === 'admin') {
@@ -95,10 +91,10 @@ const App = () => {
             <Route path="pessoas" element={<ModuleGuard module="cadastros"><Pessoas /></ModuleGuard>} />
             <Route path="estoque" element={<ModuleGuard module="estoque"><Inventory /></ModuleGuard>} />
             <Route path="vendas" element={<ModuleGuard module="vendas"><Sales mode="venda" /></ModuleGuard>} />
-            <Route path="os" element={<ModuleGuard module="vendas"><Sales mode="os" /></ModuleGuard>} />
+            <Route path="os" element={<ModuleGuard module="os"><Sales mode="os" /></ModuleGuard>} />
             <Route path="financeiro" element={<ModuleGuard module="financeiro"><Finance /></ModuleGuard>} />
             <Route path="pdv" element={<ModuleGuard module="pdv"><PDV /></ModuleGuard>} />
-            <Route path="mesas" element={<ModuleGuard module="vendas"><Mesas /></ModuleGuard>} />
+            <Route path="mesas" element={<ModuleGuard module="mesas"><Mesas /></ModuleGuard>} />
             <Route path="dre" element={<ModuleGuard module="financeiro"><DRE /></ModuleGuard>} />
             <Route path="reports/:type" element={<Reports />} />
             <Route path="settings" element={<ModuleGuard module="configuracoes"><Settings /></ModuleGuard>} />
