@@ -1,6 +1,6 @@
 # Documentação do Banco de Dados
 
-O Sige Plus utiliza uma arquitetura **Multi-Tenant** baseada em um campo `tenant_id` presente em quase todas as tabelas. Isso garante o isolamento dos dados entre diferentes empresas em uma mesma instância do banco.
+O Sige Plus utiliza uma arquitetura **Multi-Tenant** baseada em um campo `tenant_id` presente em quase todas as tabelas. O sistema utiliza exclusivamente o banco de dados **PostgreSQL**.
 
 ## 🏗️ Esquema Principal
 

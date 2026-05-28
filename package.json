@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -32,7 +32,6 @@
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
-    "mysql2": "^3.19.0",
     "nodemailer": "^8.0.2",
     "pg": "^8.21.0",
     "react": "^19.0.0",

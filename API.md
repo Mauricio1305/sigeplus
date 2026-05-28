@@ -38,6 +38,8 @@ A API do Sige Plus é construída em Node.js usando Express. Todos os endpoints 
 - `POST /api/sales/:id/cancel`: Cancela venda, estornando financeiro e devolvendo itens ao estoque.
 - `GET /api/sales/:id`: Detalhes de uma venda específica.
 
+> **Nota sobre IDs**: Nas rotas de Vendas, o parâmetro `:id` aceita tanto o ID interno do banco de dados quanto o `sequencial_id` (ex: 1, 2, 3), garantindo compatibilidade com diferentes integrações do frontend.
+
 ## 📊 Dashboard e Relatórios
 
 - `GET /api/dashboard/stats`: Resumo de faturamento, vendas e cobranças do mês.

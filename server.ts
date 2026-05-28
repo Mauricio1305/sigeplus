@@ -3,7 +3,6 @@ import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import mysql from "mysql2/promise";
 import pg from "pg";
 import nodemailer from "nodemailer";
 import fs from "fs";
@@ -38,20 +37,6 @@ if (missingEnvVars.length > 0) {
 
 
 
-const isPg = process.env.DB_TYPE === 'postgres';
-
-const mysqlPool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
-  port: parseInt(process.env.DB_PORT || "3306"),
-  multipleStatements: true,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
-
 const pgPool = new pg.Pool({
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -65,10 +50,8 @@ const pgPool = new pg.Pool({
 
 const sqlCache = new Map<string, string>();
 
-// A wrapper to handle mysql vs pg syntax
+// PostgreSQL-only query processor (replaces ? with $idx)
 const processQuery = (sql: string) => {
-  if (!isPg) return sql;
-  
   if (sqlCache.has(sql)) {
     return sqlCache.get(sql)!;
   }
@@ -104,54 +87,46 @@ const processQuery = (sql: string) => {
 };
 
 const abstractQuery = async (client: any, sql: string, params?: any[]) => {
-  if (isPg) {
-    const pgSql = processQuery(sql);
-    let isInsert = pgSql.trim().toUpperCase().startsWith('INSERT ');
-    const finalSql = isInsert ? `${pgSql} RETURNING id` : pgSql;
+  const pgSql = processQuery(sql);
+  let isInsert = pgSql.trim().toUpperCase().startsWith('INSERT ');
+  const finalSql = isInsert ? `${pgSql} RETURNING id` : pgSql;
+  
+  try {
+    const result = await client.query(finalSql, params);
     
-    try {
-      const result = await client.query(finalSql, params);
-      
-      // Mute errors if it's a structural migration command failing gracefully
-      if (isInsert) {
-         return [{ insertId: result.rows[0]?.id || 0, affectedRows: result.rowCount }, result.fields];
-      }
-      return [result.rows, result.fields];
-    } catch (err: any) {
-      if (pgSql.includes('information_schema')) {
-        return [[], []]; // Return empty array for schema checks to prevent crashes
-      }
-      if (pgSql.includes('ALTER TABLE')) {
-        // Suppress expected column exists errors during weak migrations
-        console.warn('PG Alter Table warning:', err.message);
-        return [[], []];
-      }
-      throw err;
+    // Mute errors if it's a structural migration command failing gracefully
+    if (isInsert) {
+       return [{ insertId: result.rows[0]?.id || 0, affectedRows: result.rowCount }, result.fields];
     }
-  } else {
-    return await client.query(sql, params);
+    return [result.rows, result.fields];
+  } catch (err: any) {
+    if (pgSql.includes('information_schema')) {
+      return [[], []]; // Return empty array for schema checks to prevent crashes
+    }
+    if (pgSql.includes('ALTER TABLE')) {
+      // Suppress expected column exists errors during weak migrations
+      console.warn('PG Alter Table warning:', err.message);
+      return [[], []];
+    }
+    throw err;
   }
 };
 
 const pool = {
   async query(sql: string, params?: any[]) {
-    return abstractQuery(isPg ? pgPool : mysqlPool, sql, params);
+    return abstractQuery(pgPool, sql, params);
   },
   async getConnection() {
-    if (isPg) {
-      const client = await pgPool.connect();
-      return {
-        async query(sql: string, params?: any[]) {
-          return abstractQuery(client, sql, params);
-        },
-        async beginTransaction() { await client.query('BEGIN'); },
-        async commit() { await client.query('COMMIT'); },
-        async rollback() { await client.query('ROLLBACK'); },
-        release() { client.release(); }
-      };
-    } else {
-      return await mysqlPool.getConnection();
-    }
+    const client = await pgPool.connect();
+    return {
+      async query(sql: string, params?: any[]) {
+        return abstractQuery(client, sql, params);
+      },
+      async beginTransaction() { await client.query('BEGIN'); },
+      async commit() { await client.query('COMMIT'); },
+      async rollback() { await client.query('ROLLBACK'); },
+      release() { client.release(); }
+    };
   }
 };
 
@@ -177,37 +152,27 @@ async function initDB() {
     await pool.query("SELECT 1");
     console.log("Database connection successful.");
 
-    const schemaPath = path.join(process.cwd(), isPg ? "schema-pg.sql" : "schema.sql");
+    const schemaPath = path.join(process.cwd(), "schema-pg.sql");
     if (fs.existsSync(schemaPath)) {
       const schema = fs.readFileSync(schemaPath, "utf8");
       await pool.query(schema);
-      console.log("Database initialized with schema.sql");
+      console.log("Database initialized with schema-pg.sql");
     } else {
-      console.error("schema.sql not found at", schemaPath);
+      console.error("schema-pg.sql not found at", schemaPath);
     }
 
     // Migrations for existing tables
     try {
       // Helper to check columns
       const getColumns = async (tableName: string) => {
-        if (isPg) {
-           const [rows] = await pool.query("SELECT column_name as field FROM information_schema.columns WHERE table_name = ?", [tableName]) as any[];
-           return (rows as any[]).map(r => r.field);
-        } else {
-           const [rows] = await pool.query(`SHOW COLUMNS FROM ${tableName}`) as any[];
-           return (rows as any[]).map(r => r.Field);
-        }
+        const [rows] = await pool.query("SELECT column_name as field FROM information_schema.columns WHERE table_name = ?", [tableName]) as any[];
+        return (rows as any[]).map(r => r.field);
       };
 
       // Check if 'clientes' exists and rename to 'pessoas'
       const checkTable = async (tableName: string) => {
-        if (isPg) {
-           const [rows] = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_name = ?", [tableName]) as any[];
-           return (rows as any[]).length > 0;
-        } else {
-           const [rows] = await pool.query(`SHOW TABLES LIKE '${tableName}'`) as any[];
-           return (rows as any[]).length > 0;
-        }
+        const [rows] = await pool.query("SELECT table_name FROM information_schema.tables WHERE table_name = ?", [tableName]) as any[];
+        return (rows as any[]).length > 0;
       };
 
       if (await checkTable('clientes')) {
@@ -240,7 +205,7 @@ async function initDB() {
         await pool.query(`ALTER TABLE empresas ADD COLUMN status_assinatura VARCHAR(50) DEFAULT 'ativo'`);
       }
       if (!empresasColNames.includes('vencimento_assinatura')) {
-        await pool.query(`ALTER TABLE empresas ADD COLUMN vencimento_assinatura ${isPg ? 'TIMESTAMP' : 'DATETIME'}`);
+        await pool.query(`ALTER TABLE empresas ADD COLUMN vencimento_assinatura TIMESTAMP`);
       }
       if (!empresasColNames.includes('stripe_customer_id')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN stripe_customer_id VARCHAR(255)");
@@ -261,34 +226,27 @@ async function initDB() {
       }
 
       // Stripe Logs table migration
-      if (isPg) {
-        await pool.query(`
-          CREATE TABLE IF NOT EXISTS stripe_logs (
-            id SERIAL PRIMARY KEY,
-            tenant_id VARCHAR(255),
-            stripe_event_id VARCHAR(255) UNIQUE,
-            event_type VARCHAR(255) NOT NULL,
-            status VARCHAR(50),
-            payload JSONB,
-            previous_attributes JSONB,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-      } else {
-        await pool.query(`
-          CREATE TABLE IF NOT EXISTS stripe_logs (
-            id INTEGER PRIMARY KEY AUTO_INCREMENT,
-            tenant_id VARCHAR(255),
-            stripe_event_id VARCHAR(255) UNIQUE,
-            event_type VARCHAR(255) NOT NULL,
-            status VARCHAR(50),
-            payload JSON,
-            previous_attributes JSON,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS stripe_logs (
+          id SERIAL PRIMARY KEY,
+          tenant_id VARCHAR(255),
+          stripe_event_id VARCHAR(255) UNIQUE,
+          event_type VARCHAR(255) NOT NULL,
+          status VARCHAR(50),
+          payload JSONB,
+          previous_attributes JSONB,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      const stripeLogCols = await getColumns('stripe_logs');
+      if (!stripeLogCols.includes('stripe_event_id')) {
+        await pool.query(`ALTER TABLE stripe_logs ADD COLUMN stripe_event_id VARCHAR(255) UNIQUE`);
       }
-      console.log("Verified stripe_logs table existence");
+      if (!stripeLogCols.includes('tenant_id')) {
+        await pool.query("ALTER TABLE stripe_logs ADD COLUMN tenant_id VARCHAR(255)");
+      }
+      console.log("Verified stripe_logs table existence and columns");
 
       const osColNames = await getColumns('ordens_servico');
       if (!osColNames.includes('sequencial_id')) {
@@ -2014,15 +1972,21 @@ app.post("/api/sales/:id/cancel", authMiddleware, async (req: any, res) => {
     await connection.beginTransaction();
 
     // 1. Get Sale
-    const [sales] = await connection.query("SELECT * FROM vendas WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    let [sales] = await connection.query("SELECT * FROM vendas WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    if (sales.length === 0) {
+      [sales] = await connection.query("SELECT * FROM vendas WHERE sequencial_id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    }
+    
     const sale = sales[0];
     if (!sale) throw new Error("Venda não encontrada");
     if (sale.status === 'cancelada') throw new Error("Esta venda já está cancelada");
 
+    const saleId = sale.id; // Use primary key for internal operations
+
     // 2. If 'finalizada', reverse stock and financial impact
     if (sale.status === 'finalizada') {
       // Return items to stock
-      const [items] = await connection.query("SELECT produto_id, quantidade FROM vendas_itens WHERE venda_id = ?", [id]) as any[];
+      const [items] = await connection.query("SELECT produto_id, quantidade FROM vendas_itens WHERE venda_id = ?", [saleId]) as any[];
       for (const item of items) {
         const [products] = await connection.query("SELECT tipo FROM produtos WHERE id = ?", [item.produto_id]) as any[];
         const product = products[0];
@@ -2035,12 +1999,12 @@ app.post("/api/sales/:id/cancel", authMiddleware, async (req: any, res) => {
       }
 
       // Delete linked financial movements
-      await connection.query("DELETE FROM movimentacoes_caixa WHERE venda_id = ? AND tenant_id = ?", [id, tenant_id]);
-      await connection.query("DELETE FROM lancamentos WHERE venda_id = ? AND tenant_id = ?", [id, tenant_id]);
+      await connection.query("DELETE FROM movimentacoes_caixa WHERE venda_id = ? AND tenant_id = ?", [saleId, tenant_id]);
+      await connection.query("DELETE FROM lancamentos WHERE venda_id = ? AND tenant_id = ?", [saleId, tenant_id]);
     }
 
     // 3. Update Sale Status
-    await connection.query("UPDATE vendas SET status = 'cancelada' WHERE id = ?", [id]);
+    await connection.query("UPDATE vendas SET status = 'cancelada' WHERE id = ?", [saleId]);
 
     await connection.commit();
     res.json({ success: true });
@@ -2057,51 +2021,82 @@ app.get("/api/sales/:id", authMiddleware, async (req: any, res) => {
   const { id } = req.params;
   const { tenant_id } = req.user;
 
-  const [sales] = await pool.query(`
-    SELECT 
-      v.*, 
-      p.nome as cliente_nome,
-      p.razao_social as cliente_razao_social,
-      p.nome_fantasia as cliente_nome_fantasia,
-      p.cpf_cnpj as cliente_cpf_cnpj,
-      p.telefone as cliente_telefone,
-      p.telefone_fixo as cliente_telefone_fixo,
-      p.telefone_celular as cliente_telefone_celular,
-      p.email as cliente_email,
-      p.endereco as cliente_endereco,
-      p.numero as cliente_numero,
-      p.cep as cliente_cep,
-      p.cidade as cliente_cidade,
-      p.uf as cliente_uf
-    FROM vendas v 
-    LEFT JOIN pessoas p ON v.pessoa_id = p.id 
-    WHERE v.sequencial_id = ? AND v.tenant_id = ?
-  `, [id, tenant_id]) as any[];
-  const sale = sales[0];
+  try {
+    let [sales] = await pool.query(`
+      SELECT 
+        v.*, 
+        p.nome as cliente_nome,
+        p.razao_social as cliente_razao_social,
+        p.nome_fantasia as cliente_nome_fantasia,
+        p.cpf_cnpj as cliente_cpf_cnpj,
+        p.telefone as cliente_telefone,
+        p.telefone_fixo as cliente_telefone_fixo,
+        p.telefone_celular as cliente_telefone_celular,
+        p.email as cliente_email,
+        p.endereco as cliente_endereco,
+        p.numero as cliente_numero,
+        p.cep as cliente_cep,
+        p.cidade as cliente_cidade,
+        p.uf as cliente_uf
+      FROM vendas v 
+      LEFT JOIN pessoas p ON v.pessoa_id = p.id 
+      WHERE v.sequencial_id = ? AND v.tenant_id = ?
+    `, [id, tenant_id]) as any[];
 
-  if (!sale) return res.status(404).json({ error: "Venda não encontrada" });
+    if (sales.length === 0) {
+      [sales] = await pool.query(`
+        SELECT 
+          v.*, 
+          p.nome as cliente_nome,
+          p.razao_social as cliente_razao_social,
+          p.nome_fantasia as cliente_nome_fantasia,
+          p.cpf_cnpj as cliente_cpf_cnpj,
+          p.telefone as cliente_telefone,
+          p.telefone_fixo as cliente_telefone_fixo,
+          p.telefone_celular as cliente_telefone_celular,
+          p.email as cliente_email,
+          p.endereco as cliente_endereco,
+          p.numero as cliente_numero,
+          p.cep as cliente_cep,
+          p.cidade as cliente_cidade,
+          p.uf as cliente_uf
+        FROM vendas v 
+        LEFT JOIN pessoas p ON v.pessoa_id = p.id 
+        WHERE v.id = ? AND v.tenant_id = ?
+      `, [id, tenant_id]) as any[];
+    }
+    
+    const sale = sales[0];
+    if (!sale) return res.status(404).json({ error: "Venda não encontrada" });
 
-  const [items] = await pool.query(`
-    SELECT vi.*, p.nome 
-    FROM vendas_itens vi
-    JOIN produtos p ON vi.produto_id = p.id
-    WHERE vi.venda_id = (SELECT id FROM vendas WHERE sequencial_id = ? AND tenant_id = ?) AND vi.tenant_id = ?
-  `, [id, tenant_id, tenant_id]) as any[];
+    const [items] = await pool.query(`
+      SELECT vi.*, p.nome 
+      FROM vendas_itens vi
+      JOIN produtos p ON vi.produto_id = p.id
+      WHERE vi.venda_id = ? AND vi.tenant_id = ?
+    `, [sale.id, tenant_id]) as any[];
 
-  const [pagamentos] = await pool.query(`
-    SELECT vp.* 
-    FROM vendas_pagamentos vp
-    JOIN vendas v ON vp.venda_id = v.id
-    WHERE v.sequencial_id = ? AND vp.tenant_id = ?
-  `, [id, tenant_id]) as any[];
+    const [pagamentos] = await pool.query(`
+      SELECT vp.* 
+      FROM vendas_pagamentos vp
+      WHERE vp.venda_id = ? AND vp.tenant_id = ?
+    `, [sale.id, tenant_id]) as any[];
 
-  res.json({ ...sale, items: (items as any[]).map((i: any) => ({
-    id: i.produto_id,
-    nome: i.nome,
-    quantidade: i.quantidade,
-    preco_venda: i.preco_unitario,
-    subtotal: i.subtotal
-  })), pagamentos });
+    res.json({ 
+      ...sale, 
+      items: (items as any[]).map((i: any) => ({
+        id: i.produto_id,
+        nome: i.nome,
+        quantidade: i.quantidade,
+        preco_venda: i.preco_unitario,
+        subtotal: i.subtotal
+      })), 
+      pagamentos 
+    });
+  } catch (err: any) {
+    console.error("Error fetching sale details:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.put("/api/sales/:id", authMiddleware, async (req: any, res) => {
@@ -2115,7 +2110,12 @@ app.put("/api/sales/:id", authMiddleware, async (req: any, res) => {
   try {
     await connection.beginTransaction();
 
-    const [existingSales] = await connection.query("SELECT * FROM vendas WHERE sequencial_id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    let [existingSales] = await connection.query("SELECT * FROM vendas WHERE sequencial_id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    if (existingSales.length === 0) {
+      // Fallback to internal ID if sequencial not found (helps with old records or frontend mismatches)
+      [existingSales] = await connection.query("SELECT * FROM vendas WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    }
+    
     const existingSale = existingSales[0];
     if (!existingSale) throw new Error("Venda não encontrada");
     if (existingSale.status === 'finalizada') throw new Error("Venda já finalizada não pode ser editada");

@@ -292,11 +292,20 @@ export const Layout = () => {
         <div className="p-4 border-t border-slate-100">
           <button 
             onClick={logout}
-            className={`flex items-center gap-3 px-4 py-3 w-full text-rose-600 hover:bg-rose-50 rounded-xl transition-all font-medium ${!isSidebarOpen && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}
+            className={`flex items-center gap-3 px-4 py-3 w-full text-rose-600 hover:bg-rose-50 rounded-xl transition-all font-medium mb-2 ${!isSidebarOpen && !isMobileMenuOpen ? 'justify-center px-0' : ''}`}
           >
             <LogOut className="w-5 h-5 shrink-0" />
             {(isSidebarOpen || isMobileMenuOpen) && <span>Sair</span>}
           </button>
+          
+          {(isSidebarOpen || isMobileMenuOpen) ? (
+            <div className="px-4 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-between">
+              <span>v1.0.0</span>
+              <span className="opacity-50">GM</span>
+            </div>
+          ) : (
+            <div className="text-[10px] text-slate-300 font-mono text-center">v1.0</div>
+          )}
         </div>
       </aside>
 

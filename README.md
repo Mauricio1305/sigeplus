@@ -15,7 +15,7 @@ O sistema utiliza uma stack moderna e performática:
 - **Backend:**
   - [Node.js](https://nodejs.org/) com [Express](https://expressjs.com/)
   - [TypeScript](https://www.typescriptlang.org/) para segurança de tipos
-  - [MySQL](https://www.mysql.com/) / [PostgreSQL](https://www.postgresql.org/) (via Pool de conexões)
+  - [PostgreSQL](https://www.postgresql.org/) (via Pool de conexões)
 - **Integrações:**
   - [Stripe](https://stripe.com/) para pagamentos e assinaturas
   - [Nodemailer](https://nodemailer.com/) para envio de e-mails transacionais (boas-vindas, recuperação de senha)
@@ -27,7 +27,7 @@ O sistema utiliza uma stack moderna e performática:
 - `/src/store`: Gerenciamento de estado global com Zustand
 - `/src/utils`: Funções utilitárias (formatação, validação)
 - `server.ts`: Ponto de entrada do backend API
-- `schema.sql`: Definição do banco de dados relacional
+- `schema-pg.sql`: Definição do banco de dados relacional (PostgreSQL)
 
 ## 🛠️ Como Iniciar
 
@@ -58,3 +58,5 @@ Para mais informações sobre partes específicas do sistema, consulte:
 - [Documentação de API](API.md)
 - [Guia de Funcionalidades](FEATURES.md)
 - [Regras de Negócio](BUSINESS_RULES.md)
+- [Registro de Alterações (Changelog)](CHANGELOG.md)
+- [Guia de Versionamento](VERSIONING.md)
