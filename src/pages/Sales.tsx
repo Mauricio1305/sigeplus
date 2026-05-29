@@ -114,6 +114,22 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
       .catch(err => console.error("Error fetching company settings:", err));
   }, [token]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const saleId = params.get('id');
+    const pay = params.get('pay');
+    
+    if (saleId && sales.length > 0) {
+      const sale = sales.find(s => s.sequencial_id?.toString() === saleId || s.id.toString() === saleId);
+      if (sale) {
+        handleEdit(sale.id);
+        // Clean URL to prevent re-opening
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [sales]);
+
   const handlePrintSale = async (saleId: number, type: 'print' | 'whatsapp') => {
     setLoadingPrint(true);
     try {
@@ -470,6 +486,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
               {mode === 'venda' ? (
                 <>
                   <option value="finalizada">Finalizada</option>
+                  <option value="aguardando_pagamento">Aberta / Aguardando Pagamento</option>
                   <option value="orcamento">Orçamento</option>
                   <option value="cancelada">Cancelada</option>
                 </>
@@ -556,12 +573,13 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                         </td>
                         <td className="px-6 py-4 font-medium text-slate-900">{s.cliente_nome || 'Consumidor Final'}</td>
                         <td className="px-6 py-4 text-right font-bold text-slate-900">R$ {formatMoney(s.valor_total)}</td>
-                        <td className="px-6 py-4 text-center">
-                          <span className={`px-2 py-1 text-xs font-bold rounded uppercase ${
+                         <td className="px-6 py-4 text-center">
+                          <span className={`px-2 py-1 text-[10px] font-black rounded-full uppercase ${
                             s.status === 'finalizada' ? 'bg-emerald-100 text-emerald-700' : 
                             s.status === 'cancelada' ? 'bg-rose-100 text-rose-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}>{s.status}</span>
+                            s.status === 'aguardando_pagamento' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                            'bg-slate-100 text-slate-700'
+                          }`}>{s.status === 'aguardando_pagamento' ? 'ABERTA' : s.status}</span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="relative inline-block text-left">

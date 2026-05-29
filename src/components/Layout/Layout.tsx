@@ -16,7 +16,8 @@ import {
   MonitorPlay,
   FileText,
   Settings as SettingsIcon,
-  AlertCircle
+  AlertCircle,
+  Calendar
 } from 'lucide-react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -236,6 +237,10 @@ export const Layout = () => {
           {hasModule('dashboard') && (
             <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={LayoutDashboard} label="Dashboard" to="/dashboard" active={location.pathname === '/dashboard'} />
           )}
+
+          {hasModule('agenda') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Calendar} label="Agenda" to="/agenda" active={location.pathname === '/agenda'} />
+          )}
           
           {hasModule('estoque') && (
             <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={Package} label="Estoque" to="/estoque" active={location.pathname === '/estoque'} />
@@ -300,7 +305,7 @@ export const Layout = () => {
           
           {(isSidebarOpen || isMobileMenuOpen) ? (
             <div className="px-4 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-              <span>v1.0.0</span>
+              <span>v1.1.0</span>
               <span className="opacity-50">GM</span>
             </div>
           ) : (

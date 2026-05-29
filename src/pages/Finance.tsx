@@ -49,7 +49,9 @@ export const Finance = () => {
     fetch('/api/finance/categories', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setCategories);
     fetch('/api/finance/payment-types', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setPaymentTypes);
     fetch('/api/pessoas', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setPessoas);
-    fetch('/api/finance/cashier/current', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setCurrentCashier);
+    fetch('/api/finance/cashier/current', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.ok ? res.json() : null)
+      .then(d => setCurrentCashier(d && !d.error ? d : null));
     fetch('/api/finance/sales-movements', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setSalesMovements);
     fetch('/api/finance/movements/banco', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setBankMovements);
     fetch('/api/finance/movements/cartao', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setCardMovements);
@@ -195,7 +197,7 @@ export const Finance = () => {
         let errorMessage = 'Falha ao salvar';
         try {
           const errorData = await res.json();
-          errorMessage = errorData.message || errorMessage;
+          errorMessage = errorData.error || errorData.message || errorMessage;
         } catch (e) {
           // Response is not JSON
         }
@@ -580,10 +582,10 @@ export const Finance = () => {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                   <p className="text-xs font-bold text-slate-400 uppercase mb-1">Valor Inicial</p>
-                  <p className="text-2xl font-black text-slate-900">R$ {formatMoney(currentCashier.valor_inicial)}</p>
+                  <p className="text-2xl font-black text-slate-900 border-b-4 border-indigo-100 inline-block">R$ {formatMoney(currentCashier.valor_inicial)}</p>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                  <p className="text-xs font-bold text-slate-400 uppercase mb-1">Saldo Atual</p>
+                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm bg-gradient-to-br from-indigo-50 to-white">
+                  <p className="text-xs font-bold text-indigo-400 uppercase mb-1">Saldo Atual em Caixa</p>
                   <p className="text-2xl font-black text-indigo-600">
                     R$ {formatMoney(
                       (parseFloat(currentCashier.valor_inicial) || 0) + 
@@ -595,36 +597,39 @@ export const Finance = () => {
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-4 rounded-t-2xl">
-                  <h3 className="font-bold text-slate-900">Movimentações de Caixa</h3>
+              <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/40 border border-slate-100 overflow-visible">
+                <div className="p-6 border-b border-slate-100 bg-white flex justify-between items-center rounded-t-3xl">
+                  <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight">Fluxo de Caixa do Dia</h3>
+                  <div className="flex bg-slate-50 p-1 rounded-xl">
+                    <span className="px-3 py-1 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tempo Real</span>
+                  </div>
                 </div>
                 <table className="w-full text-left">
-                  <thead className="bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider">
+                  <thead className="bg-slate-50/50 text-slate-400 text-[10px] uppercase tracking-widest">
                     <tr>
-                      <th className="px-6 py-3 font-semibold">Data/Hora</th>
-                      <th className="px-6 py-3 font-semibold">Descrição</th>
-                      <th className="px-6 py-3 font-semibold text-center">Status</th>
-                      <th className="px-6 py-3 font-semibold text-right">Valor</th>
-                      <th className="px-6 py-3 font-semibold text-right rounded-tr-2xl">Ações</th>
+                      <th className="px-8 py-4 font-black">Data/Hora</th>
+                      <th className="px-8 py-4 font-black">Descrição</th>
+                      <th className="px-8 py-4 font-black text-center">Status</th>
+                      <th className="px-8 py-4 font-black text-right">Valor</th>
+                      <th className="px-8 py-4 font-black text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {getFilteredCashierMovements(salesMovements)
                       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                       .map((m) => (
-                        <tr key={m.id}>
-                          <td className="px-6 py-4 text-slate-500">{new Date(m.created_at).toLocaleString()}</td>
-                          <td className="px-6 py-4 font-medium text-slate-900">{m.descricao || 'Venda'}</td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${(m.status || 'paga') === 'paga' ? 'bg-emerald-100 text-emerald-700' : (m.status || 'paga') === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
+                        <tr key={m.id} className="hover:bg-slate-50/50 transition-colors group">
+                          <td className="px-8 py-5 text-slate-400 font-medium">{new Date(m.created_at).toLocaleString()}</td>
+                          <td className="px-8 py-5 font-bold text-slate-900">{m.descricao || 'Venda'}</td>
+                          <td className="px-8 py-5 text-center">
+                            <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase ${(m.status || 'paga') === 'paga' ? 'bg-emerald-100 text-emerald-700' : (m.status || 'paga') === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-200 text-slate-600'}`}>
                               {m.status || 'paga'}
                             </span>
                           </td>
-                          <td className={`px-6 py-4 text-right font-bold ${m.tipo === 'saida' ? 'text-rose-600' : 'text-emerald-600'}`}>
+                          <td className={`px-8 py-5 text-right font-black text-lg ${m.tipo === 'saida' ? 'text-rose-500' : 'text-emerald-500'}`}>
                             {m.tipo === 'saida' ? '-' : '+'} R$ {formatMoney(m.valor)}
                           </td>
-                          <td className="px-6 py-4 text-right">
+                          <td className="px-8 py-5 text-right">
                             {(!m.origem || m.origem === 'Lançamento Manual') && renderActionMenu(m, 'movimentacao', 'caixa')}
                           </td>
                         </tr>
@@ -634,8 +639,20 @@ export const Finance = () => {
               </div>
             </>
           ) : (
-            <div className="bg-slate-100 p-12 rounded-2xl text-center text-slate-400 italic">
-              O caixa está fechado no momento.
+            <div className="bg-white p-20 rounded-[2.5rem] text-center border-2 border-dashed border-slate-100 flex flex-col items-center gap-4">
+              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center text-slate-300">
+                <DollarSign className="w-10 h-10" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-400 italic">O caixa está fechado no momento.</h3>
+                <p className="text-slate-300 text-sm mt-1">Abra o caixa para iniciar as operações financeiras do dia.</p>
+              </div>
+              <button 
+                onClick={() => { setModalType('caixaOpen'); setFormData({ valor_inicial: 0 }); setIsModalOpen(true); }}
+                className="mt-4 bg-indigo-600 text-white px-8 py-3 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100"
+              >
+                Abrir Agora
+              </button>
             </div>
           )}
         </div>

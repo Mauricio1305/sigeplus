@@ -14,6 +14,7 @@ import Finance from './pages/Finance';
 import Settings from './pages/Settings';
 import SuperAdmin from './pages/SuperAdmin';
 import UserProfile from './pages/UserProfile';
+import Agenda from './pages/Agenda';
 import PDV from './pages/PDV';
 import Mesas from './pages/Mesas';
 import { DRE } from './pages/DRE';
@@ -88,6 +89,7 @@ const App = () => {
           }>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<ModuleGuard module="dashboard"><Dashboard /></ModuleGuard>} />
+            <Route path="agenda" element={<ModuleGuard module="agenda"><Agenda /></ModuleGuard>} />
             <Route path="pessoas" element={<ModuleGuard module="cadastros"><Pessoas /></ModuleGuard>} />
             <Route path="estoque" element={<ModuleGuard module="estoque"><Inventory /></ModuleGuard>} />
             <Route path="vendas" element={<ModuleGuard module="vendas"><Sales mode="venda" /></ModuleGuard>} />

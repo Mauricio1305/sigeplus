@@ -29,7 +29,10 @@ export const Settings = () => {
     cep: '',
     cidade: '',
     estado: '',
-    logo: ''
+    logo: '',
+    whatsapp_api_url: '',
+    whatsapp_api_key: '',
+    whatsapp_instance: ''
   });
 
   const [paymentTypes, setPaymentTypes] = useState<any[]>([]);
@@ -95,9 +98,15 @@ export const Settings = () => {
     fetch('/api/company/settings', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    .then(res => res.json())
+    .then(async res => {
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server responded with ${res.status}`);
+      }
+      return res.json();
+    })
     .then(data => {
-      if (data) setCompany(data);
+      if (data && !data.error) setCompany(data);
     })
     .catch(err => console.error("Error fetching company settings:", err));
   }, [token]);
@@ -525,6 +534,43 @@ export const Settings = () => {
                         onChange={e => setCompany({...company, estado: e.target.value.toUpperCase()})}
                       />
                     </FormField>
+                  </div>
+                  <div className="md:col-span-2 pt-4">
+                    <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-50 pb-2">Integração WhatsApp (Evolution API)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <FormField label="URL da API">
+                          <input 
+                            type="url" 
+                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="https://api.verificion.com"
+                            value={company.whatsapp_api_url || ''}
+                            onChange={e => setCompany({...company, whatsapp_api_url: e.target.value})}
+                          />
+                        </FormField>
+                      </div>
+                      <div>
+                        <FormField label="API Key">
+                          <input 
+                            type="password" 
+                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            value={company.whatsapp_api_key || ''}
+                            onChange={e => setCompany({...company, whatsapp_api_key: e.target.value})}
+                          />
+                        </FormField>
+                      </div>
+                      <div>
+                        <FormField label="Nome da Instância">
+                          <input 
+                            type="text" 
+                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                            placeholder="MinhaInstancia"
+                            value={company.whatsapp_instance || ''}
+                            onChange={e => setCompany({...company, whatsapp_instance: e.target.value})}
+                          />
+                        </FormField>
+                      </div>
+                    </div>
                   </div>
                   <div className="md:col-span-2 pt-4">
                     <button 

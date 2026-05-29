@@ -6,6 +6,9 @@ import bcrypt from "bcryptjs";
 import pg from "pg";
 import nodemailer from "nodemailer";
 import fs from "fs";
+
+// Fix for timestamp timezone issues: return raw strings from PG
+pg.types.setTypeParser(1114, (stringValue) => stringValue);
 import path from "path";
 import dotenv from "dotenv";
 import Stripe from 'stripe';
@@ -30,12 +33,8 @@ const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
-  console.error(`ERROR: Missing required environment variables in .env: ${missingEnvVars.join(', ')}`);
-  console.error('Please check your .env file and ensure all database configuration is present.');
-  // We don't exit here to allow the app to start, but it will fail on DB connection
+  throw new Error(`Critical: Missing database environment variables: ${missingEnvVars.join(', ')}`);
 }
-
-
 
 const pgPool = new pg.Pool({
   host: process.env.DB_HOST,
@@ -43,84 +42,108 @@ const pgPool = new pg.Pool({
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
   port: parseInt(process.env.DB_PORT || "5432"),
-  max: 20, // Increase max connections
-  idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+  max: 20,
+  idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
+console.log("PostgreSQL pool initialized.");
 
-const sqlCache = new Map<string, string>();
-
-// PostgreSQL-only query processor (replaces ? with $idx)
 const processQuery = (sql: string) => {
-  if (sqlCache.has(sql)) {
-    return sqlCache.get(sql)!;
-  }
+  let processed = sql;
   
-  let idx = 1;
-  let pgSql = sql.replace(/\?/g, () => `$${idx++}`);
-  // Attempt simple conversion for some known queries
-  pgSql = pgSql.replace(/SHOW TABLES LIKE 'clientes'/g, "SELECT table_name FROM information_schema.tables WHERE table_name = 'clientes'");
-  pgSql = pgSql.replace(/YEAR\(([^)]+)\)/gi, 'EXTRACT(YEAR FROM $1)');
-  pgSql = pgSql.replace(/DATE_FORMAT\(([^,]+),\s*'%m'\)/gi, "TO_CHAR($1, 'MM')");
-  pgSql = pgSql.replace(/DATE_FORMAT\(([^,]+),\s*'%Y-%m'\)/gi, "TO_CHAR($1, 'YYYY-MM')");
-  pgSql = pgSql.replace(/DATE_FORMAT\(([^,]+),\s*'%d\/%m\/%Y'\)/gi, "TO_CHAR($1, 'DD/MM/YYYY')");
-  pgSql = pgSql.replace(/INTEGER PRIMARY KEY AUTO_INCREMENT/gi, 'SERIAL PRIMARY KEY');
-  pgSql = pgSql.replace(/DATETIME/gi, 'TIMESTAMP');
-  pgSql = pgSql.replace(/LONGTEXT/gi, 'TEXT');
-  pgSql = pgSql.replace(/BOOLEAN DEFAULT 1/gi, 'SMALLINT DEFAULT 1');
-  pgSql = pgSql.replace(/BOOLEAN DEFAULT 0/gi, 'SMALLINT DEFAULT 0');
+  // Year/Month extraction
+  processed = processed.replace(/\bYEAR\s*\((.*?)\)/gi, 'EXTRACT(YEAR FROM $1)');
+  processed = processed.replace(/\bMONTH\s*\((.*?)\)/gi, 'EXTRACT(MONTH FROM $1)');
   
-  if (pgSql.startsWith('SHOW COLUMNS FROM ')) {
-      const tableMatch = pgSql.match(/FROM\s+([a-zA-Z0-9_]+)/);
-      if (tableMatch) {
-          pgSql = `SELECT column_name as "Field" FROM information_schema.columns WHERE table_name = '${tableMatch[1]}'`;
-      }
-  }
-  if (pgSql.startsWith('SHOW TABLES LIKE ')) {
-      const tableMatch = pgSql.match(/LIKE\s+'([^']+)'/);
-      if (tableMatch) {
-          pgSql = `SELECT table_name FROM information_schema.tables WHERE table_name = '${tableMatch[1]}'`;
-      }
-  }
-  sqlCache.set(sql, pgSql);
-  return pgSql;
-};
+  // Date formatting
+  processed = processed.replace(/\bDATE_FORMAT\s*\(([^,]+),\s*(['"][^'"]+['"])\)/gi, (match, col, fmt) => {
+    const cleanFmt = fmt.replace(/['"]/g, '');
+    const map: Record<string, string> = {
+      '%m': 'MM',
+      '%Y-%m': 'YYYY-MM',
+      '%d/%m/%Y': 'DD/MM/YYYY',
+      '%Y': 'YYYY',
+      '%H:%i': 'HH24:MI',
+      '%H:%i:%s': 'HH24:MI:SS'
+    };
+    return `TO_CHAR(${col}, '${map[cleanFmt] || cleanFmt}')`;
+  });
+  
+  // Current date/time
+  processed = processed.replace(/\bCURDATE\s*\(\)/gi, 'CURRENT_DATE');
+  processed = processed.replace(/\bNOW\s*\(\)/gi, 'CURRENT_TIMESTAMP');
+  
+  // Conversions for migrations
+  processed = processed.replace(/AUTOINCREMENT/gi, 'SERIAL');
+  processed = processed.replace(/DATETIME/gi, 'TIMESTAMP');
+  processed = processed.replace(/INTEGER PRIMARY KEY AUTO_INCREMENT/gi, 'SERIAL PRIMARY KEY');
+  processed = processed.replace(/BOOLEAN DEFAULT 1/gi, 'BOOLEAN DEFAULT true');
+  processed = processed.replace(/BOOLEAN DEFAULT 0/gi, 'BOOLEAN DEFAULT false');
 
-const abstractQuery = async (client: any, sql: string, params?: any[]) => {
-  const pgSql = processQuery(sql);
-  let isInsert = pgSql.trim().toUpperCase().startsWith('INSERT ');
-  const finalSql = isInsert ? `${pgSql} RETURNING id` : pgSql;
-  
-  try {
-    const result = await client.query(finalSql, params);
-    
-    // Mute errors if it's a structural migration command failing gracefully
-    if (isInsert) {
-       return [{ insertId: result.rows[0]?.id || 0, affectedRows: result.rowCount }, result.fields];
+  // Metadata queries for PG
+  const trimmed = processed.trim().toUpperCase();
+  if (trimmed.startsWith('SHOW COLUMNS FROM ')) {
+    const tableMatch = processed.match(/FROM\s+([a-zA-Z0-9_]+)/i);
+    if (tableMatch) {
+      processed = `SELECT column_name as "Field", data_type as "Type", is_nullable as "Null", column_default as "Default" FROM information_schema.columns WHERE table_name = '${tableMatch[1]}'`;
     }
-    return [result.rows, result.fields];
-  } catch (err: any) {
-    if (pgSql.includes('information_schema')) {
-      return [[], []]; // Return empty array for schema checks to prevent crashes
-    }
-    if (pgSql.includes('ALTER TABLE')) {
-      // Suppress expected column exists errors during weak migrations
-      console.warn('PG Alter Table warning:', err.message);
-      return [[], []];
-    }
-    throw err;
   }
+  if (trimmed.startsWith('SHOW TABLES LIKE ')) {
+    const tableMatch = processed.match(/LIKE\s+'([^']+)'/i);
+    if (tableMatch) {
+      processed = `SELECT table_name FROM information_schema.tables WHERE table_name = '${tableMatch[1]}'`;
+    }
+  }
+  
+  return processed;
 };
 
 const pool = {
   async query(sql: string, params?: any[]) {
-    return abstractQuery(pgPool, sql, params);
+    const processedSql = processQuery(sql);
+    let idx = 1;
+    const finalSqlWithParams = processedSql.replace(/\?/g, () => `$${idx++}`);
+    
+    // Auto-append RETURNING id for simple SINGLE INSERTs if not present
+    let finalSql = finalSqlWithParams;
+    const isSingleInsert = finalSqlWithParams.trim().toUpperCase().startsWith('INSERT ') && !finalSqlWithParams.includes(';');
+    if (isSingleInsert && !finalSqlWithParams.toUpperCase().includes('RETURNING')) {
+      finalSql = `${finalSqlWithParams} RETURNING id`;
+    }
+
+    try {
+      const result = await pgPool.query(finalSql, params);
+      if (isSingleInsert) {
+        return [{ insertId: result.rows[0]?.id || 0, affectedRows: result.rowCount }, result.fields];
+      }
+      return [result.rows, result.fields];
+    } catch (err: any) {
+      // Avoid printing repetitive migration errors for existing columns
+      if (err.message.includes('already exists')) {
+        return [[], []];
+      }
+      throw err;
+    }
   },
   async getConnection() {
     const client = await pgPool.connect();
     return {
       async query(sql: string, params?: any[]) {
-        return abstractQuery(client, sql, params);
+        const processedSql = processQuery(sql);
+        let idx = 1;
+        const finalSqlWithParams = processedSql.replace(/\?/g, () => `$${idx++}`);
+        
+        let finalSql = finalSqlWithParams;
+        const isSingleInsert = finalSqlWithParams.trim().toUpperCase().startsWith('INSERT ') && !finalSqlWithParams.includes(';');
+        if (isSingleInsert && !finalSqlWithParams.toUpperCase().includes('RETURNING')) {
+          finalSql = `${finalSqlWithParams} RETURNING id`;
+        }
+
+        const result = await client.query(finalSql, params);
+        if (isSingleInsert) {
+          return [{ insertId: result.rows[0]?.id || 0, affectedRows: result.rowCount }, result.fields];
+        }
+        return [result.rows, result.fields];
       },
       async beginTransaction() { await client.query('BEGIN'); },
       async commit() { await client.query('COMMIT'); },
@@ -129,6 +152,7 @@ const pool = {
     };
   }
 };
+
 
 const JWT_SECRET = process.env.JWT_SECRET || "saas-secret-key-123";
 
@@ -176,7 +200,7 @@ async function initDB() {
       };
 
       if (await checkTable('clientes')) {
-        await pool.query("RENAME TABLE clientes TO pessoas");
+        await pool.query("ALTER TABLE clientes RENAME TO pessoas");
         console.log("Renamed clientes to pessoas");
       }
 
@@ -197,6 +221,15 @@ async function initDB() {
       const empresasColNames = await getColumns('empresas');
       if (!empresasColNames.includes('whatsapp')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN whatsapp VARCHAR(20)");
+      }
+      if (!empresasColNames.includes('whatsapp_api_url')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN whatsapp_api_url VARCHAR(255)");
+      }
+      if (!empresasColNames.includes('whatsapp_api_key')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN whatsapp_api_key VARCHAR(255)");
+      }
+      if (!empresasColNames.includes('whatsapp_instance')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN whatsapp_instance VARCHAR(100)");
       }
       if (!empresasColNames.includes('plano_id')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN plano_id INTEGER");
@@ -266,39 +299,39 @@ async function initDB() {
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS grupos_usuarios (
-          id INTEGER PRIMARY KEY AUTO_INCREMENT,
+          id SERIAL PRIMARY KEY,
           tenant_id VARCHAR(255) NOT NULL,
           nome VARCHAR(255) NOT NULL,
-          is_master BOOLEAN DEFAULT 0,
-          permissoes JSON,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          is_master SMALLINT DEFAULT 0,
+          permissoes JSONB,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
         )
       `);
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS grupos_produtos (
-          id INTEGER PRIMARY KEY AUTO_INCREMENT,
+          id SERIAL PRIMARY KEY,
           tenant_id VARCHAR(255) NOT NULL,
           nome VARCHAR(255) NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
         )
       `);
 
       await pool.query(`
         CREATE TABLE IF NOT EXISTS layouts_etiquetas (
-          id INTEGER PRIMARY KEY AUTO_INCREMENT,
+          id SERIAL PRIMARY KEY,
           tenant_id VARCHAR(255) NOT NULL,
           nome VARCHAR(255) NOT NULL,
           largura DECIMAL(10,2) DEFAULT 0,
           altura DECIMAL(10,2) DEFAULT 0,
           colunas INTEGER DEFAULT 1,
-          json_config JSON,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          json_config JSONB,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
         )
       `);
@@ -322,17 +355,29 @@ async function initDB() {
             console.log("Added trial_days column to planos table");
           }
           // Always ensure NULL modulos are set to a default (helpful for existing data)
-          const defaultModules = JSON.stringify(['financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes']);
+          const defaultModules = JSON.stringify([
+            'financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes', 
+            'agenda', 'lembrete_email', 'lembrete_whatsapp'
+          ]);
           await pool.query("UPDATE planos SET modulos = ? WHERE modulos IS NULL", [defaultModules]);
+        }
+        if (table === 'produtos') {
+          if (!columns.includes('tempo_execucao')) {
+            await pool.query("ALTER TABLE produtos ADD COLUMN tempo_execucao INTEGER DEFAULT 0");
+            console.log("Added tempo_execucao to produtos table");
+          }
         }
         if (table === 'usuarios') {
           if (!columns.includes('avatar')) {
-            await pool.query("ALTER TABLE usuarios ADD COLUMN avatar LONGTEXT");
-            console.log("Added avatar column to usuarios table");
+            try {
+              await pool.query("ALTER TABLE usuarios ADD COLUMN avatar LONGTEXT");
+            } catch (e: any) { console.warn("Failed to add avatar:", e.message); }
           }
           if (!columns.includes('grupo_id')) {
-            await pool.query('ALTER TABLE usuarios ADD COLUMN grupo_id INTEGER');
-            await pool.query('ALTER TABLE usuarios ADD FOREIGN KEY (grupo_id) REFERENCES grupos_usuarios(id) ON DELETE SET NULL');
+            try {
+              await pool.query('ALTER TABLE usuarios ADD COLUMN grupo_id INTEGER');
+              await pool.query('ALTER TABLE usuarios ADD FOREIGN KEY (grupo_id) REFERENCES grupos_usuarios(id) ON DELETE SET NULL');
+            } catch (e: any) { console.warn("Failed to add grupo_id:", e.message); }
 
             const masterPermissoes = JSON.stringify({
               financeiro: { acessar: true, lancar: true, editar: true, cancelar: true, estornar: true },
@@ -346,14 +391,17 @@ async function initDB() {
             // Seed master groups
             const [empresas] = await pool.query('SELECT tenant_id FROM empresas');
             for (const emp of (empresas as any[])) {
-              const [res] = await pool.query(
-                "INSERT INTO grupos_usuarios (tenant_id, nome, is_master, permissoes) VALUES (?, 'Master', 1, ?)",
-                [emp.tenant_id, masterPermissoes]
-              ) as any[];
-              // Update grupo_id but DO NOT override perfil if it's superadmin
-              await pool.query("UPDATE usuarios SET grupo_id = ? WHERE tenant_id = ? AND perfil IN ('admin', 'superadmin')", [res.insertId, emp.tenant_id]);
-              // Also ensure admins (non-superadmins) have the correct profile name if needed
-              await pool.query("UPDATE usuarios SET perfil = 'admin' WHERE tenant_id = ? AND perfil = 'admin'", [emp.tenant_id]);
+              try {
+                // Check if already exists to avoid unique constraint if any (id) or duplicates
+                const [existing] = await pool.query("SELECT id FROM grupos_usuarios WHERE tenant_id = ? AND is_master = 1", [emp.tenant_id]);
+                if ((existing as any[]).length === 0) {
+                  const [res] = await pool.query(
+                    "INSERT INTO grupos_usuarios (tenant_id, nome, is_master, permissoes) VALUES (?, 'Master', 1, ?)",
+                    [emp.tenant_id, masterPermissoes]
+                  ) as any[];
+                  await pool.query("UPDATE usuarios SET grupo_id = ? WHERE tenant_id = ? AND perfil IN ('admin', 'superadmin')", [res.insertId, emp.tenant_id]);
+                }
+              } catch (e: any) { console.warn(`Failed to seed master group for ${emp.tenant_id}:`, e.message); }
             }
           }
         }
@@ -441,7 +489,7 @@ async function initDB() {
       // Create vendas_pagamentos table
       await pool.query(`
         CREATE TABLE IF NOT EXISTS vendas_pagamentos (
-          id INTEGER PRIMARY KEY AUTO_INCREMENT,
+          id SERIAL PRIMARY KEY,
           tenant_id VARCHAR(50) NOT NULL,
           venda_id INTEGER NOT NULL,
           tipo_pagamento_id INTEGER,
@@ -453,8 +501,24 @@ async function initDB() {
         )
       `);
 
-      // Seed Plans if not exists
-      // Removed automatic plan creation as per user request
+    // Seed Plans if not exists
+    try {
+      const [plans] = await pool.query("SELECT id FROM planos") as any[];
+      if (plans.length === 0) {
+        console.log("Seeding default plans...");
+        const defaultModules = JSON.stringify([
+          'financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes', 
+          'agenda', 'os', 'mesas', 'export_excel', 'import_produtos'
+        ]);
+        await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, modulos, is_trial, trial_days) VALUES (?, ?, ?, ?, ?, ?)", 
+          ['Plano Trial', 0, 1, defaultModules, 1, 7]);
+        await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, modulos, is_trial) VALUES (?, ?, ?, ?, ?)", 
+          ['Plano Pro', 99.90, 10, defaultModules, 0]);
+        console.log("Default plans seeded.");
+      }
+    } catch (e: any) {
+      console.error("Error seeding plans:", e.message);
+    }
 
       // Ensure "Grupo Padrão" exists for all tenants
       const [tenantsQuery] = await pool.query("SELECT DISTINCT tenant_id FROM empresas") as any[];
@@ -484,7 +548,7 @@ async function initDB() {
 
     const [existingSystemCompany] = await pool.query("SELECT * FROM empresas WHERE tenant_id = 'system'") as any[];
     if ((existingSystemCompany as any[]).length === 0) {
-      await pool.query("INSERT INTO empresas (tenant_id, nome_fantasia, email, plano_id) VALUES (?, ?, ?, NULL)", ['system', 'Sige Plus', 'admin@saas.com']);
+      await pool.query("INSERT INTO empresas (tenant_id, nome_fantasia, email, status_assinatura) VALUES (?, ?, ?, ?)", ['system', 'Sige Plus', 'admin@saas.com', 'ativo']);
     }
 
     const [existingAdmin] = await pool.query("SELECT * FROM usuarios WHERE email = 'admin@saas.com'") as any[];
@@ -887,6 +951,17 @@ const planMiddleware = (module: string) => {
   };
 };
 
+// --- USERS ---
+app.get("/api/users", authMiddleware, async (req: any, res) => {
+  const { tenant_id } = req.user;
+  try {
+    const [users] = await pool.query("SELECT id, nome, email, perfil, avatar, ativo FROM usuarios WHERE tenant_id = ? AND ativo = 1", [tenant_id]) as any[];
+    res.json(users);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- AUTH ROUTES ---
 
 const sendWelcomeEmail = async (toEmail: string, userName: string, companyName: string) => {
@@ -1073,7 +1148,28 @@ app.post("/api/auth/login", async (req, res) => {
       LEFT JOIN planos p ON e.plano_id = p.id 
       WHERE e.tenant_id = ?
     `, [user.tenant_id]) as any[];
-    let company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1, stripe_subscription_id: null, modulos: [] };
+    
+    let company = companies[0];
+
+    // Auto-repair missing company record
+    if (!company) {
+      console.log(`Company not found for tenant: ${user.tenant_id}. Repairing...`);
+      const [allPlans] = await pool.query("SELECT id FROM planos ORDER BY id ASC LIMIT 1") as any[];
+      const defaultPlanId = allPlans[0]?.id || 1;
+      
+      await pool.query(
+        "INSERT INTO empresas (tenant_id, nome_fantasia, email, status_assinatura, plano_id) VALUES (?, ?, ?, ?, ?)",
+        [user.tenant_id, 'Minha Empresa', email, 'ativo', defaultPlanId]
+      );
+      
+      const [refetchedCompanies] = await pool.query(`
+        SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, e.stripe_subscription_id, p.modulos 
+        FROM empresas e 
+        LEFT JOIN planos p ON e.plano_id = p.id 
+        WHERE e.tenant_id = ?
+      `, [user.tenant_id]) as any[];
+      company = refetchedCompanies[0];
+    }
 
     if (company.stripe_subscription_id) {
       try {
@@ -1108,7 +1204,7 @@ app.post("/api/auth/login", async (req, res) => {
           }
         }
 
-        if (newStatus !== company.status_assinatura || Math.abs(newVencimento.getTime() - (company.vencimento_assinatura?.getTime() || 0)) > 3600000) {
+        if (newStatus !== company.status_assinatura || Math.abs(newVencimento.getTime() - (company.vencimento_assinatura ? new Date(company.vencimento_assinatura).getTime() : 0)) > 3600000) {
           await pool.query(
             "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ? WHERE tenant_id = ?",
             [newStatus, newVencimento, user.tenant_id]
@@ -1215,7 +1311,7 @@ app.get("/api/auth/me", authMiddleware, async (req: any, res) => {
            }
          }
 
-         if (newStatus !== company.status_assinatura || Math.abs(newVencimento.getTime() - (company.vencimento_assinatura?.getTime() || 0)) > 3600000) {
+         if (newStatus !== company.status_assinatura || Math.abs(newVencimento.getTime() - (company.vencimento_assinatura ? new Date(company.vencimento_assinatura).getTime() : 0)) > 3600000) {
            await pool.query(
              "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ? WHERE tenant_id = ?",
              [newStatus, newVencimento, user.tenant_id]
@@ -1767,7 +1863,27 @@ app.put("/api/products/:id", authMiddleware, planMiddleware('estoque'), async (r
 
 // Pessoas (Clients/Suppliers)
 app.get("/api/pessoas", authMiddleware, planMiddleware('cadastros'), async (req: any, res) => {
-  const [pessoas] = await pool.query("SELECT * FROM pessoas WHERE tenant_id = ?", [req.user.tenant_id]);
+  const { tipo, ativo } = req.query;
+  let sql = "SELECT * FROM pessoas WHERE tenant_id = ?";
+  const params: any[] = [req.user.tenant_id];
+
+  if (tipo) {
+    if (tipo === 'cliente_or_ambos') {
+      sql += " AND (tipo_pessoa = 'cliente' OR tipo_pessoa = 'ambos')";
+    } else {
+      sql += " AND tipo_pessoa = ?";
+      params.push(tipo);
+    }
+  }
+
+  if (ativo !== undefined) {
+    sql += " AND ativo = ?";
+    params.push(ativo === 'true' || ativo === '1' ? 1 : 0);
+  }
+
+  sql += " ORDER BY nome ASC";
+
+  const [pessoas] = await pool.query(sql, params);
   res.json(pessoas);
 });
 
@@ -2099,6 +2215,312 @@ app.get("/api/sales/:id", authMiddleware, async (req: any, res) => {
   }
 });
 
+// ==============================================================================
+// AGENDA & AGENDAMENTOS
+// ==============================================================================
+
+app.get("/api/agenda", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
+  const { tenant_id } = req.user;
+  const { start, end, userId } = req.query;
+
+  try {
+    let sql = `
+      SELECT 
+        a.*, 
+        p.nome as cliente_nome,
+        u.nome as profissional_nome
+      FROM agendamentos a
+      LEFT JOIN pessoas p ON a.pessoa_id = p.id
+      JOIN usuarios u ON a.usuario_id = u.id
+      WHERE a.tenant_id = ? AND (a.status IS NULL OR a.status != 'Cancelado')
+    `;
+    const params: any[] = [tenant_id];
+
+    if (start && end) {
+      sql += " AND a.data_inicio >= ? AND a.data_inicio <= ?";
+      params.push(start, end);
+    }
+    if (userId) {
+      sql += " AND a.usuario_id = ?";
+      params.push(userId);
+    }
+
+    sql += " ORDER BY a.data_inicio ASC";
+
+    const [rows] = await pool.query(sql, params) as any[];
+    res.json(rows);
+  } catch (err: any) {
+    console.error("Error fetching agenda:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/agenda/:id", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
+  const { id } = req.params;
+  const { tenant_id } = req.user;
+
+  try {
+    const [rows] = await pool.query(`
+      SELECT 
+        a.*, 
+        p.nome as cliente_nome,
+        p.telefone as cliente_telefone,
+        p.email as cliente_email,
+        u.nome as profissional_nome
+      FROM agendamentos a
+      LEFT JOIN pessoas p ON a.pessoa_id = p.id
+      JOIN usuarios u ON a.usuario_id = u.id
+      WHERE a.id = ? AND a.tenant_id = ?
+    `, [id, tenant_id]) as any[];
+
+    if (rows.length === 0) return res.status(404).json({ error: "Agendamento não encontrado" });
+
+    const [items] = await pool.query(`
+      SELECT ai.*, pr.nome, pr.tipo, pr.tempo_execucao
+      FROM agendamentos_itens ai
+      JOIN produtos pr ON ai.produto_id = pr.id
+      WHERE ai.agendamento_id = ? AND ai.tenant_id = ?
+    `, [id, tenant_id]) as any[];
+
+    res.json({ ...rows[0], items });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/agenda", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
+  const { tenant_id } = req.user;
+  const { usuario_id, pessoa_id, data_inicio, data_fim, valor_total, observacao, items } = req.body;
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Validate duration based on services
+    if (items && items.length > 0) {
+      let totalServicoMinutos = 0;
+      for (const item of items) {
+        const [prod] = await connection.query("SELECT tipo, tempo_execucao FROM produtos WHERE id = ?", [item.produto_id]) as any[];
+        if (prod[0]?.tipo === 'servico') {
+          totalServicoMinutos += (prod[0].tempo_execucao || 0);
+        }
+      }
+
+      if (totalServicoMinutos > 0) {
+        const diffMs = new Date(data_fim).getTime() - new Date(data_inicio).getTime();
+        const diffMinutos = diffMs / 60000;
+        if (diffMinutos < totalServicoMinutos) {
+          throw new Error(`O tempo selecionado (${Math.round(diffMinutos)}min) é inferior ao tempo mínimo dos serviços (${totalServicoMinutos}min).`);
+        }
+      }
+    }
+
+    const [resAg] = await connection.query(`
+      INSERT INTO agendamentos (tenant_id, usuario_id, pessoa_id, data_inicio, data_fim, valor_total, observacao, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'Pendente')
+    `, [tenant_id, usuario_id, pessoa_id || null, data_inicio, data_fim, valor_total || 0, observacao || null]) as any[];
+
+    const agendaId = resAg.insertId;
+
+    if (items && items.length > 0) {
+      for (const item of items) {
+        await connection.query(`
+          INSERT INTO agendamentos_itens (tenant_id, agendamento_id, produto_id, quantidade, preco_unitario, subtotal)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `, [tenant_id, agendaId, item.produto_id, item.quantidade || 1, item.preco_unitario, item.subtotal]);
+      }
+    }
+
+    await connection.commit();
+    res.json({ success: true, id: agendaId });
+  } catch (err: any) {
+    await connection.rollback();
+    res.status(500).json({ error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
+app.put("/api/agenda/:id", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
+  const { id } = req.params;
+  const { tenant_id } = req.user;
+  const { usuario_id, pessoa_id, data_inicio, data_fim, valor_total, status, observacao, items } = req.body;
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [existing] = await connection.query("SELECT venda_id FROM agendamentos WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    if (existing?.[0]?.venda_id && status === 'Cancelado') {
+      await connection.query("UPDATE vendas SET status = 'cancelada' WHERE id = ? AND tenant_id = ?", [existing[0].venda_id, tenant_id]);
+    }
+
+    await connection.query(`
+      UPDATE agendamentos 
+      SET usuario_id = ?, pessoa_id = ?, data_inicio = ?, data_fim = ?, valor_total = ?, status = ?, observacao = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND tenant_id = ?
+    `, [usuario_id, pessoa_id || null, data_inicio, data_fim, valor_total, status, observacao, id, tenant_id]);
+
+    if (items) {
+      await connection.query("DELETE FROM agendamentos_itens WHERE agendamento_id = ? AND tenant_id = ?", [id, tenant_id]);
+      for (const item of items) {
+        await connection.query(`
+          INSERT INTO agendamentos_itens (tenant_id, agendamento_id, produto_id, quantidade, preco_unitario, subtotal)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `, [tenant_id, id, item.produto_id, item.quantidade || 1, item.preco_unitario, item.subtotal]);
+      }
+    }
+
+    await connection.commit();
+    res.json({ success: true });
+  } catch (err: any) {
+    await connection.rollback();
+    res.status(500).json({ error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
+app.delete("/api/agenda/:id", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
+  const { id } = req.params;
+  const { tenant_id } = req.user;
+
+  try {
+    await pool.query("DELETE FROM agendamentos WHERE id = ? AND tenant_id = ?", [id, tenant_id]);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/agenda/:id/concluir", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
+  const { id } = req.params;
+  const { tenant_id, id: authUserId } = req.user;
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [ags] = await connection.query("SELECT * FROM agendamentos WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    const agenda = ags[0];
+    if (!agenda) throw new Error("Agendamento não encontrado");
+    if (agenda.venda_id) throw new Error("Este agendamento já foi convertido em venda");
+
+    const [items] = await connection.query("SELECT * FROM agendamentos_itens WHERE agendamento_id = ?", [id]) as any[];
+
+    // Create Sale
+    const [maxSequencialRow] = await connection.query("SELECT MAX(sequencial_id) as max_id FROM vendas WHERE tenant_id = ?", [tenant_id]) as any[];
+    const nextSequencial = (maxSequencialRow[0]?.max_id || 0) + 1;
+
+    const [resVenda] = await connection.query(`
+      INSERT INTO vendas (tenant_id, sequencial_id, pessoa_id, usuario_id, valor_total, status, origem, tipo)
+      VALUES (?, ?, ?, ?, ?, 'orcamento', 'Agenda', 'venda')
+    `, [tenant_id, nextSequencial, agenda.pessoa_id, authUserId, agenda.valor_total]) as any[];
+
+    const vendaId = resVenda.insertId;
+
+    for (const item of items) {
+      await connection.query(`
+        INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [tenant_id, vendaId, item.produto_id, item.quantidade, item.preco_unitario, item.subtotal]);
+    }
+
+    // Update appointment
+    await connection.query("UPDATE agendamentos SET status = 'Concluido', venda_id = ? WHERE id = ?", [vendaId, id]);
+
+    await connection.commit();
+    res.json({ success: true, sequencial_id: nextSequencial });
+  } catch (err: any) {
+    await connection.rollback();
+    res.status(500).json({ error: err.message });
+  } finally {
+    connection.release();
+  }
+});
+
+// Notifications
+app.post("/api/agenda/:id/notify/:type", authMiddleware, async (req: any, res) => {
+  const { id, type } = req.params; // type: 'whatsapp' | 'email'
+  const { tenant_id } = req.user;
+
+  try {
+    // Basic check for plan permissions
+    const [companies] = await pool.query(`
+      SELECT p.modulos, e.* 
+      FROM empresas e 
+      LEFT JOIN planos p ON e.plano_id = p.id 
+      WHERE e.tenant_id = ?
+    `, [tenant_id]) as any[];
+    const company = companies[0];
+    const modulos = company?.modulos || [];
+    
+    if (type === 'email' && !modulos.includes('lembrete_email')) throw new Error("Seu plano não inclui lembretes por e-mail.");
+    if (type === 'whatsapp' && !modulos.includes('lembrete_whatsapp')) throw new Error("Seu plano não inclui lembretes por WhatsApp.");
+
+    const [ags] = await pool.query(`
+      SELECT a.*, p.nome as cliente_nome, p.telefone as cliente_telefone, p.email as cliente_email, u.nome as profissional_nome
+      FROM agendamentos a
+      LEFT JOIN pessoas p ON a.pessoa_id = p.id
+      JOIN usuarios u ON a.usuario_id = u.id
+      WHERE a.id = ? AND a.tenant_id = ?
+    `, [id, tenant_id]) as any[];
+    const agenda = ags[0];
+    if (!agenda) throw new Error("Agendamento não encontrado");
+
+    const dataFormatada = new Date(agenda.data_inicio).toLocaleString('pt-BR');
+    const msg = `Olá ${agenda.cliente_nome}, confirmamos seu agendamento com ${agenda.profissional_nome} no dia ${dataFormatada}.`;
+
+    if (type === 'email') {
+      if (!agenda.cliente_email) throw new Error("Cliente não possui e-mail cadastrado.");
+      await transporter.sendMail({
+        from: `"${company.nome_fantasia}" <${process.env.SMTP_USER}>`,
+        to: agenda.cliente_email,
+        subject: `Confirmação de Agendamento - ${company.nome_fantasia}`,
+        text: msg,
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; color: #333;">
+            <h2>Olá, ${agenda.cliente_nome}!</h2>
+            <p>Este é um lembrete do seu agendamento:</p>
+            <div style="background: #f4f4f4; padding: 15px; border-radius: 8px;">
+              <p><strong>Profissional:</strong> ${agenda.profissional_nome}</p>
+              <p><strong>Data/Hora:</strong> ${dataFormatada}</p>
+            </div>
+            <p>Caso precise desmarcar, entre em contato através do telefone ${company.telefone_celular || company.whatsapp}.</p>
+          </div>
+        `
+      });
+    } else if (type === 'whatsapp') {
+      if (!agenda.cliente_telefone) throw new Error("Cliente não possui WhatsApp cadastrado.");
+      if (!company.whatsapp_api_url || !company.whatsapp_api_key) throw new Error("Configurações da API WhatsApp não encontradas.");
+      
+      const phone = agenda.cliente_telefone.replace(/\D/g, '');
+      const response = await fetch(`${company.whatsapp_api_url}/message/sendText/${company.whatsapp_instance}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': company.whatsapp_api_key
+        },
+        body: JSON.stringify({
+          number: phone,
+          options: { delay: 1200, presence: "composing", linkPreview: false },
+          textMessage: { text: msg }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Erro na Evolution API: ${errorData.message || response.statusText}`);
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Notification error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.put("/api/sales/:id", authMiddleware, async (req: any, res) => {
   const { id } = req.params; // This is now sequencial_id
   const { pessoa_id, items, valor_total, desconto, frete, status, solicitacao, laudo_tecnico, pagamentos, identificacao, taxa_servico, origem, tipo } = req.body;
@@ -2253,8 +2675,12 @@ app.put("/api/sales/:id", authMiddleware, async (req: any, res) => {
 app.get("/api/settings/groups", authMiddleware, async (req: any, res) => {
   const { tenant_id } = req.user;
   try {
-    const [groups] = await pool.query("SELECT * FROM grupos_usuarios WHERE tenant_id = ?", [tenant_id]);
-    res.json(groups);
+    const [groups] = await pool.query("SELECT * FROM grupos_usuarios WHERE tenant_id = ?", [tenant_id]) as any[];
+    const parsedGroups = groups.map((g: any) => ({
+      ...g,
+      permissoes: typeof g.permissoes === 'string' ? JSON.parse(g.permissoes) : (g.permissoes || {})
+    }));
+    res.json(parsedGroups);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -2401,12 +2827,40 @@ app.put("/api/settings/users/:id", authMiddleware, async (req: any, res) => {
 app.get("/api/company/settings", authMiddleware, planMiddleware('configuracoes'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
-    const [companies] = await pool.query(`
+    let [companies] = await pool.query(`
       SELECT e.*, p.nome as plano_nome 
       FROM empresas e 
       LEFT JOIN planos p ON e.plano_id = p.id 
       WHERE e.tenant_id = ?
     `, [tenant_id]) as any[];
+
+    if (!companies || (Array.isArray(companies) && companies.length === 0)) {
+      console.log(`Company settings not found for tenant: ${tenant_id}. Attempting auto-repair...`);
+      const [allPlans] = await pool.query("SELECT id FROM planos ORDER BY id ASC LIMIT 1") as any[];
+      const defaultPlanId = allPlans[0]?.id || 1;
+      
+      try {
+        await pool.query(
+          "INSERT INTO empresas (tenant_id, nome_fantasia, email, status_assinatura, plano_id) VALUES (?, ?, ?, ?, ?)",
+          [tenant_id, 'Minha Empresa', req.user.email || 'contato@empresa.com', 'ativo', defaultPlanId]
+        );
+        console.log(`Successfully created missing company record for tenant: ${tenant_id}`);
+      } catch (insertErr: any) {
+        console.error(`Failed to repair company record for tenant: ${tenant_id}:`, insertErr.message);
+      }
+      
+      const [refetched] = await pool.query(`
+        SELECT e.*, p.nome as plano_nome 
+        FROM empresas e 
+        LEFT JOIN planos p ON e.plano_id = p.id 
+        WHERE e.tenant_id = ?
+      `, [tenant_id]) as any[];
+      companies = refetched;
+    }
+
+    if (!companies || companies.length === 0) {
+      return res.status(404).json({ error: "Empresa não encontrada mesmo após tentativa de criação automática." });
+    }
     res.json(companies[0]);
   } catch (err: any) {
     console.error("Error fetching company settings:", err);
@@ -3314,18 +3768,23 @@ app.get("/api/finance/cashier/current", authMiddleware, planMiddleware('financei
   res.json(caixas[0] || null);
 });
 
-app.post("/api/finance/cashier/open", authMiddleware, async (req: any, res) => {
+app.post("/api/finance/cashier/open", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
   const { valor_inicial } = req.body;
   const { tenant_id, id: usuario_id } = req.user;
 
-  const [abertoRows] = await pool.query("SELECT id FROM caixa WHERE tenant_id = ? AND status = 'aberto'", [tenant_id]) as any[];
-  if (abertoRows.length > 0) return res.status(400).json({ error: "Já existe um caixa aberto" });
+  try {
+    const [abertoRows] = await pool.query("SELECT id FROM caixa WHERE tenant_id = ? AND status = 'aberto'", [tenant_id]) as any[];
+    if (abertoRows.length > 0) return res.status(400).json({ error: "Já existe um caixa aberto" });
 
-  await pool.query(
-    "INSERT INTO caixa (tenant_id, usuario_id, valor_inicial, status) VALUES (?, ?, ?, 'aberto')",
-    [tenant_id, usuario_id, valor_inicial]
-  );
-  res.json({ success: true });
+    await pool.query(
+      "INSERT INTO caixa (tenant_id, usuario_id, valor_inicial, status) VALUES (?, ?, ?, 'aberto')",
+      [tenant_id, usuario_id, valor_inicial || 0]
+    );
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("Error opening cashier:", err);
+    res.status(500).json({ error: "Erro interno ao abrir o caixa: " + err.message });
+  }
 });
 
 app.post("/api/finance/cashier/close", authMiddleware, async (req: any, res) => {

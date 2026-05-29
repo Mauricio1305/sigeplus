@@ -21,7 +21,7 @@ export const Inventory = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [newProduct, setNewProduct] = useState<any>({
-    nome: '', tipo: 'produto', unidade: 'UN', custo: '', preco_venda: '', estoque_atual: '', estoque_minimo: '', categoria: '', codigo_barras: '', ativo: true, grupo_id: '', foto: '', marca: ''
+    nome: '', tipo: 'produto', unidade: 'UN', custo: '', preco_venda: '', estoque_atual: '', estoque_minimo: '', categoria: '', codigo_barras: '', ativo: true, grupo_id: '', foto: '', marca: '', tempo_execucao: 0
   });
   const token = useAuthStore(state => state.token);
   const user = useAuthStore(state => state.user);
@@ -356,7 +356,7 @@ export const Inventory = () => {
         setIsModalOpen(false);
         setEditingProduct(null);
         setNewProduct({
-          nome: '', tipo: 'produto', unidade: 'UN', custo: '', preco_venda: '', estoque_atual: '', estoque_minimo: '', categoria: '', codigo_barras: '', ativo: true, grupo_id: '', foto: '', marca: ''
+          nome: '', tipo: 'produto', unidade: 'UN', custo: '', preco_venda: '', estoque_atual: '', estoque_minimo: '', categoria: '', codigo_barras: '', ativo: true, grupo_id: '', foto: '', marca: '', tempo_execucao: 0
         });
         fetchProducts();
       } else {
@@ -423,7 +423,7 @@ export const Inventory = () => {
             onClick={() => {
               setEditingProduct(null);
               setNewProduct({
-                nome: '', tipo: 'produto', unidade: 'UN', custo: '', preco_venda: '', estoque_atual: '', estoque_minimo: '', categoria: '', codigo_barras: '', ativo: true, grupo_id: '', foto: ''
+                nome: '', tipo: 'produto', unidade: 'UN', custo: '', preco_venda: '', estoque_atual: '', estoque_minimo: '', categoria: '', codigo_barras: '', ativo: true, grupo_id: '', foto: '', marca: '', tempo_execucao: 0
               });
               setIsModalOpen(true);
             }}
@@ -720,6 +720,18 @@ export const Inventory = () => {
                   <option value="servico">Serviço</option>
                 </select>
               </div>
+              {newProduct.tipo === 'servico' && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">Tempo Execução (minutos)</label>
+                  <input 
+                    type="number" 
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                    placeholder="Ex: 60"
+                    value={newProduct.tempo_execucao}
+                    onChange={e => setNewProduct({...newProduct, tempo_execucao: parseInt(e.target.value) || 0})}
+                  />
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Unidade</label>
                 <input 

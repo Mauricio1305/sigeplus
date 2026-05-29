@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS empresas (
     plano_id INTEGER,
     status_assinatura VARCHAR(50) DEFAULT 'ativo', -- ativo, suspenso, cancelado
     vencimento_assinatura TIMESTAMP,
+    whatsapp_api_url VARCHAR(255),
+    whatsapp_api_key VARCHAR(255),
+    whatsapp_instance VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (plano_id) REFERENCES planos(id) ON DELETE RESTRICT
@@ -39,6 +42,17 @@ CREATE TABLE IF NOT EXISTS empresas (
 -- MySQL doesn't support IF NOT EXISTS for indices in the same way, but we can just use CREATE INDEX
 -- or let the table creation handle it if we define them in the table.
 -- For simplicity, I'll remove IF NOT EXISTS from indices or just omit them if they are redundant.
+
+CREATE TABLE IF NOT EXISTS grupos_usuarios (
+    id SERIAL PRIMARY KEY,
+    tenant_id VARCHAR(255) NOT NULL,
+    nome VARCHAR(255) NOT NULL,
+    is_master BOOLEAN DEFAULT false,
+    permissoes JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
+);
 
 CREATE TABLE IF NOT EXISTS usuarios (
     id SERIAL PRIMARY KEY,
@@ -48,11 +62,13 @@ CREATE TABLE IF NOT EXISTS usuarios (
     senha VARCHAR(255) NOT NULL,
     avatar TEXT,
     perfil VARCHAR(50) DEFAULT 'usuario', -- admin, usuario, superadmin
+    grupo_id INTEGER,
     ativo BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(email),
-    FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE,
+    FOREIGN KEY (grupo_id) REFERENCES grupos_usuarios(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS pessoas (
@@ -75,6 +91,15 @@ CREATE TABLE IF NOT EXISTS pessoas (
     FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS grupos_produtos (
+    id SERIAL PRIMARY KEY,
+    tenant_id VARCHAR(255) NOT NULL,
+    nome VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS produtos (
     id SERIAL PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
@@ -87,6 +112,7 @@ CREATE TABLE IF NOT EXISTS produtos (
     estoque_minimo DECIMAL(10, 2) DEFAULT 0,
     categoria VARCHAR(100),
     codigo_barras VARCHAR(13),
+    tempo_execucao INTEGER DEFAULT 0, -- Tempo em minutos para serviços
     ativo BOOLEAN DEFAULT true,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -267,6 +293,39 @@ CREATE TABLE IF NOT EXISTS movimentacoes_cartao (
     FOREIGN KEY (categoria_id) REFERENCES categorias_contas(id) ON DELETE RESTRICT
 );
 
+CREATE TABLE IF NOT EXISTS agendamentos (
+    id SERIAL PRIMARY KEY,
+    tenant_id VARCHAR(255) NOT NULL,
+    usuario_id INTEGER NOT NULL, -- Profissional
+    pessoa_id INTEGER, -- Cliente
+    data_inicio TIMESTAMP NOT NULL,
+    data_fim TIMESTAMP NOT NULL,
+    valor_total DECIMAL(10, 2) DEFAULT 0,
+    status VARCHAR(50) DEFAULT 'Pendente', -- Pendente, Confirmado, Check-in Realizado, Concluido, Cancelado
+    observacao TEXT,
+    venda_id INTEGER, -- Vinculo com a venda quando concluir
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE,
+    FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT,
+    FOREIGN KEY (pessoa_id) REFERENCES pessoas(id) ON DELETE SET NULL,
+    FOREIGN KEY (venda_id) REFERENCES vendas(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS agendamentos_itens (
+    id SERIAL PRIMARY KEY,
+    tenant_id VARCHAR(255) NOT NULL,
+    agendamento_id INTEGER NOT NULL,
+    produto_id INTEGER NOT NULL, -- Produto ou Servico
+    quantidade DECIMAL(10, 2) DEFAULT 1,
+    preco_unitario DECIMAL(10, 2) NOT NULL,
+    subtotal DECIMAL(10, 2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE,
+    FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id) ON DELETE CASCADE,
+    FOREIGN KEY (produto_id) REFERENCES produtos(id) ON DELETE RESTRICT
+);
+
 CREATE TABLE IF NOT EXISTS recuperacao_senha (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
@@ -326,3 +385,8 @@ CREATE TABLE IF NOT EXISTS stripe_logs (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_stripe_logs_tenant_id ON stripe_logs (tenant_id);
+
+CREATE INDEX IF NOT EXISTS idx_agendamentos_tenant_id ON agendamentos (tenant_id);
+CREATE INDEX IF NOT EXISTS idx_agendamentos_usuario_id ON agendamentos (usuario_id);
+CREATE INDEX IF NOT EXISTS idx_agendamentos_data ON agendamentos (data_inicio, data_fim);
+CREATE INDEX IF NOT EXISTS idx_agendamentos_itens_agendamento ON agendamentos_itens (agendamento_id);
