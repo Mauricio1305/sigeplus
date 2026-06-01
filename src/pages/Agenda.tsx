@@ -70,8 +70,32 @@ const Agenda = () => {
   const [searchPessoa, setSearchPessoa] = useState('');
   const [searchProduto, setSearchProduto] = useState('');
   const [notifying, setNotifying] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const calendarRef = useRef<any>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      
+      if (mobile !== isMobile) {
+        setIsMobile(mobile);
+        
+        // Auto switch view if crossing breakpoint
+        if (calendarRef.current) {
+          const api = calendarRef.current.getApi();
+          if (mobile && api.view.type !== 'timeGridDay') {
+            api.changeView('timeGridDay');
+          } else if (!mobile && api.view.type === 'timeGridDay') {
+            api.changeView('timeGridWeek');
+          }
+        }
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isMobile]);
 
   useEffect(() => {
     fetchProfessionals();
@@ -335,7 +359,7 @@ const Agenda = () => {
   };
 
   return (
-    <div className="space-y-6 h-full flex flex-col">
+    <div className="space-y-3 h-full flex flex-col">
       <style>{`
         .fc {
           --fc-border-color: #f1f5f9;
@@ -372,6 +396,38 @@ const Agenda = () => {
           color: #94a3b8;
           font-weight: 500;
         }
+        @media (max-width: 640px) {
+          .fc-toolbar {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 0.25rem !important;
+            justify-content: space-between !important;
+            align-items: center;
+          }
+          .fc-toolbar-chunk {
+            display: flex;
+            align-items: center;
+          }
+          .fc-toolbar-title {
+            font-size: 0.9rem !important;
+            margin: 0 !important;
+            text-align: center;
+            line-height: 1.2;
+          }
+          .fc-header-toolbar {
+            margin-bottom: 0.25rem !important;
+          }
+          .fc-button {
+            padding: 0.2rem 0.4rem !important;
+            font-size: 0.7rem !important;
+          }
+          .fc-col-header-cell-cushion,
+          .fc-timegrid-slot-label-cushion,
+          .fc-timegrid-axis-cushion,
+          .fc-daygrid-day-number {
+            font-size: 0.75rem !important;
+          }
+        }
         .fc-event {
           border: none !important;
           background: transparent !important;
@@ -384,38 +440,36 @@ const Agenda = () => {
           padding: 0;
         }
       `}</style>
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-2">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-1">
         <div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-100">
-              <CalendarIcon className="w-6 h-6" />
-            </div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-3">
             Agenda
           </h1>
-          <p className="text-slate-500 font-medium mt-1">Gerencie seus compromissos e profissionais</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 bg-white p-2 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40">
-          <div className="flex items-center gap-2 px-4 py-2 border-r border-slate-100">
-            <User className="w-5 h-5 text-indigo-500" />
-            <select 
-              className="bg-transparent border-none focus:ring-0 font-bold text-slate-700 pr-8 cursor-pointer"
-              value={selectedProfessional?.id || ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '') {
-                  setSelectedProfessional(null);
-                } else {
-                  const prof = professionals.find(p => p.id === parseInt(val));
-                  setSelectedProfessional(prof);
-                }
-              }}
-            >
-              <option value="">Todos os Profissionais</option>
-              {professionals.map(p => (
-                <option key={p.id} value={p.id}>{p.nome}</option>
-              ))}
-            </select>
+        <div className="flex flex-col md:flex-row flex-wrap items-center gap-2 bg-white p-2 rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/40 w-full md:w-auto">
+          <div className="flex items-center justify-between w-full md:w-auto gap-2 px-4 py-2 md:border-r border-slate-100">
+            <div className="flex items-center gap-2">
+              <User className="w-5 h-5 text-indigo-500" />
+              <select 
+                className="bg-transparent border-none focus:ring-0 font-bold text-slate-700 pr-8 cursor-pointer truncate max-w-[200px] md:max-w-none"
+                value={selectedProfessional?.id || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') {
+                    setSelectedProfessional(null);
+                  } else {
+                    const prof = professionals.find(p => p.id === parseInt(val));
+                    setSelectedProfessional(prof);
+                  }
+                }}
+              >
+                <option value="">Todos os Profissionais</option>
+                {professionals.map(p => (
+                  <option key={p.id} value={p.id}>{p.nome}</option>
+                ))}
+              </select>
+            </div>
           </div>
           
           <button 
@@ -424,7 +478,7 @@ const Agenda = () => {
               setSelectedEvent(null);
               setIsModalOpen(true);
             }}
-            className="bg-indigo-600 text-white px-6 py-2.5 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center gap-2"
+            className="w-full md:w-auto bg-indigo-600 text-white px-6 py-2.5 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
           >
             <Plus className="w-5 h-5" />
             <span>Novo Agendamento</span>
@@ -432,15 +486,15 @@ const Agenda = () => {
         </div>
       </header>
 
-      <div className="flex-1 bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden p-4">
+      <div className="flex-1 bg-white rounded-3xl border border-slate-100 shadow-xl shadow-slate-200/50 overflow-hidden p-2 md:p-4">
         <FullCalendar
           ref={calendarRef}
           plugins={[timeGridPlugin, interactionPlugin, dayGridPlugin]}
-          initialView="timeGridWeek"
+          initialView={isMobile ? "timeGridDay" : "timeGridWeek"}
           headerToolbar={{
-            left: 'prev,next today',
+            left: isMobile ? 'prev,next' : 'prev,next today',
             center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+            right: isMobile ? 'today' : 'dayGridMonth,timeGridWeek,timeGridDay'
           }}
           locale={ptBrLocale}
           editable={true}
@@ -453,6 +507,17 @@ const Agenda = () => {
           height="100%"
           slotMinTime="00:00:00"
           slotMaxTime="23:59:00"
+          slotLabelFormat={{
+            hour: 'numeric',
+            minute: '2-digit',
+            omitZeroMinute: false,
+            meridiem: 'short'
+          }}
+          titleFormat={
+            isMobile 
+              ? { month: 'short', day: 'numeric' } 
+              : { year: 'numeric', month: 'long', day: 'numeric' }
+          }
           datesSet={() => fetchAgendamentos()}
           events={agendamentos.map(ag => ({
             id: ag.id.toString(),
@@ -525,7 +590,7 @@ const Agenda = () => {
       {/* Modal Agendamento */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center md:p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -537,17 +602,17 @@ const Agenda = () => {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="relative bg-white rounded-[2rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative bg-white md:rounded-[2rem] shadow-2xl w-full h-full md:h-auto md:max-w-2xl overflow-hidden flex flex-col md:max-h-[90vh]"
             >
-              <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
-                <div>
-                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+              <div className="p-5 md:p-8 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between bg-white sticky top-0 z-10 gap-4 sm:gap-0">
+                <div className="flex-1">
+                  <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
                     {selectedEvent ? 'Editar Agendamento' : 'Novo Agendamento'}
                   </h2>
                   <div className="flex items-center gap-2 mt-1">
                     <User className="w-4 h-4 text-slate-400" />
                     <select 
-                      className="text-slate-500 font-medium bg-transparent border-none p-0 focus:ring-0 cursor-pointer"
+                      className="text-slate-500 text-sm font-medium bg-transparent border-none p-0 focus:ring-0 cursor-pointer"
                       value={formData.usuario_id}
                       onChange={(e) => setFormData({ ...formData, usuario_id: e.target.value })}
                     >
@@ -557,12 +622,12 @@ const Agenda = () => {
                     </select>
                   </div>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
-                  <XCircle className="w-8 h-8" />
+                <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 sm:static sm:top-auto sm:right-auto p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                  <XCircle className="w-6 h-6 md:w-8 md:h-8" />
                 </button>
               </div>
 
-              <form onSubmit={handleSave} className="p-8 overflow-y-auto space-y-6">
+              <form onSubmit={handleSave} className="p-5 md:p-8 overflow-y-auto space-y-5 md:space-y-6 flex-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Status do Agendamento</label>
@@ -623,13 +688,13 @@ const Agenda = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Início</label>
                       <input 
                         type="datetime-local" 
                         required
-                        className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-medium"
+                        className="w-full p-3 sm:px-2 md:px-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm sm:text-xs md:text-sm"
                         value={formData.data_inicio}
                         onChange={(e) => setFormData({ ...formData, data_inicio: e.target.value })}
                       />
@@ -639,7 +704,7 @@ const Agenda = () => {
                       <input 
                         type="datetime-local" 
                         required
-                        className="w-full p-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-medium"
+                        className="w-full p-3 sm:px-2 md:px-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 font-medium text-sm sm:text-xs md:text-sm"
                         value={formData.data_fim}
                         onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
                       />
@@ -696,33 +761,35 @@ const Agenda = () => {
 
                   <div className="space-y-2">
                     {formData.items.map((item, idx) => (
-                      <div key={idx} className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl group">
-                        <div className="flex-1">
-                          <p className="font-bold text-slate-900 text-sm">{item.nome}</p>
-                          <p className="text-xs text-slate-500">{item.tempo_execucao > 0 ? `${item.tempo_execucao} min` : 'Sem tempo'}</p>
+                      <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-4 bg-slate-50 p-3 sm:p-4 rounded-2xl group">
+                        <div className="flex-1 min-w-[120px]">
+                          <p className="font-bold text-slate-900 text-sm leading-tight">{item.nome}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{item.tempo_execucao > 0 ? `${item.tempo_execucao} min` : 'Sem tempo'}</p>
                         </div>
-                        <div className="w-24">
-                          <input 
-                            type="number"
-                            className="w-full bg-white border-slate-200 rounded-lg text-sm text-center py-1 font-bold"
-                            value={item.quantidade}
-                            onChange={(e) => {
-                              const q = parseFloat(e.target.value) || 0;
-                              const newItems = [...formData.items];
-                              newItems[idx].quantidade = q;
-                              newItems[idx].subtotal = q * item.preco_unitario;
-                              setFormData({ ...formData, items: newItems });
-                            }}
-                          />
+                        <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto mt-2 sm:mt-0 justify-end">
+                          <div className="w-20 sm:w-24">
+                            <input 
+                              type="number"
+                              className="w-full bg-white border-slate-200 rounded-lg text-sm text-center py-1.5 font-bold"
+                              value={item.quantidade}
+                              onChange={(e) => {
+                                const q = parseFloat(e.target.value) || 0;
+                                const newItems = [...formData.items];
+                                newItems[idx].quantidade = q;
+                                newItems[idx].subtotal = q * item.preco_unitario;
+                                setFormData({ ...formData, items: newItems });
+                              }}
+                            />
+                          </div>
+                          <p className="font-bold text-slate-900 w-20 sm:w-24 text-right">{formatCurrency(item.subtotal)}</p>
+                          <button 
+                            type="button" 
+                            onClick={() => setFormData({ ...formData, items: formData.items.filter((_, i) => i !== idx) })}
+                            className="text-slate-400 hover:text-rose-500 transition-colors md:opacity-0 md:group-hover:opacity-100 p-1"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
                         </div>
-                        <p className="font-bold text-slate-900 w-24 text-right">{formatCurrency(item.subtotal)}</p>
-                        <button 
-                          type="button" 
-                          onClick={() => setFormData({ ...formData, items: formData.items.filter((_, i) => i !== idx) })}
-                          className="text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
                       </div>
                     ))}
                   </div>
@@ -745,17 +812,17 @@ const Agenda = () => {
                   ></textarea>
                 </div>
 
-                <div className="sticky bottom-0 bg-white pt-4 flex gap-4">
+                <div className="sticky bottom-0 left-0 right-0 bg-white pt-4 pb-4 md:pb-0 flex flex-col-reverse sm:flex-row gap-3 md:gap-4 mt-auto">
                   <button 
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="flex-1 py-4 px-6 border-2 border-slate-100 text-slate-500 rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-slate-50 transition-all"
+                    className="flex-1 py-3 md:py-4 px-6 border-2 border-slate-100 text-slate-500 rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-slate-50 transition-all"
                   >
                     Descartar
                   </button>
                   <button 
                     type="submit"
-                    className="flex-2 py-4 px-12 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
+                    className="flex-1 sm:flex-[2] py-3 md:py-4 px-6 md:px-12 bg-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
                   >
                     <Save className="w-5 h-5" />
                     Salvar Agendamento

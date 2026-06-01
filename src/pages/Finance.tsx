@@ -325,15 +325,15 @@ export const Finance = () => {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Financeiro</h1>
-        <div className="flex bg-white p-1 rounded-xl border border-slate-100 shadow-sm overflow-x-auto">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900">Financeiro</h1>
+        <div className="flex flex-wrap bg-white p-1 rounded-xl border border-slate-100 shadow-sm w-full md:w-auto gap-1">
           {['cashier', 'payables', 'receivables', 'card', 'bank', 'reports'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as any)}
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-all whitespace-nowrap ${
+              className={`px-3 md:px-4 py-2 rounded-lg font-bold text-xs md:text-sm transition-all whitespace-nowrap ${
                 activeTab === tab ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'
               }`}
             >
@@ -345,9 +345,9 @@ export const Finance = () => {
 
       {activeTab === 'receivables' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-xl font-bold text-slate-800">Contas a Receber</h2>
-            <button onClick={() => { setModalType('receivable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Receber' }); setIsModalOpen(true); }} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200">
+            <button onClick={() => { setModalType('receivable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Receber' }); setIsModalOpen(true); }} className="w-full sm:w-auto justify-center bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200">
               <Plus className="w-4 h-4" /> Novo Recebimento
             </button>
           </div>
@@ -356,32 +356,34 @@ export const Finance = () => {
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs text-left uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs text-left uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold rounded-tl-2xl">Cliente / Descrição</th>
-                  <th className="px-6 py-4 font-semibold">Vencimento</th>
-                  <th className="px-6 py-4 font-semibold text-right">Valor</th>
-                  <th className="px-6 py-4 font-semibold text-right">Pago</th>
-                  <th className="px-6 py-4 font-semibold text-center">Status</th>
-                  <th className="px-6 py-4 font-semibold text-right rounded-tr-2xl">Ações</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold rounded-tl-2xl">Cliente / Descrição</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Vencimento</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Valor</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right hidden sm:table-cell">Pago</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-center hidden md:table-cell">Status</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right rounded-tr-2xl">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                 {getFilteredReceivables(receivables).map(r => (
                   <tr key={r.id}>
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-slate-900">{r.cliente_nome || 'Diversos'}</div>
-                      {r.descricao && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{r.descricao}</div>}
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
+                      <div className="font-medium text-slate-900 leading-tight">
+                        <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{r.cliente_nome || 'Diversos'}</div>
+                      </div>
+                      {r.descricao && <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{r.descricao}</div>}
                     </td>
-                    <td className="px-6 py-4 text-slate-500">{new Date(r.vencimento).toLocaleDateString()}</td>
-                    <td className="px-6 py-4 text-right font-bold text-slate-900">R$ {formatMoney(r.valor)}</td>
-                    <td className="px-6 py-4 text-right text-emerald-600 font-medium">R$ {formatMoney(r.valor_pago)}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${r.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : r.status === 'parcial' ? 'bg-amber-100 text-amber-700' : r.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap">{new Date(r.vencimento).toLocaleDateString()}</td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold text-slate-900 whitespace-nowrap">R$ {formatMoney(r.valor)}</td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right text-emerald-600 font-medium whitespace-nowrap hidden sm:table-cell">R$ {formatMoney(r.valor_pago)}</td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden md:table-cell">
+                      <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold rounded uppercase ${r.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : r.status === 'parcial' ? 'bg-amber-100 text-amber-700' : r.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
                         {r.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right">
                       {renderActionMenu(r, 'receivable')}
                     </td>
                   </tr>
@@ -394,13 +396,13 @@ export const Finance = () => {
 
       {activeTab === 'card' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-xl font-bold text-slate-800">Transações em Cartão</h2>
-            <div className="flex gap-2">
-              <button onClick={() => { setModalType('receivable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Cartão' }); setIsModalOpen(true); }} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <button onClick={() => { setModalType('receivable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Cartão' }); setIsModalOpen(true); }} className="w-full sm:w-auto justify-center bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200">
                 <Plus className="w-4 h-4" /> Recebimento
               </button>
-              <button onClick={() => { setModalType('payable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Cartão' }); setIsModalOpen(true); }} className="bg-rose-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-rose-700 transition-all shadow-lg shadow-rose-200">
+              <button onClick={() => { setModalType('payable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Cartão' }); setIsModalOpen(true); }} className="w-full sm:w-auto justify-center bg-rose-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-rose-700 transition-all shadow-lg shadow-rose-200">
                 <Plus className="w-4 h-4" /> Pagamento
               </button>
             </div>
@@ -409,31 +411,34 @@ export const Finance = () => {
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs text-left uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs text-left uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold rounded-tl-2xl">Descrição / Cliente</th>
-                  <th className="px-6 py-4 font-semibold">Vencimento</th>
-                  <th className="px-6 py-4 text-right font-semibold">Valor</th>
-                  <th className="px-6 py-4 text-center font-semibold">Status</th>
-                  <th className="px-6 py-4 text-right font-semibold rounded-tr-2xl">Ações</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold rounded-tl-2xl">Descrição / Cliente</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Vencimento</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-semibold">Valor</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center font-semibold hidden md:table-cell">Status</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-semibold rounded-tr-2xl">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                 {getFilteredCardBankMovements([...receivables.map(r => ({...r, tType: 'receivable'})), ...payables.map(p => ({...p, tType: 'payable'}))])
                   .filter(t => (t.local === 'Cartão' || t.tp_local === 'Cartão') && t.local !== 'Banco')
                   .sort((a, b) => new Date(b.vencimento || b.data_movimentacao).getTime() - new Date(a.vencimento || a.data_movimentacao).getTime())
                   .map(t => (
                     <tr key={`${t.tType}-${t.id}`}>
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-slate-900">{t.cliente_nome || t.fornecedor_nome || 'Diversos'}</div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">{t.descricao}</div>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
+                        <div className="font-medium text-slate-900 leading-tight">
+                          <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{t.cliente_nome || t.fornecedor_nome || 'Diversos'}</div>
+                        </div>
+                        <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{t.descricao}</div>
+                        <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</div>
                       </td>
-                      <td className="px-6 py-4 text-slate-500">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</td>
-                      <td className={`px-6 py-4 text-right font-bold ${t.tType === 'receivable' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap hidden sm:table-cell">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</td>
+                      <td className={`px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold whitespace-nowrap ${t.tType === 'receivable' ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {t.tType === 'receivable' ? '+' : '-'} R$ {formatMoney(t.valor)}
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${t.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : t.status === 'parcial' ? 'bg-amber-100 text-amber-700' : t.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden md:table-cell">
+                        <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold rounded uppercase ${t.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : t.status === 'parcial' ? 'bg-amber-100 text-amber-700' : t.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
                           {t.status}
                         </span>
                       </td>
@@ -450,13 +455,13 @@ export const Finance = () => {
 
       {activeTab === 'bank' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-xl font-bold text-slate-800">Transações em Banco</h2>
-            <div className="flex gap-2">
-              <button onClick={() => { setModalType('receivable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Banco' }); setIsModalOpen(true); }} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <button onClick={() => { setModalType('receivable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Banco' }); setIsModalOpen(true); }} className="w-full sm:w-auto justify-center bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-200">
                 <Plus className="w-4 h-4" /> Recebimento
               </button>
-              <button onClick={() => { setModalType('payable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Banco' }); setIsModalOpen(true); }} className="bg-rose-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-rose-700 transition-all shadow-lg shadow-rose-200">
+              <button onClick={() => { setModalType('payable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Banco' }); setIsModalOpen(true); }} className="w-full sm:w-auto justify-center bg-rose-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-rose-700 transition-all shadow-lg shadow-rose-200">
                 <Plus className="w-4 h-4" /> Pagamento
               </button>
             </div>
@@ -465,31 +470,34 @@ export const Finance = () => {
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs text-left uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs text-left uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold rounded-tl-2xl">Descrição / Pessoa</th>
-                  <th className="px-6 py-4 font-semibold">Vencimento</th>
-                  <th className="px-6 py-4 text-right font-semibold">Valor</th>
-                  <th className="px-6 py-4 text-center font-semibold">Status</th>
-                  <th className="px-6 py-4 text-right font-semibold rounded-tr-2xl">Ações</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold rounded-tl-2xl">Descrição / Pessoa</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Vencimento</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-semibold">Valor</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center font-semibold hidden md:table-cell">Status</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-semibold rounded-tr-2xl">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                 {getFilteredCardBankMovements([...receivables.map(r => ({...r, tType: 'receivable'})), ...payables.map(p => ({...p, tType: 'payable'}))])
                   .filter(t => t.local === 'Banco' || t.tp_local === 'Banco')
                   .sort((a, b) => new Date(b.vencimento || b.data_movimentacao).getTime() - new Date(a.vencimento || a.data_movimentacao).getTime())
                   .map(t => (
                     <tr key={`${t.tType}-${t.id}`}>
-                      <td className="px-6 py-4">
-                        <div className="font-medium text-slate-900">{t.cliente_nome || t.fornecedor_nome || 'Diversos'}</div>
-                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">{t.descricao}</div>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
+                        <div className="font-medium text-slate-900 leading-tight">
+                          <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{t.cliente_nome || t.fornecedor_nome || 'Diversos'}</div>
+                        </div>
+                        <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{t.descricao}</div>
+                        <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</div>
                       </td>
-                      <td className="px-6 py-4 text-slate-500">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</td>
-                      <td className={`px-6 py-4 text-right font-bold ${t.tType === 'receivable' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap hidden sm:table-cell">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</td>
+                      <td className={`px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold whitespace-nowrap ${t.tType === 'receivable' ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {t.tType === 'receivable' ? '+' : '-'} R$ {formatMoney(t.valor)}
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${t.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : t.status === 'parcial' ? 'bg-amber-100 text-amber-700' : t.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden md:table-cell">
+                        <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold rounded uppercase ${t.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : t.status === 'parcial' ? 'bg-amber-100 text-amber-700' : t.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
                           {t.status}
                         </span>
                       </td>
@@ -506,9 +514,9 @@ export const Finance = () => {
 
       {activeTab === 'payables' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-xl font-bold text-slate-800">Contas a Pagar</h2>
-            <button onClick={() => { setModalType('payable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Pagar' }); setIsModalOpen(true); }} className="bg-rose-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-rose-700 transition-all shadow-lg shadow-rose-200">
+            <button onClick={() => { setModalType('payable'); setSelectedItem(null); setFormData({ vencimento: new Date().toISOString().split('T')[0], local: 'Pagar' }); setIsModalOpen(true); }} className="w-full sm:w-auto justify-center bg-rose-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-rose-700 transition-all shadow-lg shadow-rose-200">
               <Plus className="w-4 h-4" /> Novo Pagamento
             </button>
           </div>
@@ -516,32 +524,34 @@ export const Finance = () => {
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-xs text-left uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs text-left uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold rounded-tl-2xl">Fornecedor</th>
-                  <th className="px-6 py-4 font-semibold">Vencimento</th>
-                  <th className="px-6 py-4 text-right font-semibold">Valor</th>
-                  <th className="px-6 py-4 text-right font-semibold">Pago</th>
-                  <th className="px-6 py-4 text-center font-semibold">Status</th>
-                  <th className="px-6 py-4 text-right font-semibold rounded-tr-2xl">Ações</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold rounded-tl-2xl">Fornecedor</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Vencimento</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-semibold">Valor</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-semibold hidden sm:table-cell">Pago</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center font-semibold hidden md:table-cell">Status</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-semibold rounded-tr-2xl">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                 {getFilteredPayables(payables).map(p => (
                   <tr key={p.id}>
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-slate-900">{p.fornecedor_nome || 'Diversos'}</div>
-                      {p.descricao && <div className="text-[10px] text-slate-400 font-mono mt-0.5">{p.descricao}</div>}
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
+                      <div className="font-medium text-slate-900 leading-tight">
+                        <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{p.fornecedor_nome || 'Diversos'}</div>
+                      </div>
+                      {p.descricao && <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{p.descricao}</div>}
                     </td>
-                    <td className="px-6 py-4 text-slate-500">{new Date(p.vencimento).toLocaleDateString()}</td>
-                    <td className="px-6 py-4 text-right font-bold text-slate-900">R$ {formatMoney(p.valor)}</td>
-                    <td className="px-6 py-4 text-right text-rose-600 font-medium">R$ {formatMoney(p.valor_pago)}</td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${p.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : p.status === 'parcial' ? 'bg-amber-100 text-amber-700' : p.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap">{new Date(p.vencimento).toLocaleDateString()}</td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold text-slate-900 whitespace-nowrap">R$ {formatMoney(p.valor)}</td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right text-rose-600 font-medium whitespace-nowrap hidden sm:table-cell">R$ {formatMoney(p.valor_pago)}</td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden md:table-cell">
+                      <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold rounded uppercase ${p.status === 'paga' ? 'bg-emerald-100 text-emerald-700' : p.status === 'parcial' ? 'bg-amber-100 text-amber-700' : p.status === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-100 text-slate-700'}`}>
                         {p.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right">
                       {renderActionMenu(p, 'payable', 'lancamentos')}
                     </td>
                   </tr>
@@ -554,21 +564,21 @@ export const Finance = () => {
 
       {activeTab === 'cashier' && (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <h2 className="text-xl font-bold text-slate-800">Controle de Caixa</h2>
             {!currentCashier ? (
-              <button onClick={() => { setModalType('caixaOpen'); setFormData({ valor_inicial: 0 }); setIsModalOpen(true); }} className="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
+              <button onClick={() => { setModalType('caixaOpen'); setFormData({ valor_inicial: 0 }); setIsModalOpen(true); }} className="w-full sm:w-auto justify-center bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
                 Abrir Caixa
               </button>
             ) : (
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <button 
                   onClick={() => { setModalType('caixaManualEntry'); setFormData({ tipo: 'entrada', valor: '', descricao: '' }); setIsModalOpen(true); }}
-                  className="bg-amber-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 flex items-center gap-2"
+                  className="w-full sm:w-auto justify-center bg-amber-500 text-white px-4 py-2 rounded-xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 flex items-center gap-2"
                 >
                   <Plus className="w-4 h-4" /> Lançamento
                 </button>
-                <button onClick={handleCloseCashier} className="bg-rose-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-200">
+                <button onClick={handleCloseCashier} className="w-full sm:w-auto justify-center bg-rose-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-200">
                   Fechar Caixa
                 </button>
               </div>
@@ -607,29 +617,32 @@ export const Finance = () => {
                 <table className="w-full text-left">
                   <thead className="bg-slate-50/50 text-slate-400 text-[10px] uppercase tracking-widest">
                     <tr>
-                      <th className="px-8 py-4 font-black">Data/Hora</th>
-                      <th className="px-8 py-4 font-black">Descrição</th>
-                      <th className="px-8 py-4 font-black text-center">Status</th>
-                      <th className="px-8 py-4 font-black text-right">Valor</th>
-                      <th className="px-8 py-4 font-black text-right">Ações</th>
+                      <th className="px-3 md:px-8 py-3 md:py-4 font-black hidden sm:table-cell">Data/Hora</th>
+                      <th className="px-3 md:px-8 py-3 md:py-4 font-black">Descrição</th>
+                      <th className="px-3 md:px-8 py-3 md:py-4 font-black text-center hidden md:table-cell">Status</th>
+                      <th className="px-3 md:px-8 py-3 md:py-4 font-black text-right">Valor</th>
+                      <th className="px-3 md:px-8 py-3 md:py-4 font-black text-right">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
+                  <tbody className="divide-y divide-slate-100 text-xs md:text-sm">
                     {getFilteredCashierMovements(salesMovements)
                       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                       .map((m) => (
                         <tr key={m.id} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="px-8 py-5 text-slate-400 font-medium">{new Date(m.created_at).toLocaleString()}</td>
-                          <td className="px-8 py-5 font-bold text-slate-900">{m.descricao || 'Venda'}</td>
-                          <td className="px-8 py-5 text-center">
-                            <span className={`px-3 py-1 text-[10px] font-black rounded-full uppercase ${(m.status || 'paga') === 'paga' ? 'bg-emerald-100 text-emerald-700' : (m.status || 'paga') === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-200 text-slate-600'}`}>
+                          <td className="px-3 md:px-8 py-3 md:py-5 text-slate-400 font-medium whitespace-nowrap hidden sm:table-cell">{new Date(m.created_at).toLocaleString()}</td>
+                          <td className="px-3 md:px-8 py-3 md:py-5">
+                            <div className="font-bold text-slate-900 line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{m.descricao || 'Venda'}</div>
+                            <div className="text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(m.created_at).toLocaleDateString()}</div>
+                          </td>
+                          <td className="px-3 md:px-8 py-3 md:py-5 text-center hidden md:table-cell">
+                            <span className={`px-2 md:px-3 py-1 text-[8px] md:text-[10px] font-black rounded-full uppercase ${(m.status || 'paga') === 'paga' ? 'bg-emerald-100 text-emerald-700' : (m.status || 'paga') === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-200 text-slate-600'}`}>
                               {m.status || 'paga'}
                             </span>
                           </td>
-                          <td className={`px-8 py-5 text-right font-black text-lg ${m.tipo === 'saida' ? 'text-rose-500' : 'text-emerald-500'}`}>
+                          <td className={`px-3 md:px-8 py-3 md:py-5 text-right font-black text-sm md:text-lg whitespace-nowrap ${m.tipo === 'saida' ? 'text-rose-500' : 'text-emerald-500'}`}>
                             {m.tipo === 'saida' ? '-' : '+'} R$ {formatMoney(m.valor)}
                           </td>
-                          <td className="px-8 py-5 text-right">
+                          <td className="px-3 md:px-8 py-3 md:py-5 text-right">
                             {(!m.origem || m.origem === 'Lançamento Manual') && renderActionMenu(m, 'movimentacao', 'caixa')}
                           </td>
                         </tr>

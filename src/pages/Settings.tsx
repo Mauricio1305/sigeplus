@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Users, Edit2, X } from 'lucide-react';
+import { Settings as SettingsIcon, Users, Edit2, X, Send, Globe, Mail, Eye, RefreshCw } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -11,7 +11,7 @@ export const Settings = () => {
   const token = useAuthStore(state => state.token);
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'users' | 'inventory'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'users' | 'inventory' | 'integrations'>('general');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -32,7 +32,16 @@ export const Settings = () => {
     logo: '',
     whatsapp_api_url: '',
     whatsapp_api_key: '',
-    whatsapp_instance: ''
+    whatsapp_instance: '',
+    whatsapp_msg_agendamento: '',
+    email_host: '',
+    email_port: '',
+    email_user: '',
+    email_pass: '',
+    email_from: '',
+    email_msg_agendamento: '',
+    whatsapp_automatico: false,
+    email_automatico: false
   });
 
   const [paymentTypes, setPaymentTypes] = useState<any[]>([]);
@@ -93,6 +102,127 @@ export const Settings = () => {
   const [modalType, setModalType] = useState<'category' | 'paymentType' | 'group' | 'user' | 'productGroup' | 'labelLayout'>('category');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
+  const [testPhone, setTestPhone] = useState('');
+  const [isTesting, setIsTesting] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+
+  const handleTestEmail = async () => {
+    if (!testEmail) {
+      setToast({ message: 'Digite um e-mail para testar', type: 'error' });
+      return;
+    }
+    if (!company.email_host || !company.email_user || !company.email_pass) {
+      setToast({ message: 'Preencha as configurações de SMTP antes de testar', type: 'error' });
+      return;
+    }
+
+    setIsTestingEmail(true);
+    try {
+      const res = await fetch('/api/email/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          host: company.email_host,
+          port: company.email_port,
+          user: company.email_user,
+          pass: company.email_pass,
+          from: company.email_from,
+          to: testEmail,
+          message: (company.email_msg_agendamento || '')
+            .replace(/{nome_cliente}/g, 'Cliente Teste')
+            .replace(/{data_agendamento}/g, new Date().toLocaleString('pt-BR'))
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setToast({ message: 'E-mail de teste enviado com sucesso!', type: 'success' });
+      } else {
+        setToast({ message: data.error || 'Erro ao testar e-mail', type: 'error' });
+      }
+    } catch (err) {
+      console.error("Error testing email:", err);
+      setToast({ message: 'Erro de conexão ao testar e-mail', type: 'error' });
+    } finally {
+      setIsTestingEmail(false);
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
+  const handleTestWhatsApp = async () => {
+    if (!testPhone) {
+      setToast({ message: 'Digite um número para testar', type: 'error' });
+      return;
+    }
+    if (!company.whatsapp_api_url || !company.whatsapp_api_key || !company.whatsapp_instance) {
+      setToast({ message: 'Preencha as configurações da Evolution API antes de testar', type: 'error' });
+      return;
+    }
+
+    setIsTesting(true);
+    try {
+      const res = await fetch('/api/whatsapp/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          number: testPhone,
+          url: company.whatsapp_api_url,
+          key: company.whatsapp_api_key,
+          instance: company.whatsapp_instance,
+          message: (company.whatsapp_msg_agendamento || '')
+            .replace(/{nome_cliente}/g, 'Cliente Teste')
+            .replace(/{data_agendamento}/g, new Date().toLocaleString('pt-BR'))
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setToast({ message: 'Mensagem de teste enviada com sucesso!', type: 'success' });
+      } else {
+        setToast({ message: data.error || 'Erro ao testar WhatsApp', type: 'error' });
+      }
+    } catch (err) {
+      console.error("Error testing WhatsApp:", err);
+      setToast({ message: 'Erro de conexão ao testar WhatsApp', type: 'error' });
+    } finally {
+      setIsTesting(false);
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
+  const handleSaveCompany = async (e: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await fetch('/api/company/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(company)
+      });
+      if (res.ok) {
+        setToast({ message: 'Configurações salvas com sucesso!', type: 'success' });
+      } else {
+        const data = await res.json();
+        setToast({ message: data.error || 'Erro ao salvar', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Save company error:', error);
+      setToast({ message: 'Erro de conexão', type: 'error' });
+    } finally {
+      setLoading(false);
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
 
   useEffect(() => {
     fetch('/api/company/settings', {
@@ -311,9 +441,9 @@ export const Settings = () => {
           />
         )}
       </AnimatePresence>
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Configurações</h1>
-        <div className="flex bg-white p-1 rounded-xl border border-slate-100 shadow-sm overflow-x-auto">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900">Configurações</h1>
+        <div className="flex flex-wrap bg-white p-1 rounded-xl border border-slate-100 shadow-sm w-full md:w-auto gap-1">
           <button 
             onClick={() => setActiveTab('general')} 
             className={`whitespace-nowrap px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'general' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
@@ -337,6 +467,12 @@ export const Settings = () => {
             className={`whitespace-nowrap px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'users' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
           >
             Usuários
+          </button>
+          <button 
+            onClick={() => setActiveTab('integrations')} 
+            className={`whitespace-nowrap px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'integrations' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Integrações
           </button>
         </div>
       </div>
@@ -534,43 +670,6 @@ export const Settings = () => {
                         onChange={e => setCompany({...company, estado: e.target.value.toUpperCase()})}
                       />
                     </FormField>
-                  </div>
-                  <div className="md:col-span-2 pt-4">
-                    <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-50 pb-2">Integração WhatsApp (Evolution API)</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="md:col-span-2">
-                        <FormField label="URL da API">
-                          <input 
-                            type="url" 
-                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="https://api.verificion.com"
-                            value={company.whatsapp_api_url || ''}
-                            onChange={e => setCompany({...company, whatsapp_api_url: e.target.value})}
-                          />
-                        </FormField>
-                      </div>
-                      <div>
-                        <FormField label="API Key">
-                          <input 
-                            type="password" 
-                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-                            value={company.whatsapp_api_key || ''}
-                            onChange={e => setCompany({...company, whatsapp_api_key: e.target.value})}
-                          />
-                        </FormField>
-                      </div>
-                      <div>
-                        <FormField label="Nome da Instância">
-                          <input 
-                            type="text" 
-                            className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-                            placeholder="MinhaInstancia"
-                            value={company.whatsapp_instance || ''}
-                            onChange={e => setCompany({...company, whatsapp_instance: e.target.value})}
-                          />
-                        </FormField>
-                      </div>
-                    </div>
                   </div>
                   <div className="md:col-span-2 pt-4">
                     <button 
@@ -1387,6 +1486,235 @@ export const Settings = () => {
               </div>
             </form>
           </motion.div>
+        </div>
+      )}
+      {activeTab === 'integrations' && (
+        <div className="space-y-6 max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-4 sm:p-6 md:p-8 space-y-6 md:space-y-8">
+              <div className="flex items-center gap-3 border-b border-slate-50 pb-4">
+                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 line-clamp-1">Integrações</h3>
+                  <p className="text-xs text-slate-500 line-clamp-1">Configure APIs externas e notificações</p>
+                </div>
+              </div>
+
+              <div className="space-y-10">
+                <section className="space-y-4">
+                  <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Send className="w-4 h-4" /> Evolution API (WhatsApp)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <FormField label="URL da API">
+                        <input 
+                          type="url" 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          placeholder="https://api.verificion.com"
+                          value={company.whatsapp_api_url || ''}
+                          onChange={e => setCompany({...company, whatsapp_api_url: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div>
+                      <FormField label="API Key">
+                        <input 
+                          type="password" 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          value={company.whatsapp_api_key || ''}
+                          onChange={e => setCompany({...company, whatsapp_api_key: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div>
+                      <FormField label="Nome da Instância">
+                        <input 
+                          type="text" 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          placeholder="MinhaInstancia"
+                          value={company.whatsapp_instance || ''}
+                          onChange={e => setCompany({...company, whatsapp_instance: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div className="md:col-span-2">
+                      <FormField 
+                        label="Template Mensagem Agendamento (WhatsApp)" 
+                        helpText="Use {nome_cliente} e {data_agendamento} para personalizar."
+                      >
+                        <textarea 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none min-h-[100px] text-sm"
+                          placeholder="Olá {nome_cliente}, seu agendamento está confirmado para {data_agendamento}."
+                          value={company.whatsapp_msg_agendamento || ''}
+                          onChange={e => setCompany({...company, whatsapp_msg_agendamento: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-all">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          checked={company.whatsapp_automatico || false}
+                          onChange={e => setCompany({...company, whatsapp_automatico: e.target.checked})}
+                        />
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">Lembrete Automático via WhatsApp</p>
+                          <p className="text-[11px] text-slate-500">Enviar automaticamente para o cliente 2 horas antes do agendamento.</p>
+                        </div>
+                      </label>
+                    </div>
+                    <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl space-y-3">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-tight">Testar Envio (WhatsApp)</p>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input 
+                          type="text" 
+                          placeholder="Número com DDD (ex: 11999999999)"
+                          className="w-full sm:flex-1 px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          value={testPhone}
+                          onChange={e => setTestPhone(e.target.value)}
+                        />
+                        <button 
+                          type="button"
+                          onClick={handleTestWhatsApp}
+                          disabled={isTesting}
+                          className="w-full sm:w-auto bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-emerald-700 transition-all disabled:opacity-50"
+                        >
+                          <Send className="w-4 h-4" />
+                          {isTesting ? 'Testando...' : 'Testar Envio'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <hr className="border-slate-100" />
+
+                <section className="space-y-4">
+                  <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Mail className="w-4 h-4" /> E-mail Marketing (SMTP)
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <FormField label="Servidor SMTP (Host)">
+                        <input 
+                          type="text" 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          placeholder="smtp.gmail.com"
+                          value={company.email_host || ''}
+                          onChange={e => setCompany({...company, email_host: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div>
+                      <FormField label="Porta SMTP">
+                        <input 
+                          type="number" 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          placeholder="587 ou 465"
+                          value={company.email_port || ''}
+                          onChange={e => setCompany({...company, email_port: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div>
+                      <FormField label="E-mail de Envio (User)">
+                        <input 
+                          type="email" 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          placeholder="contato@empresa.com"
+                          value={company.email_user || ''}
+                          onChange={e => setCompany({...company, email_user: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div>
+                      <FormField label="Senha SMTP">
+                        <input 
+                          type="password" 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          value={company.email_pass || ''}
+                          onChange={e => setCompany({...company, email_pass: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div>
+                      <FormField label="Nome de Exibição (From)">
+                        <input 
+                          type="text" 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          placeholder="Minha Empresa"
+                          value={company.email_from || ''}
+                          onChange={e => setCompany({...company, email_from: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div className="md:col-span-2">
+                      <FormField 
+                        label="Template Mensagem Agendamento (E-mail)" 
+                        helpText="Use {nome_cliente} e {data_agendamento} para personalizar."
+                      >
+                        <textarea 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none min-h-[100px] text-sm"
+                          placeholder="Olá {nome_cliente}, seu agendamento está confirmado para {data_agendamento}."
+                          value={company.email_msg_agendamento || ''}
+                          onChange={e => setCompany({...company, email_msg_agendamento: e.target.value})}
+                        />
+                      </FormField>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-all">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          checked={company.email_automatico || false}
+                          onChange={e => setCompany({...company, email_automatico: e.target.checked})}
+                        />
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">Lembrete Automático via E-mail</p>
+                          <p className="text-[11px] text-slate-500">Enviar automaticamente para o cliente 2 horas antes do agendamento.</p>
+                        </div>
+                      </label>
+                    </div>
+                    <div className="md:col-span-2 bg-slate-50 p-4 rounded-xl space-y-3">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-tight">Testar Envio (E-mail)</p>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input 
+                          type="email" 
+                          placeholder="E-mail de destino para o teste"
+                          className="w-full sm:flex-1 px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          value={testEmail}
+                          onChange={e => setTestEmail(e.target.value)}
+                        />
+                        <button 
+                          type="button"
+                          onClick={handleTestEmail}
+                          disabled={isTestingEmail}
+                          className="w-full sm:w-auto bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all disabled:opacity-50"
+                        >
+                          <Send className="w-4 h-4" />
+                          {isTestingEmail ? 'Testando...' : 'Testar Envio'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <div className="pt-8 border-t border-slate-100 flex flex-col sm:flex-row justify-end">
+                  <button 
+                    onClick={() => handleSaveCompany(null as any)}
+                    disabled={loading}
+                    className="w-full sm:w-auto bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
+                  >
+                    {loading ? 'Salvando...' : 'Salvar Alterações'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

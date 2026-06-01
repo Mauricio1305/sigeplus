@@ -72,11 +72,11 @@ export const Pessoas = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Pessoas</h1>
-          <p className="text-slate-500">Gestão de clientes e fornecedores.</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Pessoas</h1>
+          <p className="text-sm md:text-base text-slate-500">Gestão de clientes e fornecedores.</p>
         </div>
         <button onClick={() => { 
           setSelectedPessoa(null); 
@@ -98,8 +98,8 @@ export const Pessoas = () => {
             cep: ''
           }); 
           setIsModalOpen(true); 
-        }} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
-          <Plus className="w-5 h-5" /> Nova Pessoa
+        }} className="w-full sm:w-auto justify-center bg-indigo-600 text-white px-4 md:px-6 py-2.5 md:py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 text-sm md:text-base">
+          <Plus className="w-4 h-4 md:w-5 md:h-5" /> Nova Pessoa
         </button>
       </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -116,18 +116,18 @@ export const Pessoas = () => {
           </div>
         </div>
         <table className="w-full text-left">
-          <thead className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+          <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider">
             <tr>
-              <th className="px-6 py-4 font-semibold">Cód.</th>
-              <th className="px-6 py-4 font-semibold">Razão Social / Nome Fantasia</th>
-              <th className="px-6 py-4 font-semibold">Tipo</th>
-              <th className="px-6 py-4 font-semibold">CPF/CNPJ</th>
-              <th className="px-6 py-4 font-semibold">Contato</th>
-              <th className="px-6 py-4 font-semibold text-center">Status</th>
-              <th className="px-6 py-4 font-semibold text-right">Ações</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden md:table-cell">Cód.</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Razão Social / Nome Fantasia</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Tipo</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden lg:table-cell">CPF/CNPJ</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Contato</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-center hidden md:table-cell">Status</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
             {pessoas.filter(p => {
               const term = searchTerm.toLowerCase();
               return (
@@ -139,27 +139,30 @@ export const Pessoas = () => {
               );
             }).map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 font-medium text-slate-500 text-xs">#{p.id}</td>
-                <td className="px-6 py-4">
-                  <div className="font-medium text-slate-900">{p.razao_social || p.nome}</div>
-                  {p.nome_fantasia && <div className="text-xs text-slate-500">{p.nome_fantasia}</div>}
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-500 hidden md:table-cell">#{p.id}</td>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
+                  <div className="font-medium text-slate-900 leading-tight">
+                    <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{p.razao_social || p.nome}</div>
+                  </div>
+                  {p.nome_fantasia && <div className="text-[8px] sm:text-[10px] text-slate-500 mt-0.5">{p.nome_fantasia}</div>}
+                  <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{p.tipo_pessoa} {p.cpf_cnpj ? `• ${p.cpf_cnpj}` : ''}</div>
                 </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${p.tipo_pessoa === 'cliente' ? 'bg-blue-100 text-blue-700' : p.tipo_pessoa === 'fornecedor' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 hidden sm:table-cell">
+                  <span className={`px-1.5 md:px-2 py-0.5 md:py-1 text-[8px] md:text-[10px] font-bold rounded uppercase ${p.tipo_pessoa === 'cliente' ? 'bg-blue-100 text-blue-700' : p.tipo_pessoa === 'fornecedor' ? 'bg-amber-100 text-amber-700' : 'bg-purple-100 text-purple-700'}`}>
                     {p.tipo_pessoa}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-slate-600 font-mono text-xs">{p.cpf_cnpj}</td>
-                <td className="px-6 py-4">
-                  <div className="text-slate-600 text-sm">{p.telefone_celular || p.telefone}</div>
-                  {p.email && <div className="text-[10px] text-slate-400">{p.email}</div>}
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 font-mono hidden lg:table-cell">{p.cpf_cnpj}</td>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
+                  <div className="text-slate-600 font-medium whitespace-nowrap">{p.telefone_celular || p.telefone}</div>
+                  {p.email && <div className="text-[8px] sm:text-[10px] text-slate-400 truncate max-w-[100px] md:max-w-none">{p.email}</div>}
                 </td>
-                <td className="px-6 py-4 text-center">
-                  <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${p.ativo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden md:table-cell">
+                  <span className={`px-1.5 md:px-2 py-0.5 md:py-1 text-[8px] md:text-[10px] font-bold rounded uppercase ${p.ativo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                     {p.ativo ? 'Ativo' : 'Inativo'}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right">
                   <button 
                     onClick={() => {
                       setSelectedPessoa(p);

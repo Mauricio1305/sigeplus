@@ -269,9 +269,9 @@ export const SuperAdmin = () => {
           />
         )}
       </AnimatePresence>
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-slate-900">Gestão do SaaS</h1>
-        <div className="flex bg-white p-1 rounded-xl border border-slate-100 shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900">Gestão do SaaS</h1>
+        <div className="flex flex-wrap bg-white p-1 rounded-xl border border-slate-100 shadow-sm w-full md:w-auto gap-1">
           <button 
             onClick={() => setActiveTab('companies')}
             className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'companies' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
@@ -330,35 +330,46 @@ export const SuperAdmin = () => {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Empresa</th>
-                  <th className="px-6 py-4 font-semibold">ID Cliente</th>
-                  <th className="px-6 py-4 font-semibold">Plano</th>
-                  <th className="px-6 py-4 font-semibold">Status</th>
-                  <th className="px-6 py-4 font-semibold">Vencimento</th>
-                  <th className="px-6 py-4 font-semibold text-right">Ações</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Empresa</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden md:table-cell">ID Cliente</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Plano</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Status</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden lg:table-cell">Vencimento</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                 {filteredCompanies.length > 0 ? (
                   filteredCompanies.map(c => (
                     <tr key={c.id}>
-                      <td className="px-6 py-4 font-medium text-slate-900">{c.nome_fantasia}</td>
-                      <td className="px-6 py-4 text-slate-500 font-mono text-xs">{c.tenant_id}</td>
-                      <td className="px-6 py-4 text-slate-600">{c.plano_nome}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs font-bold rounded uppercase ${c.status_assinatura === 'ativo' ? 'bg-emerald-100 text-emerald-700' : c.status_assinatura === 'Cancelamento Solicitado' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
+                        <div className="font-medium text-slate-900 leading-tight">
+                          <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{c.nome_fantasia}</div>
+                        </div>
+                        <div className="md:hidden text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{c.tenant_id}</div>
+                        <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{c.plano_nome} • Venc: {formatVencimento(c.vencimento_assinatura)}</div>
+                        <div className="sm:hidden mt-0.5">
+                          <span className={`px-1.5 py-0.5 text-[8px] font-bold rounded uppercase ${c.status_assinatura === 'ativo' ? 'bg-emerald-100 text-emerald-700' : c.status_assinatura === 'Cancelamento Solicitado' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
+                            {c.status_assinatura}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 font-mono hidden md:table-cell">{c.tenant_id}</td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden sm:table-cell">{c.plano_nome}</td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 hidden sm:table-cell">
+                        <span className={`px-1.5 md:px-2 py-0.5 md:py-1 text-[8px] md:text-[10px] font-bold rounded uppercase ${c.status_assinatura === 'ativo' ? 'bg-emerald-100 text-emerald-700' : c.status_assinatura === 'Cancelamento Solicitado' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
                           {c.status_assinatura}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-slate-600">
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden lg:table-cell whitespace-nowrap">
                         {formatVencimento(c.vencimento_assinatura)}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right">
                         <button 
                           onClick={() => setEditingCompany(c)}
-                          className="text-indigo-600 hover:text-indigo-800 font-medium text-sm"
+                          className="text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap"
                         >
                           Editar
                         </button>

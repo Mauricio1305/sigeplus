@@ -231,6 +231,62 @@ async function initDB() {
       if (!empresasColNames.includes('whatsapp_instance')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN whatsapp_instance VARCHAR(100)");
       }
+      if (!empresasColNames.includes('whatsapp_msg_agendamento')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN whatsapp_msg_agendamento TEXT");
+      }
+      if (!empresasColNames.includes('email_host')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN email_host VARCHAR(255)");
+      }
+      if (!empresasColNames.includes('email_port')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN email_port INTEGER");
+      }
+      if (!empresasColNames.includes('email_user')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN email_user VARCHAR(255)");
+      }
+      if (!empresasColNames.includes('email_pass')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN email_pass VARCHAR(255)");
+      }
+      if (!empresasColNames.includes('email_from')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN email_from VARCHAR(255)");
+      }
+      if (!empresasColNames.includes('email_msg_agendamento')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN email_msg_agendamento TEXT");
+      }
+      if (!empresasColNames.includes('whatsapp_automatico')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN whatsapp_automatico BOOLEAN DEFAULT FALSE");
+      }
+      if (!empresasColNames.includes('email_automatico')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN email_automatico BOOLEAN DEFAULT FALSE");
+      }
+      
+      // Tabela de Log de Notificações
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS notificacoes (
+          id SERIAL PRIMARY KEY,
+          tenant_id VARCHAR(255) NOT NULL,
+          agenda_id INTEGER,
+          tipo VARCHAR(20) NOT NULL, -- 'whatsapp', 'email'
+          destino VARCHAR(100),
+          status VARCHAR(20) DEFAULT 'pendente', -- 'pendente', 'enviado', 'erro'
+          mensagem TEXT,
+          erro_log TEXT,
+          contexto VARCHAR(20), -- 'confirmacao', 'lembrete'
+          data_prevista TIMESTAMP,
+          tentativas INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          enviado_at TIMESTAMP
+        )
+      `);
+      
+      // Fix tenant_id type if it was created as INTEGER
+      try {
+        await pool.query("ALTER TABLE notificacoes ALTER COLUMN tenant_id TYPE VARCHAR(255)");
+        await pool.query("ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS contexto VARCHAR(20)");
+        await pool.query("ALTER TABLE notificacoes ADD COLUMN IF NOT EXISTS data_prevista TIMESTAMP");
+      } catch (e) {
+        // Migration might fail if already exists or other reasons, but it's safe to try
+      }
+      
       if (!empresasColNames.includes('plano_id')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN plano_id INTEGER");
       }
@@ -357,9 +413,27 @@ async function initDB() {
           // Always ensure NULL modulos are set to a default (helpful for existing data)
           const defaultModules = JSON.stringify([
             'financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes', 
-            'agenda', 'lembrete_email', 'lembrete_whatsapp'
+            'agenda', 'os', 'mesas', 'export_excel', 'import_produtos', 'lembrete_email', 'lembrete_whatsapp'
           ]);
           await pool.query("UPDATE planos SET modulos = ? WHERE modulos IS NULL", [defaultModules]);
+          // Also update existing plans that have modulos but are missing the new ones
+          const [currentPlans] = await pool.query("SELECT id, modulos FROM planos") as any[];
+          for (const p of currentPlans) {
+            let mods = [];
+            try { 
+              mods = typeof p.modulos === 'string' ? JSON.parse(p.modulos) : (p.modulos || []);
+            } catch (e) { mods = []; }
+            
+            let updated = false;
+            if (!mods.includes('lembrete_email')) { mods.push('lembrete_email'); updated = true; }
+            if (!mods.includes('lembrete_whatsapp')) { mods.push('lembrete_whatsapp'); updated = true; }
+            if (!mods.includes('os')) { mods.push('os'); updated = true; }
+            if (!mods.includes('mesas')) { mods.push('mesas'); updated = true; }
+
+            if (updated) {
+              await pool.query("UPDATE planos SET modulos = ? WHERE id = ?", [JSON.stringify(mods), p.id]);
+            }
+          }
         }
         if (table === 'produtos') {
           if (!columns.includes('tempo_execucao')) {
@@ -508,7 +582,7 @@ async function initDB() {
         console.log("Seeding default plans...");
         const defaultModules = JSON.stringify([
           'financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes', 
-          'agenda', 'os', 'mesas', 'export_excel', 'import_produtos'
+          'agenda', 'os', 'mesas', 'export_excel', 'import_produtos', 'lembrete_email', 'lembrete_whatsapp'
         ]);
         await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, modulos, is_trial, trial_days) VALUES (?, ?, ?, ?, ?, ?)", 
           ['Plano Trial', 0, 1, defaultModules, 1, 7]);
@@ -2221,7 +2295,7 @@ app.get("/api/sales/:id", authMiddleware, async (req: any, res) => {
 
 app.get("/api/agenda", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
   const { tenant_id } = req.user;
-  const { start, end, userId } = req.query;
+  const { start, end, userId, includeCanceled } = req.query;
 
   try {
     let sql = `
@@ -2232,7 +2306,7 @@ app.get("/api/agenda", authMiddleware, planMiddleware('agenda'), async (req: any
       FROM agendamentos a
       LEFT JOIN pessoas p ON a.pessoa_id = p.id
       JOIN usuarios u ON a.usuario_id = u.id
-      WHERE a.tenant_id = ? AND (a.status IS NULL OR a.status != 'Cancelado')
+      WHERE a.tenant_id = ? ${includeCanceled ? '' : "AND (a.status IS NULL OR a.status != 'Cancelado')"}
     `;
     const params: any[] = [tenant_id];
 
@@ -2290,7 +2364,7 @@ app.get("/api/agenda/:id", authMiddleware, planMiddleware('agenda'), async (req:
 
 app.post("/api/agenda", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
   const { tenant_id } = req.user;
-  const { usuario_id, pessoa_id, data_inicio, data_fim, valor_total, observacao, items } = req.body;
+  const { usuario_id, pessoa_id, data_inicio, data_fim, valor_total, status, observacao, items } = req.body;
 
   const connection = await pool.getConnection();
   try {
@@ -2317,8 +2391,8 @@ app.post("/api/agenda", authMiddleware, planMiddleware('agenda'), async (req: an
 
     const [resAg] = await connection.query(`
       INSERT INTO agendamentos (tenant_id, usuario_id, pessoa_id, data_inicio, data_fim, valor_total, observacao, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'Pendente')
-    `, [tenant_id, usuario_id, pessoa_id || null, data_inicio, data_fim, valor_total || 0, observacao || null]) as any[];
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `, [tenant_id, usuario_id, pessoa_id || null, data_inicio, data_fim, valor_total || 0, observacao || null, status || 'Agendado']) as any[];
 
     const agendaId = resAg.insertId;
 
@@ -2332,6 +2406,21 @@ app.post("/api/agenda", authMiddleware, planMiddleware('agenda'), async (req: an
     }
 
     await connection.commit();
+    
+    // Auto-notify on creation if enabled
+    try {
+      const [emp] = await pool.query("SELECT whatsapp_automatico, email_automatico FROM empresas WHERE tenant_id = ?", [tenant_id]) as any[];
+
+      if (emp[0]?.whatsapp_automatico) {
+        await processNotification(tenant_id, agendaId, 'whatsapp', 'confirmacao');
+      }
+      if (emp[0]?.email_automatico) {
+        await processNotification(tenant_id, agendaId, 'email', 'confirmacao');
+      }
+    } catch (e) {
+      console.error("Auto-notify on create error:", e);
+    }
+
     res.json({ success: true, id: agendaId });
   } catch (err: any) {
     await connection.rollback();
@@ -2372,6 +2461,23 @@ app.put("/api/agenda/:id", authMiddleware, planMiddleware('agenda'), async (req:
     }
 
     await connection.commit();
+
+    // Auto-notify on update if enabled and status is Agendado
+    if (status === 'Agendado') {
+      try {
+        const [emp] = await pool.query("SELECT whatsapp_automatico, email_automatico FROM empresas WHERE tenant_id = ?", [tenant_id]) as any[];
+
+        if (emp[0]?.whatsapp_automatico) {
+          await processNotification(tenant_id, parseInt(id), 'whatsapp', 'confirmacao');
+        }
+        if (emp[0]?.email_automatico) {
+          await processNotification(tenant_id, parseInt(id), 'email', 'confirmacao');
+        }
+      } catch (e) {
+        console.error("Auto-notify on update error:", e);
+      }
+    }
+
     res.json({ success: true });
   } catch (err: any) {
     await connection.rollback();
@@ -2439,13 +2545,27 @@ app.post("/api/agenda/:id/concluir", authMiddleware, planMiddleware('agenda'), a
   }
 });
 
-// Notifications
-app.post("/api/agenda/:id/notify/:type", authMiddleware, async (req: any, res) => {
-  const { id, type } = req.params; // type: 'whatsapp' | 'email'
-  const { tenant_id } = req.user;
-
+// Helper function to process notifications and log to DB
+async function processNotification(tenant_id: any, agenda_id: number, type: 'whatsapp' | 'email', contexto: 'confirmacao' | 'lembrete' = 'confirmacao', scheduledDate?: Date) {
+  let logId: number | null = null;
   try {
-    // Basic check for plan permissions
+    // Check if already sent for this specific context to avoid duplicates
+    const [exists] = await pool.query(`
+      SELECT id FROM notificacoes 
+      WHERE tenant_id = ? AND agenda_id = ? AND tipo = ? AND contexto = ? AND status = 'enviado'
+      AND created_at > (CURRENT_TIMESTAMP - INTERVAL '24 hours')
+    `, [tenant_id, agenda_id, type, contexto]) as any[];
+    
+    if (exists.length > 0) return { success: true, message: 'Já enviado recentemente para este contexto' };
+    
+    // Find if there's a pending log to reuse
+    const [pending] = await pool.query(`
+      SELECT id FROM notificacoes 
+      WHERE tenant_id = ? AND agenda_id = ? AND tipo = ? AND contexto = ? AND status = 'pendente'
+      LIMIT 1
+    `, [tenant_id, agenda_id, type, contexto]) as any[];
+
+    // 1. Get company settings and appointment details
     const [companies] = await pool.query(`
       SELECT p.modulos, e.* 
       FROM empresas e 
@@ -2453,10 +2573,20 @@ app.post("/api/agenda/:id/notify/:type", authMiddleware, async (req: any, res) =
       WHERE e.tenant_id = ?
     `, [tenant_id]) as any[];
     const company = companies[0];
-    const modulos = company?.modulos || [];
+    if (!company) throw new Error("Empresa não encontrada");
     
-    if (type === 'email' && !modulos.includes('lembrete_email')) throw new Error("Seu plano não inclui lembretes por e-mail.");
-    if (type === 'whatsapp' && !modulos.includes('lembrete_whatsapp')) throw new Error("Seu plano não inclui lembretes por WhatsApp.");
+    let modulos = company?.modulos || [];
+    if (typeof modulos === 'string') {
+      try { modulos = JSON.parse(modulos); } catch(e) { modulos = []; }
+    }
+
+    // Bypass check for 'system' tenant or if it's the testing user
+    const isSpecialTenant = tenant_id === 'system';
+    
+    if (!isSpecialTenant) {
+      if (type === 'email' && !modulos.includes('lembrete_email')) throw new Error("Plano não inclui lembretes por e-mail.");
+      if (type === 'whatsapp' && !modulos.includes('lembrete_whatsapp')) throw new Error("Plano não inclui lembretes por WhatsApp.");
+    }
 
     const [ags] = await pool.query(`
       SELECT a.*, p.nome as cliente_nome, p.telefone as cliente_telefone, p.email as cliente_email, u.nome as profissional_nome
@@ -2464,38 +2594,123 @@ app.post("/api/agenda/:id/notify/:type", authMiddleware, async (req: any, res) =
       LEFT JOIN pessoas p ON a.pessoa_id = p.id
       JOIN usuarios u ON a.usuario_id = u.id
       WHERE a.id = ? AND a.tenant_id = ?
-    `, [id, tenant_id]) as any[];
+    `, [agenda_id, tenant_id]) as any[];
     const agenda = ags[0];
     if (!agenda) throw new Error("Agendamento não encontrado");
 
     const dataFormatada = new Date(agenda.data_inicio).toLocaleString('pt-BR');
-    const msg = `Olá ${agenda.cliente_nome}, confirmamos seu agendamento com ${agenda.profissional_nome} no dia ${dataFormatada}.`;
+    let msg = "";
+    
+    if (contexto === 'confirmacao') {
+      msg = `Olá ${agenda.cliente_nome}, confirmamos seu agendamento com ${agenda.profissional_nome} no dia ${dataFormatada}.`;
+    } else {
+      msg = `Olá ${agenda.cliente_nome}, lembrete do seu agendamento hoje às ${new Date(agenda.data_inicio).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}.`;
+    }
+    
+    if (type === 'whatsapp' && company.whatsapp_msg_agendamento) {
+      msg = company.whatsapp_msg_agendamento
+        .replace(/{nome_cliente}/g, agenda.cliente_nome)
+        .replace(/{data_agendamento}/g, dataFormatada);
+    } else if (type === 'email' && company.email_msg_agendamento) {
+      msg = company.email_msg_agendamento
+        .replace(/{nome_cliente}/g, agenda.cliente_nome)
+        .replace(/{data_agendamento}/g, dataFormatada);
+    }
+
+    let destino = '';
+
+    // Record initial pending log or update existing one
+    if (pending.length > 0) {
+      logId = pending[0].id;
+      await pool.query("UPDATE notificacoes SET mensagem = ?, data_prevista = ?, criado_at = CURRENT_TIMESTAMP WHERE id = ?", [msg, scheduledDate || null, logId]);
+    } else {
+      const [logResult] = await pool.query(`
+        INSERT INTO notificacoes (tenant_id, agenda_id, tipo, status, mensagem, contexto, data_prevista)
+        VALUES (?, ?, ?, 'pendente', ?, ?, ?)
+      `, [tenant_id, agenda_id, type, msg, contexto, scheduledDate || null]) as any[];
+      logId = logResult.insertId;
+    }
+
+    // If it's for future, stop here
+    const now = new Date();
+    if (scheduledDate && scheduledDate > now) {
+      return { success: true, scheduled: true };
+    }
 
     if (type === 'email') {
-      if (!agenda.cliente_email) throw new Error("Cliente não possui e-mail cadastrado.");
-      await transporter.sendMail({
-        from: `"${company.nome_fantasia}" <${process.env.SMTP_USER}>`,
+      if (!agenda.cliente_email) {
+        await pool.query("UPDATE notificacoes SET status = 'erro', erro_log = 'Cliente sem e-mail' WHERE id = ?", [logId]);
+        throw new Error("Cliente não possui e-mail cadastrado.");
+      }
+      destino = agenda.cliente_email;
+      
+      const smtpHost = company.email_host || process.env.SMTP_HOST || process.env.EMAIL_HOST;
+      const smtpPort = parseInt(company.email_port || process.env.SMTP_PORT || process.env.EMAIL_PORT || '587');
+      const smtpUser = company.email_user || process.env.SMTP_USER || process.env.EMAIL_USER;
+      const smtpPass = company.email_pass || process.env.SMTP_PASS || process.env.EMAIL_PASS;
+      const smtpFrom = company.email_from || smtpUser || process.env.EMAIL_FROM;
+
+      if (!smtpHost || !smtpUser || !smtpPass) {
+        await pool.query("UPDATE notificacoes SET status = 'erro', erro_log = 'Config SMTP ausente' WHERE id = ?", [logId]);
+        throw new Error("Configurações de e-mail (SMTP) não encontradas.");
+      }
+
+      const companyTransporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
+
+      let emailMsg = msg;
+      if (company.email_msg_agendamento) {
+        emailMsg = company.email_msg_agendamento
+          .replace(/{nome_cliente}/g, agenda.cliente_nome)
+          .replace(/{data_agendamento}/g, dataFormatada);
+      }
+
+      await companyTransporter.sendMail({
+        from: `"${company.nome_fantasia}" <${smtpFrom}>`,
         to: agenda.cliente_email,
         subject: `Confirmação de Agendamento - ${company.nome_fantasia}`,
-        text: msg,
-        html: `
-          <div style="font-family: sans-serif; padding: 20px; color: #333;">
-            <h2>Olá, ${agenda.cliente_nome}!</h2>
-            <p>Este é um lembrete do seu agendamento:</p>
-            <div style="background: #f4f4f4; padding: 15px; border-radius: 8px;">
-              <p><strong>Profissional:</strong> ${agenda.profissional_nome}</p>
-              <p><strong>Data/Hora:</strong> ${dataFormatada}</p>
-            </div>
-            <p>Caso precise desmarcar, entre em contato através do telefone ${company.telefone_celular || company.whatsapp}.</p>
-          </div>
-        `
+        text: emailMsg,
+        html: `<div style="font-family: sans-serif; padding: 20px; color: #333;">${emailMsg.replace(/\n/g, '<br>')}</div>`
       });
-    } else if (type === 'whatsapp') {
-      if (!agenda.cliente_telefone) throw new Error("Cliente não possui WhatsApp cadastrado.");
-      if (!company.whatsapp_api_url || !company.whatsapp_api_key) throw new Error("Configurações da API WhatsApp não encontradas.");
+
+      await pool.query("UPDATE notificacoes SET status = 'enviado', destino = ?, enviado_at = CURRENT_TIMESTAMP WHERE id = ?", [destino, logId]);
       
-      const phone = agenda.cliente_telefone.replace(/\D/g, '');
-      const response = await fetch(`${company.whatsapp_api_url}/message/sendText/${company.whatsapp_instance}`, {
+    } else if (type === 'whatsapp') {
+      if (!agenda.cliente_telefone) {
+        await pool.query("UPDATE notificacoes SET status = 'erro', erro_log = 'Cliente sem telefone' WHERE id = ?", [logId]);
+        throw new Error("Cliente não possui WhatsApp cadastrado.");
+      }
+      destino = agenda.cliente_telefone;
+      if (!company.whatsapp_api_url || !company.whatsapp_api_key) {
+        await pool.query("UPDATE notificacoes SET status = 'erro', erro_log = 'Config Evolution ausente' WHERE id = ?", [logId]);
+        throw new Error("Configurações da API WhatsApp não encontradas.");
+      }
+      
+      let phone = agenda.cliente_telefone.replace(/\D/g, '');
+      if ((phone.length === 10 || phone.length === 11) && !phone.startsWith('55')) {
+        phone = '55' + phone;
+      }
+      
+      let cleanUrl = company.whatsapp_api_url.trim();
+      if (!cleanUrl.startsWith('http')) cleanUrl = 'https://' + cleanUrl;
+      cleanUrl = cleanUrl.replace(/\/$/, "");
+      
+      const pathsToRemove = ['/message/sendText', '/message/sendMedia', '/instance/view', '/instance/list', '/instance/connect', '/group/create'];
+      for (const p of pathsToRemove) {
+        if (cleanUrl.includes(p)) cleanUrl = cleanUrl.split(p)[0];
+      }
+      if (cleanUrl.endsWith(`/${company.whatsapp_instance}`)) {
+        cleanUrl = cleanUrl.slice(0, -(company.whatsapp_instance.length + 1));
+      }
+
+      const response = await fetch(`${cleanUrl}/message/sendText/${encodeURIComponent(company.whatsapp_instance)}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2503,20 +2718,233 @@ app.post("/api/agenda/:id/notify/:type", authMiddleware, async (req: any, res) =
         },
         body: JSON.stringify({
           number: phone,
-          options: { delay: 1200, presence: "composing", linkPreview: false },
-          textMessage: { text: msg }
+          text: msg
         })
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Erro na Evolution API: ${errorData.message || response.statusText}`);
+        let errorData;
+        try { errorData = await response.json(); } catch (e) { errorData = { message: response.statusText }; }
+        const errMsg = `Erro na Evolution API (${response.status}): ${errorData.message || errorData.error || response.statusText}`;
+        await pool.query("UPDATE notificacoes SET status = 'erro', erro_log = ? WHERE id = ?", [errMsg, logId]);
+        throw new Error(errMsg);
+      }
+
+      await pool.query("UPDATE notificacoes SET status = 'enviado', destino = ?, enviado_at = CURRENT_TIMESTAMP WHERE id = ?", [destino, logId]);
+    }
+    
+    return { success: true };
+  } catch (err: any) {
+    console.error("processNotification error:", err);
+    if (logId) {
+      await pool.query("UPDATE notificacoes SET status = 'erro', erro_log = ?, tentativas = tentativas + 1 WHERE id = ?", [err.message, logId]);
+    }
+    throw err;
+  }
+}
+
+// Notifications Route
+app.post("/api/agenda/:id/notify/:type", authMiddleware, async (req: any, res) => {
+  const { id, type } = req.params;
+  const { tenant_id } = req.user;
+  try {
+    const result = await processNotification(tenant_id, parseInt(id), type as any, 'confirmacao');
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+app.post("/api/whatsapp/test", authMiddleware, async (req: any, res) => {
+  const { number, url, key, instance, message } = req.body;
+
+  if (!number || !url || !key || !instance) {
+    return res.status(400).json({ error: "Todos os campos (Número, URL, Key, Instância) são obrigatórios para o teste." });
+  }
+
+  try {
+    let phone = number.replace(/\D/g, '');
+    if ((phone.length === 10 || phone.length === 11) && !phone.startsWith('55')) {
+      phone = '55' + phone;
+    }
+
+    const msg = message || `Teste de conexão WhatsApp - ${new Date().toLocaleString('pt-BR')}`;
+    
+    // Normalizar URL da Evolution API
+    let cleanUrl = url.trim();
+    if (!cleanUrl.startsWith('http')) {
+      cleanUrl = 'https://' + cleanUrl;
+    }
+    if (cleanUrl.endsWith('/')) {
+      cleanUrl = cleanUrl.slice(0, -1);
+    }
+    
+    // Lista de caminhos comuns para remover se o usuário colou a URL completa de algum endpoint
+    const pathsToRemove = [
+      '/message/sendText', 
+      '/message/sendMedia', 
+      '/instance/view', 
+      '/instance/list', 
+      '/instance/connect',
+      '/group/create'
+    ];
+
+    for (const p of pathsToRemove) {
+      if (cleanUrl.includes(p)) {
+        cleanUrl = cleanUrl.split(p)[0];
       }
     }
 
-    res.json({ success: true });
+    // Se a URL termina com o nome da instância (provavelmente o usuário copiou de um dashboard), remove
+    if (cleanUrl.endsWith(`/${instance}`)) {
+      cleanUrl = cleanUrl.slice(0, -(instance.length + 1));
+    }
+
+    const fullUrl = `${cleanUrl}/message/sendText/${encodeURIComponent(instance)}`;
+    console.log(`Testing WhatsApp: ${fullUrl}`);
+
+    const response = await fetch(fullUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': key
+      },
+      body: JSON.stringify({
+        number: phone,
+        text: msg
+      })
+    });
+
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      data = { message: "Servidor não retornou um JSON válido." };
+    }
+
+    if (!response.ok) {
+      console.error("WhatsApp API Error Details:", data);
+      throw new Error(`Erro ${response.status} (${response.statusText}): ${data.message || data.error || "Acesse o log do servidor para detalhes"}`);
+    }
+
+    res.json({ success: true, data });
   } catch (err: any) {
-    console.error("Notification error:", err);
+    console.error("WhatsApp test error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/email/test", authMiddleware, async (req: any, res) => {
+  const { host, port, user, pass, from, to, message } = req.body;
+
+  if (!host || !user || !pass || !to) {
+    return res.status(400).json({ error: "Campos host, usuário, senha e destinatário são obrigatórios para o teste." });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host,
+      port: parseInt(port || '587'),
+      secure: parseInt(port) === 465,
+      auth: { user, pass }
+    });
+
+    const emailMsg = message || `Este é um e-mail de teste enviado em ${new Date().toLocaleString('pt-BR')}. Sua configuração está funcionando corretamente!`;
+
+    const info = await transporter.sendMail({
+      from: from || user,
+      to,
+      subject: "Teste de Configuração de E-mail",
+      text: emailMsg,
+      html: emailMsg.includes('<') ? emailMsg : `<p>${emailMsg.replace(/\n/g, '<br>')}</p>`
+    });
+
+    res.json({ success: true, info });
+  } catch (err: any) {
+    console.error("Email test error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// BACKGROUND WORKER REMOVED - Moved to separate cron endpoint
+app.post("/api/admin/cron/process-notifications", async (req, res) => {
+  // Simple check for internal call (could be more robust with a secret header)
+  const authHeader = req.headers['x-cron-auth'];
+  if (process.env.CRON_SECRET && authHeader !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    // 1. First, create missing reminder records (Scheduled 2h before)
+    const [empresas] = await pool.query(`
+      SELECT tenant_id, whatsapp_automatico, email_automatico
+      FROM empresas 
+      WHERE (whatsapp_automatico = TRUE OR email_automatico = TRUE)
+    `) as any[];
+
+    for (const emp of empresas) {
+      // Find appointments in the next 2.5 hours that don't have a reminder record yet
+      const [agendamentos] = await pool.query(`
+        SELECT a.id, a.data_inicio
+        FROM agendamentos a
+        LEFT JOIN notificacoes n ON a.id = n.agenda_id AND n.contexto = 'lembrete'
+        WHERE a.tenant_id = ? 
+        AND a.status = 'Agendado'
+        AND a.data_inicio >= CURRENT_TIMESTAMP
+        AND a.data_inicio <= (CURRENT_TIMESTAMP + INTERVAL '150 minutes')
+        AND n.id IS NULL
+      `, [emp.tenant_id]) as any[];
+
+      for (const ag of agendamentos) {
+        const scheduledDate = new Date(new Date(ag.data_inicio).getTime() - 2 * 60 * 60 * 1000);
+        if (emp.whatsapp_automatico) {
+          await processNotification(emp.tenant_id, ag.id, 'whatsapp', 'lembrete', scheduledDate);
+        }
+        if (emp.email_automatico) {
+          await processNotification(emp.tenant_id, ag.id, 'email', 'lembrete', scheduledDate);
+        }
+      }
+    }
+
+    // 2. Process all pending notifications that are due
+    const [pendingLogs] = await pool.query(`
+      SELECT n.id, n.tenant_id, n.agenda_id, n.tipo, n.contexto
+      FROM notificacoes n
+      WHERE n.status = 'pendente'
+      AND (n.data_prevista IS NULL OR n.data_prevista <= (CURRENT_TIMESTAMP + INTERVAL '1 minute'))
+      LIMIT 100
+    `) as any[];
+
+    let processed = 0;
+    for (const log of pendingLogs) {
+      try {
+        await processNotification(log.tenant_id, log.agenda_id, log.tipo, log.contexto);
+        processed++;
+      } catch (e) {}
+    }
+
+    res.json({ success: true, processed });
+  } catch (err: any) {
+    console.error("Cron error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/notifications/logs", authMiddleware, async (req: any, res) => {
+  const { tenant_id } = req.user;
+  try {
+    const [logs] = await pool.query(`
+      SELECT n.*, p.nome as cliente_nome, a.data_inicio
+      FROM notificacoes n
+      LEFT JOIN agendamentos a ON n.agenda_id = a.id
+      LEFT JOIN pessoas p ON a.pessoa_id = p.id
+      WHERE n.tenant_id = ?
+      ORDER BY n.created_at DESC
+      LIMIT 100
+    `, [tenant_id]) as any[];
+    res.json(logs);
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -2873,7 +3301,10 @@ app.put("/api/company/settings", authMiddleware, async (req: any, res) => {
   const { 
     nome_fantasia, razao_social, cnpj, email, whatsapp,
     telefone_fixo, telefone_celular, endereco, 
-    numero, cep, cidade, estado, logo
+    numero, cep, cidade, estado, logo,
+    whatsapp_api_url, whatsapp_api_key, whatsapp_instance, whatsapp_msg_agendamento,
+    email_host, email_port, email_user, email_pass, email_from, email_msg_agendamento,
+    whatsapp_automatico, email_automatico
   } = req.body;
 
   try {
@@ -2882,12 +3313,18 @@ app.put("/api/company/settings", authMiddleware, async (req: any, res) => {
       SET nome_fantasia = ?, razao_social = ?, cnpj = ?, email = ?, whatsapp = ?, 
           telefone_fixo = ?, telefone_celular = ?, endereco = ?, 
           numero = ?, cep = ?, cidade = ?, estado = ?, logo = ?,
+          whatsapp_api_url = ?, whatsapp_api_key = ?, whatsapp_instance = ?, whatsapp_msg_agendamento = ?,
+          email_host = ?, email_port = ?, email_user = ?, email_pass = ?, email_from = ?, email_msg_agendamento = ?,
+          whatsapp_automatico = ?, email_automatico = ?,
           updated_at = CURRENT_TIMESTAMP 
       WHERE tenant_id = ?
     `, [
       nome_fantasia, razao_social, cnpj, email, whatsapp, 
       telefone_fixo, telefone_celular, endereco, 
       numero, cep, cidade, estado, logo,
+      whatsapp_api_url, whatsapp_api_key, whatsapp_instance, whatsapp_msg_agendamento,
+      email_host, email_port, email_user, email_pass, email_from, email_msg_agendamento,
+      whatsapp_automatico ? 1 : 0, email_automatico ? 1 : 0,
       tenant_id
     ]);
     res.json({ success: true });

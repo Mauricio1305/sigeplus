@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { AlertCircle, FileText, FileSpreadsheet } from "lucide-react";
+import { AlertCircle, FileText, FileSpreadsheet, Eye, RefreshCw } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import { formatMoney } from "../utils/format";
 import * as XLSX from "xlsx";
@@ -44,10 +44,13 @@ export const Reports = () => {
   const [stockSearchTerm, setStockSearchTerm] = useState("");
   const [stockBrandFilter, setStockBrandFilter] = useState("");
   const [peopleFilter, setPeopleFilter] = useState("todos"); // 'todos' ou 'aniversariantes'
+  const [professionalFilter, setProfessionalFilter] = useState("todos");
+  const [agendaStatusFilter, setAgendaStatusFilter] = useState("todos");
   const [groupBy, setGroupBy] = useState("nenhum");
 
   const [pessoas, setPessoas] = useState<any[]>([]);
   const [grupos, setGrupos] = useState<any[]>([]);
+  const [professionals, setProfessionals] = useState<any[]>([]);
 
   useEffect(() => {
     fetch("/api/pessoas", { headers: { Authorization: `Bearer ${token}` } })
@@ -59,6 +62,11 @@ export const Reports = () => {
       .then(res => res.json())
       .then(setGrupos)
       .catch(err => console.error("Error fetching groups:", err));
+
+    fetch("/api/users", { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.json())
+      .then((data) => setProfessionals(Array.isArray(data) ? data : []))
+      .catch((err) => console.error("Error fetching professionals for filter:", err));
   }, [token]);
 
   useEffect(() => {
@@ -77,6 +85,12 @@ export const Reports = () => {
         break;
       case "people":
         url = "/api/pessoas";
+        break;
+      case "agenda":
+        url = "/api/agenda?includeCanceled=true";
+        break;
+      case "notifications":
+        url = "/api/notifications/logs";
         break;
       default:
         return;
@@ -106,6 +120,10 @@ export const Reports = () => {
         return "Relatório Financeiro";
       case "people":
         return "Relatório de Pessoas";
+      case "agenda":
+        return "Relatório de Agendamentos";
+      case "notifications":
+        return "Logs de Notificações";
       default:
         return "Relatório";
     }
@@ -127,6 +145,8 @@ export const Reports = () => {
       stockSearch: stockSearchTerm,
       stockBrand: stockBrandFilter,
       peopleStatus: peopleFilter,
+      professional: professionalFilter,
+      aStatus: agendaStatusFilter,
       groupBy: groupBy,
       t: token,
     });
@@ -258,6 +278,41 @@ export const Reports = () => {
       });
     }
 
+    if (type === "agenda") {
+      filteredData = data.filter((a) => {
+        if (!a.data_inicio) return false;
+        
+        let dateStr = a.data_inicio;
+        if (!dateStr.includes("T")) {
+          dateStr = dateStr.replace(" ", "T");
+          if (!dateStr.includes("T")) dateStr += "T00:00:00";
+        }
+        
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
+        
+        const agendaDate = d.toISOString().split("T")[0];
+        const matchesDate = agendaDate >= startDate && agendaDate <= endDate;
+        
+        const isAgendado = !a.status || ['Pendente', 'Confirmado', 'Check-in Realizado'].includes(a.status);
+        const mappedStatus = isAgendado ? 'Agendado' : a.status;
+        const matchesStatus = agendaStatusFilter === "todos" || mappedStatus === agendaStatusFilter;
+
+        const matchesProfessional = professionalFilter === "todos" || a.usuario_id?.toString() === professionalFilter;
+        const matchesPerson = personFilter === "todos" || a.pessoa_id?.toString() === personFilter;
+        return matchesDate && matchesStatus && matchesProfessional && matchesPerson;
+      });
+    }
+
+    if (type === "notifications") {
+      filteredData = data.filter((log) => {
+        const logDate = new Date(log.created_at).toISOString().split("T")[0];
+        const matchesDate = logDate >= startDate && logDate <= endDate;
+        const matchesStatus = statusFilter === "todos" || log.status === statusFilter;
+        return matchesDate && matchesStatus;
+      });
+    }
+
     return filteredData;
   };
 
@@ -339,6 +394,19 @@ export const Reports = () => {
             ).toLocaleDateString("pt-BR")
           : "",
       }));
+    } else if (type === "agenda") {
+      exportData = filteredData.map((a) => {
+        const d = new Date(a.data_inicio);
+        const isValid = !isNaN(d.getTime());
+        return {
+          Data: isValid ? d.toLocaleDateString("pt-BR") : "-",
+          Hora: isValid ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "-",
+          Profissional: a.profissional_nome || "-",
+          Cliente: a.cliente_nome || "-",
+          Valor: parseFloat(a.valor_total || 0),
+          Status: a.status || "Agendado",
+        };
+      });
     }
 
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -380,45 +448,183 @@ export const Reports = () => {
     }
 
     switch (type) {
+      case "notifications":
+        return (
+          <div className="grid grid-cols-1 gap-4">
+            <div className="hidden md:block overflow-x-auto bg-white rounded-2xl shadow-sm border border-slate-100">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-slate-50 uppercase tracking-widest text-[10px] font-black text-slate-400">
+                    <th className="px-6 py-4">Data Envio</th>
+                    <th className="px-6 py-4">Data Prevista</th>
+                    <th className="px-6 py-4">Cliente / Tipo</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Ações / Erro</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredData.map((log: any) => (
+                    <tr key={log.id} className="hover:bg-slate-50/50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <p className="text-xs font-bold text-slate-700">
+                          {log.enviado_at ? new Date(log.enviado_at).toLocaleDateString("pt-BR") : "-"}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          {log.enviado_at ? new Date(log.enviado_at).toLocaleTimeString("pt-BR") : "-"}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-xs font-bold text-indigo-600">
+                          {log.data_prevista ? new Date(log.data_prevista).toLocaleDateString("pt-BR") : "Imediato"}
+                        </p>
+                        <p className="text-[10px] text-indigo-400">
+                          {log.data_prevista ? new Date(log.data_prevista).toLocaleTimeString("pt-BR") : ""}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-slate-900">{log.cliente_nome || "N/A"}</p>
+                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${log.tipo === "whatsapp" ? "bg-emerald-50 text-emerald-600" : "bg-indigo-50 text-indigo-600"}`}>
+                            {log.tipo}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 line-clamp-1 max-w-[200px]">{log.destino}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold ${
+                          log.status === "enviado" ? "bg-emerald-50 text-emerald-600" : 
+                          log.status === "erro" ? "bg-rose-50 text-rose-600" : 
+                          "bg-amber-50 text-amber-600"
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            log.status === "enviado" ? "bg-emerald-400" : 
+                            log.status === "erro" ? "bg-rose-400" : 
+                            "bg-amber-400"
+                          }`} />
+                          {log.status === "enviado" ? "Enviado" : log.status === "erro" ? "Falhou" : "Pendente"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {log.status === "erro" && (
+                          <p className="text-[10px] text-rose-500 bg-rose-50 p-1.5 rounded-lg line-clamp-2 max-w-[150px]">
+                            {log.erro_log}
+                          </p>
+                        )}
+                        {log.status === "enviado" && (
+                          <div className="relative group/view">
+                            <button className="text-slate-300 hover:text-indigo-600 transition-colors">
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <div className="invisible group-hover/view:visible opacity-0 group-hover/view:opacity-100 absolute right-0 bottom-full mb-2 w-64 p-3 bg-white border border-slate-100 rounded-xl shadow-xl z-50 text-[10px] text-slate-600 leading-relaxed transition-all transform scale-95 group-hover/view:scale-100">
+                              {log.mensagem}
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile View */}
+            <div className="md:hidden space-y-4">
+              {filteredData.map((log: any) => (
+                <div key={log.id} className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${log.tipo === "whatsapp" ? "bg-emerald-50 text-emerald-600" : "bg-indigo-50 text-indigo-600"}`}>
+                        {log.tipo}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                        log.status === "enviado" ? "bg-emerald-50 text-emerald-600" : 
+                        log.status === "erro" ? "bg-rose-50 text-rose-600" : 
+                        "bg-amber-50 text-amber-600"
+                      }`}>
+                        {log.status === "enviado" ? "Enviado" : log.status === "erro" ? "Falhou" : "Pendente"}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-slate-400">
+                        Envio: {log.enviado_at ? new Date(log.enviado_at).toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' }) : '-'}
+                      </p>
+                      {log.data_prevista && (
+                        <p className="text-[9px] text-indigo-500 font-medium">
+                          Previsto: {new Date(log.data_prevista).toLocaleDateString("pt-BR")} {new Date(log.data_prevista).toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <p className="text-sm font-bold text-slate-900">{log.cliente_nome || "N/A"}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{log.destino}</p>
+                  </div>
+
+                  {log.status === 'enviado' && (
+                    <div className="bg-slate-50 rounded-xl p-3 border border-slate-100 italic text-[11px] text-slate-600 leading-relaxed">
+                      "{log.mensagem}"
+                    </div>
+                  )}
+
+                  {log.status === 'erro' && (
+                    <div className="bg-rose-50 rounded-xl p-3 border border-rose-100 text-[11px] text-rose-600">
+                      <p className="font-bold mb-1">Motivo do Erro:</p>
+                      {log.erro_log}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
       case "sales":
         return (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Nº</th>
-                  <th className="px-6 py-4 font-semibold">Data</th>
-                  <th className="px-6 py-4 font-semibold">Origem</th>
-                  <th className="px-6 py-4 font-semibold">Cliente</th>
-                  <th className="px-6 py-4 font-semibold text-right">Total</th>
-                  <th className="px-6 py-4 font-semibold text-center">
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden md:table-cell">Nº</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Data</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden lg:table-cell">Origem</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Cliente</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Total</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-center hidden sm:table-cell">
                     Status
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                 {filteredData.map((s) => (
                   <tr key={`sale-${s.id}`}>
-                    <td className="px-6 py-4 font-medium text-slate-900">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900 hidden md:table-cell">
                       #{s.sequencial_id?.toString().padStart(6, "0")}
                     </td>
-                    <td className="px-6 py-4 text-slate-600">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden sm:table-cell">
                       {new Date(s.data_venda).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
-                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-medium">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 whitespace-nowrap hidden lg:table-cell">
+                      <span className="px-1.5 md:px-2 py-0.5 md:py-1 bg-slate-100 text-slate-600 rounded-lg text-[8px] md:text-[10px] font-medium">
                         {s.origem || "Balcão"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-900">
-                      {s.cliente_nome || "Consumidor Final"}
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
+                      <div className="font-medium text-slate-900 leading-tight">
+                        <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{s.cliente_nome || "Consumidor Final"}</div>
+                      </div>
+                      <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5 sm:hidden">#{s.sequencial_id?.toString().padStart(6, '0')} • {new Date(s.data_venda).toLocaleDateString()}</div>
+                      <div className="md:hidden mt-0.5">
+                        <span className={`px-1.5 py-0.5 text-[8px] font-bold rounded uppercase ${s.status === "finalizada" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                          {s.status}
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 text-right font-bold text-slate-900">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold text-slate-900 whitespace-nowrap">
                       R$ {formatMoney(s.valor_total)}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden sm:table-cell">
                       <span
-                        className={`px-2 py-1 text-xs font-bold rounded uppercase ${s.status === "finalizada" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold rounded uppercase ${s.status === "finalizada" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
                       >
                         {s.status}
                       </span>
@@ -433,35 +639,36 @@ export const Reports = () => {
         return (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Produto</th>
-                  <th className="px-6 py-4 font-semibold">Tipo</th>
-                  <th className="px-6 py-4 font-semibold text-right">
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Produto</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Tipo</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">
                     Preço Venda
                   </th>
-                  <th className="px-6 py-4 font-semibold text-right">Custo</th>
-                  <th className="px-6 py-4 font-semibold text-right">
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right hidden md:table-cell">Custo</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">
                     Estoque
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                 {filteredData.map((p) => (
                   <tr key={`inventory-${p.id}`}>
-                    <td className="px-6 py-4 font-medium text-slate-900">
-                      {p.nome}
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900 leading-tight">
+                      <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{p.nome}</div>
+                      <div className="text-[8px] sm:text-[10px] text-slate-400 capitalize sm:hidden mt-0.5">{p.tipo}</div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 capitalize">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 capitalize hidden sm:table-cell">
                       {p.tipo}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right whitespace-nowrap">
                       R$ {formatMoney(p.preco_venda)}
                     </td>
-                    <td className="px-6 py-4 text-right text-slate-500">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right text-slate-500 whitespace-nowrap hidden md:table-cell">
                       R$ {formatMoney(p.custo)}
                     </td>
-                    <td className="px-6 py-4 text-right font-bold">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold whitespace-nowrap">
                       <span
                         className={
                           p.estoque_atual <= p.estoque_minimo
@@ -469,7 +676,7 @@ export const Reports = () => {
                             : "text-emerald-600"
                         }
                       >
-                        {(parseFloat(p.estoque_atual) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} {p.unidade}
+                        {(parseFloat(p.estoque_atual) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} <span className="text-[8px] md:text-[10px]">{p.unidade}</span>
                       </span>
                     </td>
                   </tr>
@@ -516,48 +723,50 @@ export const Reports = () => {
                     </h3>
                   </div>
                   <table className="w-full text-left">
-                    <thead className="bg-slate-25 text-slate-400 text-[10px] uppercase tracking-wider">
+                    <thead className="bg-slate-25 text-slate-400 text-[8px] md:text-[10px] uppercase tracking-wider">
                       <tr>
-                        <th className="px-6 py-3 font-semibold">Vencimento</th>
-                        <th className="px-6 py-3 font-semibold">Descrição</th>
-                        <th className="px-6 py-3 font-semibold">Categoria</th>
-                        <th className="px-6 py-3 font-semibold">Pessoa</th>
-                        <th className="px-6 py-3 font-semibold text-right">
+                        <th className="px-2 sm:px-3 md:px-6 py-2 md:py-3 font-semibold hidden sm:table-cell">Vencimento</th>
+                        <th className="px-2 sm:px-3 md:px-6 py-2 md:py-3 font-semibold">Descrição</th>
+                        <th className="px-2 sm:px-3 md:px-6 py-2 md:py-3 font-semibold hidden md:table-cell">Categoria</th>
+                        <th className="px-2 sm:px-3 md:px-6 py-2 md:py-3 font-semibold hidden lg:table-cell">Pessoa</th>
+                        <th className="px-2 sm:px-3 md:px-6 py-2 md:py-3 font-semibold text-right">
                           Valor
                         </th>
-                        <th className="px-6 py-3 font-semibold text-center">
+                        <th className="px-2 sm:px-3 md:px-6 py-2 md:py-3 font-semibold text-center hidden sm:table-cell">
                           Status
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                       {items.map((a) => (
                         <tr
                           key={`finance-grouped-${a.id}-${a.local}-${a.tipo}`}
                         >
-                          <td className="px-6 py-4 text-slate-600 border-r border-slate-50">
+                          <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 border-r border-slate-50 hidden sm:table-cell whitespace-nowrap">
                             {new Date(
                               a.vencimento +
                                 (a.vencimento.includes("T") ? "" : "T12:00:00"),
                             ).toLocaleDateString()}
                           </td>
-                          <td className="px-6 py-4 font-medium text-slate-900">
-                            {a.descricao}
+                          <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900">
+                            <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{a.descricao}</div>
+                            <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5 md:hidden uppercase">{a.categoria_nome || "Sem Categoria"}</div>
+                            <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(a.vencimento + (a.vencimento.includes("T") ? "" : "T12:00:00")).toLocaleDateString()}</div>
                           </td>
-                          <td className="px-6 py-4 text-slate-600">
-                            <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] uppercase font-bold">
+                          <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden md:table-cell">
+                            <span className="px-1.5 md:px-2 py-0.5 md:py-1 bg-slate-100 text-slate-600 rounded text-[8px] md:text-[10px] uppercase font-bold">
                               {a.categoria_nome || "Sem Categoria"}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-slate-600">
+                          <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden lg:table-cell">
                             {a.pessoa_nome || "-"}
                           </td>
-                          <td className="px-6 py-4 text-right font-bold text-slate-900">
+                          <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold text-slate-900 whitespace-nowrap">
                             R$ {formatMoney(a.valor)}
                           </td>
-                          <td className="px-6 py-4 text-center">
+                          <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden sm:table-cell">
                             <span
-                              className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${a.pago ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                              className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold rounded uppercase ${a.pago ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
                             >
                               {a.pago ? "Pago" : "Pendente"}
                             </span>
@@ -581,44 +790,46 @@ export const Reports = () => {
         return (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Vencimento</th>
-                  <th className="px-6 py-4 font-semibold">Descrição</th>
-                  <th className="px-6 py-4 font-semibold">Categoria</th>
-                  <th className="px-6 py-4 font-semibold">Pessoa</th>
-                  <th className="px-6 py-4 font-semibold text-right">Valor</th>
-                  <th className="px-6 py-4 font-semibold text-center">
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Vencimento</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Descrição</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden md:table-cell">Categoria</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden lg:table-cell">Pessoa</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Valor</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-center hidden sm:table-cell">
                     Status
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                 {filteredData.map((a) => (
                   <tr key={`finance-${a.local}-${a.id}-${a.tipo}`}>
-                    <td className="px-6 py-4 text-slate-600">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden sm:table-cell whitespace-nowrap">
                       {new Date(
                         a.vencimento +
                           (a.vencimento.includes("T") ? "" : "T12:00:00"),
                       ).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-4 font-medium text-slate-900">
-                      {a.descricao}
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900">
+                      <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{a.descricao}</div>
+                      <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono md:hidden mt-0.5 uppercase">{a.categoria_nome || "Sem Categoria"}</div>
+                      <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(a.vencimento + (a.vencimento.includes("T") ? "" : "T12:00:00")).toLocaleDateString()}</div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] uppercase font-bold">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden md:table-cell">
+                      <span className="px-1.5 md:px-2 py-0.5 md:py-1 bg-slate-100 text-slate-600 rounded text-[8px] md:text-[10px] uppercase font-bold">
                         {a.categoria_nome || "Sem Categoria"}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden lg:table-cell">
                       {a.pessoa_nome || "-"}
                     </td>
-                    <td className="px-6 py-4 text-right font-bold text-slate-900">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold text-slate-900 whitespace-nowrap">
                       R$ {formatMoney(a.valor)}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden sm:table-cell">
                       <span
-                        className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${a.pago ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+                        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] md:text-[10px] font-bold rounded uppercase ${a.pago ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
                       >
                         {a.pago ? "Pago" : "Pendente"}
                       </span>
@@ -633,33 +844,34 @@ export const Reports = () => {
         return (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
             <table className="w-full text-left">
-              <thead className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider">
                 <tr>
-                  <th className="px-6 py-4 font-semibold">Nome</th>
-                  <th className="px-6 py-4 font-semibold">Tipo</th>
-                  <th className="px-6 py-4 font-semibold">CPF/CNPJ</th>
-                  <th className="px-6 py-4 font-semibold">Contato</th>
-                  <th className="px-6 py-4 font-semibold text-right">
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Nome</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Tipo</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden lg:table-cell">CPF/CNPJ</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Contato</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right hidden sm:table-cell">
                     Aniversário
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
                 {filteredData.map((p) => (
                   <tr key={`people-${p.id}`}>
-                    <td className="px-6 py-4 font-medium text-slate-900">
-                      {p.razao_social || p.nome}
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900">
+                      <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{p.razao_social || p.nome}</div>
+                      <div className="text-[8px] sm:text-[10px] text-slate-400 capitalize sm:hidden mt-0.5">{p.tipo_pessoa}</div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 capitalize">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 capitalize hidden sm:table-cell">
                       {p.tipo_pessoa}
                     </td>
-                    <td className="px-6 py-4 text-slate-600 font-mono text-xs">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 font-mono text-[10px] md:text-xs hidden lg:table-cell">
                       {p.cpf_cnpj}
                     </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {p.telefone_celular || p.telefone}
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600">
+                      <div className="whitespace-nowrap">{p.telefone_celular || p.telefone}</div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 text-right">
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 text-right hidden sm:table-cell whitespace-nowrap">
                       {p.data_aniversario
                         ? new Date(
                             p.data_aniversario.includes("T")
@@ -670,6 +882,70 @@ export const Reports = () => {
                             month: "2-digit",
                           })
                         : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      case "agenda":
+        return (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider">
+                <tr>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Data/Hora</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Cliente</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Profissional</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Valor</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-center hidden sm:table-cell">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
+                {filteredData.map((a) => (
+                  <tr key={`agenda-${a.id}`}>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 whitespace-nowrap">
+                      {(() => {
+                        const dStart = new Date(a.data_inicio);
+                        const dEnd = new Date(a.data_fim);
+                        if (isNaN(dStart.getTime())) return "-";
+                        
+                        const datePart = dStart.toLocaleDateString("pt-BR", { 
+                          day: "2-digit", month: "2-digit", year: "2-digit"
+                        });
+                        const timeStart = dStart.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+                        const timeEnd = !isNaN(dEnd.getTime()) ? dEnd.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+                        
+                        return (
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-900">{datePart}</span>
+                            <span className="text-[10px] text-slate-500">{timeStart}{timeEnd ? ` - ${timeEnd}` : ""}</span>
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900">
+                      <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{a.cliente_nome || "-"}</div>
+                    </td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden sm:table-cell">
+                      {a.profissional_nome || "-"}
+                    </td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold text-slate-900 whitespace-nowrap">
+                      R$ {formatMoney(a.valor_total || 0)}
+                    </td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden sm:table-cell">
+                      <span
+                        className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold rounded uppercase ${
+                          a.status === "Concluido"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : a.status === "Cancelado"
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}
+                      >
+                        {a.status || "Agendado"}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -715,14 +991,14 @@ export const Reports = () => {
             <label className="block text-xs font-bold text-slate-500 uppercase">
               Período
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
               />
-              <span className="text-slate-400">a</span>
+              <span className="text-slate-400 self-center">a</span>
               <input
                 type="date"
                 value={endDate}
@@ -743,7 +1019,7 @@ export const Reports = () => {
                   onChange={(e) => setStatusFilter(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="todos">Todos os Status</option>
+                  <option value="todos">Todos</option>
                   <option value="finalizada">Finalizada</option>
                   <option value="orcamento">Orçamento</option>
                   <option value="cancelada">Cancelada</option>
@@ -891,6 +1167,24 @@ export const Reports = () => {
             </>
           )}
 
+          {type === "notifications" && (
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-slate-500 uppercase">
+                Status do Envio
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="todos">Todos os Status</option>
+                <option value="enviado">Enviados</option>
+                <option value="erro">Falhas</option>
+                <option value="pendente">Pendentes</option>
+              </select>
+            </div>
+          )}
+
           {type === "people" && (
             <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-500 uppercase">
@@ -909,7 +1203,7 @@ export const Reports = () => {
             </div>
           )}
 
-          {(type === "sales" || type === "finance") && (
+          {(type === "sales" || type === "finance" || type === "agenda") && (
             <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-500 uppercase">
                 Pessoa
@@ -927,6 +1221,43 @@ export const Reports = () => {
                 ))}
               </select>
             </div>
+          )}
+
+          {type === "agenda" && (
+            <>
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">
+                  Profissional
+                </label>
+                <select
+                  value={professionalFilter}
+                  onChange={(e) => setProfessionalFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="todos">Todos os Profissionais</option>
+                  {professionals.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">
+                  Status
+                </label>
+                <select
+                  value={agendaStatusFilter}
+                  onChange={(e) => setAgendaStatusFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="Agendado">Somente Agendados</option>
+                  <option value="Concluido">Somente Concluídos</option>
+                  <option value="Cancelado">Somente Cancelados</option>
+                </select>
+              </div>
+            </>
           )}
         </div>
       </div>

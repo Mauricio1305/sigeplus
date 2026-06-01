@@ -35,6 +35,9 @@ export const ReportPrint = () => {
   const peopleStatusFilter = searchParams.get('peopleStatus') || 'todos';
   const groupBy = searchParams.get('groupBy') || 'nenhum';
 
+  const professionalFilter = searchParams.get('professional') || 'todos';
+  const agendaStatusFilter = searchParams.get('aStatus') || 'todos';
+
   useEffect(() => {
     if (!activeToken || activeToken === 'null' || activeToken === 'undefined') {
       setError('Acesso expirado ou token ausente. Por favor, faça login novamente no sistema.');
@@ -49,6 +52,7 @@ export const ReportPrint = () => {
       case 'inventory': url = '/api/products'; break;
       case 'finance': url = '/api/finance/accounts'; break;
       case 'people': url = '/api/pessoas'; break;
+      case 'agenda': url = '/api/agenda?includeCanceled=true'; break;
       default: return;
     }
 
@@ -160,6 +164,30 @@ export const ReportPrint = () => {
       }
       return true;
     });
+  } else if (type === 'agenda') {
+    filteredData = data.filter((a) => {
+      if (!a.data_inicio) return false;
+      
+      let dateStr = a.data_inicio;
+      if (!dateStr.includes("T")) {
+        dateStr = dateStr.replace(" ", "T");
+        if (!dateStr.includes("T")) dateStr += "T00:00:00";
+      }
+      
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return false;
+      
+      const agendaDate = d.toISOString().split("T")[0];
+      const matchesDate = agendaDate >= startDate && agendaDate <= endDate;
+      
+      const isAgendado = !a.status || ['Pendente', 'Confirmado', 'Check-in Realizado'].includes(a.status);
+      const mappedStatus = isAgendado ? 'Agendado' : a.status;
+      const matchesStatus = agendaStatusFilter === "todos" || mappedStatus === agendaStatusFilter;
+
+      const matchesProfessional = professionalFilter === "todos" || a.usuario_id?.toString() === professionalFilter;
+      const matchesPerson = personFilter === "todos" || a.pessoa_id?.toString() === personFilter;
+      return matchesDate && matchesStatus && matchesProfessional && matchesPerson;
+    });
   }
 
   const getTitle = () => {
@@ -168,6 +196,7 @@ export const ReportPrint = () => {
       case 'inventory': return 'Relatório de Estoque';
       case 'finance': return 'Relatório Financeiro';
       case 'people': return 'Relatório de Pessoas';
+      case 'agenda': return 'Relatório de Agendamentos';
       default: return 'Relatório';
     }
   };
@@ -189,7 +218,11 @@ export const ReportPrint = () => {
               <h1 className="text-xl font-black uppercase tracking-widest">{getTitle()}</h1>
             </div>
             <p className="text-slate-500 text-xs font-bold uppercase mt-1">Gerado em: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
-            <p className="text-slate-500 text-[10px] font-bold uppercase">Período: {new Date(startDate + 'T12:00:00').toLocaleDateString()} - {new Date(endDate + 'T12:00:00').toLocaleDateString()}</p>
+            <p className="text-slate-500 text-[10px] font-bold uppercase">Período: {(() => {
+              const start = new Date(startDate + 'T12:00:00');
+              const end = new Date(endDate + 'T12:00:00');
+              return `${isNaN(start.getTime()) ? startDate : start.toLocaleDateString()} - ${isNaN(end.getTime()) ? endDate : end.toLocaleDateString()}`;
+            })()}</p>
           </div>
         </div>
 
@@ -408,6 +441,50 @@ export const ReportPrint = () => {
                     <td className="py-2 text-slate-700 text-right">
                       {p.data_aniversario ? new Date(p.data_aniversario.includes('T') ? p.data_aniversario : p.data_aniversario + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '-'}
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {type === 'agenda' && (
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200">
+                <tr>
+                  <th className="py-2 font-bold text-slate-900">Data/Hora</th>
+                  <th className="py-2 font-bold text-slate-900">Cliente</th>
+                  <th className="py-2 font-bold text-slate-900">Profissional</th>
+                  <th className="py-2 font-bold text-slate-900 text-right">Valor</th>
+                  <th className="py-2 font-bold text-slate-900 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredData.map(a => (
+                  <tr key={`agenda-${a.id}`}>
+                    <td className="py-2 text-slate-700 whitespace-nowrap">
+                      {(() => {
+                        const dStart = new Date(a.data_inicio);
+                        const dEnd = new Date(a.data_fim);
+                        if (isNaN(dStart.getTime())) return "-";
+                        
+                        const datePart = dStart.toLocaleDateString("pt-BR", { 
+                          day: "2-digit", month: "2-digit", year: "2-digit"
+                        });
+                        const timeStart = dStart.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+                        const timeEnd = !isNaN(dEnd.getTime()) ? dEnd.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+                        
+                        return (
+                          <div className="flex flex-col">
+                            <span className="font-bold text-slate-900">{datePart}</span>
+                            <span className="text-[10px] text-slate-500">{timeStart}{timeEnd ? ` - ${timeEnd}` : ""}</span>
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="py-2 text-slate-700 font-medium">{a.cliente_nome || '-'}</td>
+                    <td className="py-2 text-slate-700">{a.profissional_nome || '-'}</td>
+                    <td className="py-2 text-slate-700 text-right font-bold">R$ {formatMoney(a.valor_total || 0)}</td>
+                    <td className="py-2 text-center text-[10px] font-bold uppercase">{a.status || 'Agendado'}</td>
                   </tr>
                 ))}
               </tbody>

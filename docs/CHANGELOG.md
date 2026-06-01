@@ -24,8 +24,3 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
 
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*
-
-## [1.0.0] - 2026-05-29
-
-### Adicionado
-- **Modulo de Agendamento**: 

@@ -372,35 +372,35 @@ export const Inventory = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Estoque</h1>
-          <p className="text-slate-500">Gerencie seus produtos e serviços.</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">Estoque</h1>
+          <p className="text-sm md:text-base text-slate-500">Gerencie seus produtos e serviços.</p>
         </div>
-        <div className="flex gap-4 items-center">
-          <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-100 flex">
+        <div className="flex flex-wrap gap-2 md:gap-4 items-center w-full md:w-auto">
+          <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-100 flex w-full sm:w-auto">
             <button 
               onClick={() => setActiveTab('lista')} 
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'lista' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`flex-1 sm:flex-none px-3 md:px-4 py-2 rounded-lg font-bold text-xs md:text-sm transition-all ${activeTab === 'lista' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               Lista
             </button>
             <button 
               onClick={() => setActiveTab('etiquetas')} 
-              className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'etiquetas' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+              className={`flex-1 sm:flex-none px-3 md:px-4 py-2 rounded-lg font-bold text-xs md:text-sm transition-all ${activeTab === 'etiquetas' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
             >
               Etiquetas
             </button>
           </div>
           {canImport && (
-            <>
+            <div className="flex gap-2 w-full sm:w-auto">
               <button
                 onClick={downloadTemplate}
-                className="text-slate-600 bg-white border border-slate-200 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+                className="flex-1 sm:flex-none justify-center text-slate-600 bg-white border border-slate-200 px-3 md:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm text-xs md:text-sm"
               >
                 <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Modelo</span>
+                <span>Modelo</span>
               </button>
               <input 
                 type="file" 
@@ -412,12 +412,12 @@ export const Inventory = () => {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="text-slate-600 bg-white border border-slate-200 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+                className="flex-1 sm:flex-none justify-center text-slate-600 bg-white border border-slate-200 px-3 md:px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm text-xs md:text-sm"
               >
                 {isUploading ? <span className="animate-spin text-xl">⏳</span> : <Upload className="w-4 h-4" />}
-                <span className="hidden sm:inline">{isUploading ? 'Importando...' : 'Importar'}</span>
+                <span>{isUploading ? 'Importando...' : 'Importar'}</span>
               </button>
-            </>
+            </div>
           )}
           <button 
             onClick={() => {
@@ -427,9 +427,9 @@ export const Inventory = () => {
               });
               setIsModalOpen(true);
             }}
-            className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200"
+            className="w-full sm:w-auto justify-center bg-indigo-600 text-white px-4 md:px-6 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 text-xs md:text-sm"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4 md:w-5 md:h-5" />
             Novo Item
           </button>
         </div>
@@ -450,20 +450,20 @@ export const Inventory = () => {
           </div>
         </div>
         <table className="w-full text-left">
-          <thead className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
+          <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider">
             <tr>
-              <th className="px-6 py-4 font-semibold">Cód.</th>
-              <th className="px-6 py-4 font-semibold">Foto</th>
-              <th className="px-6 py-4 font-semibold">Cód. Barras</th>
-              <th className="px-6 py-4 font-semibold">Nome</th>
-              <th className="px-6 py-4 font-semibold">Tipo</th>
-              <th className="px-6 py-4 font-semibold text-right">Preço</th>
-              <th className="px-6 py-4 font-semibold text-right">Estoque</th>
-              <th className="px-6 py-4 font-semibold text-center">Status</th>
-              <th className="px-6 py-4 font-semibold text-right">Ações</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden md:table-cell">Cód.</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Foto</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden lg:table-cell">Cód. Barras</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Nome</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Tipo</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Preço</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Estoque</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-center hidden sm:table-cell">Status</th>
+              <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
             {products.filter(p => {
               const term = searchTerm.toLowerCase();
               return (
@@ -473,40 +473,43 @@ export const Inventory = () => {
               );
             }).map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 font-medium text-slate-500 text-xs">#{p.id}</td>
-                <td className="px-6 py-4">
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-500 hidden md:table-cell">#{p.id}</td>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
                   {p.foto ? (
                     <img 
                       src={getDirectImageUrl(p.foto)} 
                       alt={p.nome} 
-                      className="w-10 h-10 object-cover rounded-lg border border-slate-100 shadow-sm"
+                      className="w-6 h-6 md:w-10 md:h-10 object-cover rounded-lg border border-slate-100 shadow-sm"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=Err';
                       }}
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-bold uppercase">
+                    <div className="w-6 h-6 md:w-10 md:h-10 rounded-lg bg-slate-100 flex items-center justify-center text-[8px] md:text-[10px] text-slate-400 font-bold uppercase">
                       Off
                     </div>
                   )}
                 </td>
-                <td className="px-6 py-4 text-slate-600 font-mono text-xs">{p.codigo_barras || '-'}</td>
-                <td className="px-6 py-4 font-medium text-slate-900">{p.nome}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase ${p.tipo === 'produto' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 font-mono hidden lg:table-cell">{p.codigo_barras || '-'}</td>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900 leading-tight">
+                  <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{p.nome}</div>
+                  <div className="text-[8px] sm:text-[10px] text-slate-400 mt-0.5 sm:hidden">{p.tipo} {p.codigo_barras ? `• ${p.codigo_barras}` : ''}</div>
+                </td>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 hidden sm:table-cell">
+                  <span className={`px-1.5 md:px-2 py-0.5 md:py-1 rounded-md text-[8px] md:text-[10px] font-bold uppercase ${p.tipo === 'produto' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
                     {p.tipo}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right font-medium text-slate-900">R$ {formatMoney(p.preco_venda)}</td>
-                <td className={`px-6 py-4 text-right font-bold ${p.estoque_atual <= p.estoque_minimo ? 'text-rose-600' : 'text-slate-900'}`}>
-                  {p.estoque_atual} {p.unidade}
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-medium text-slate-900 whitespace-nowrap">R$ {formatMoney(p.preco_venda)}</td>
+                <td className={`px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold whitespace-nowrap ${p.estoque_atual <= p.estoque_minimo ? 'text-rose-600' : 'text-slate-900'}`}>
+                  {p.estoque_atual} <span className="text-[8px] md:text-[10px]">{p.unidade}</span>
                 </td>
-                <td className="px-6 py-4 text-center">
-                  <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase ${p.ativo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden sm:table-cell">
+                  <span className={`px-1.5 md:px-2 py-0.5 md:py-1 text-[8px] md:text-[10px] font-bold rounded uppercase ${p.ativo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                     {p.ativo ? 'Ativo' : 'Inativo'}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-right">
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right">
                   <button 
                     onClick={() => {
                       setEditingProduct(p);
@@ -519,9 +522,9 @@ export const Inventory = () => {
                       });
                       setIsModalOpen(true);
                     }}
-                    className="text-indigo-600 hover:text-indigo-900 transition-colors"
+                    className="text-indigo-600 hover:text-indigo-900 transition-colors p-1 md:p-2"
                   >
-                    <Edit2 className="w-5 h-5" />
+                    <Edit2 className="w-4 h-4 md:w-5 md:h-5" />
                   </button>
                 </td>
               </tr>
