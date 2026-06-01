@@ -71,8 +71,16 @@ const Agenda = () => {
   const [searchProduto, setSearchProduto] = useState('');
   const [notifying, setNotifying] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
 
   const calendarRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -199,7 +207,7 @@ const Agenda = () => {
 
   const handleSelect = (selectInfo: any) => {
     if (new Date(selectInfo.startStr) < new Date()) {
-      alert("Não é possível realizar agendamentos em horários passados.");
+      setToast({ message: "Não é possível realizar agendamentos em horários passados.", type: 'error' });
       const calendarApi = selectInfo.view.calendar;
       calendarApi.unselect();
       return;
@@ -238,7 +246,7 @@ const Agenda = () => {
     e.preventDefault();
 
     if (new Date(formData.data_inicio) < new Date()) {
-      alert("Não é possível realizar agendamentos em horários passados.");
+      setToast({ message: "Não é possível realizar agendamentos em horários passados.", type: 'error' });
       return;
     }
 
@@ -270,10 +278,10 @@ const Agenda = () => {
         const agId = selectedEvent ? selectedEvent.id : data.id;
         handleConcluir(agId);
       } else {
-        alert('Agendamento salvo com sucesso!');
+        setToast({ message: 'Agendamento salvo com sucesso!', type: 'success' });
       }
     } catch (err: any) {
-      alert(err.message);
+      setToast({ message: err.message, type: 'error' });
     }
   };
 
@@ -1012,6 +1020,24 @@ const Agenda = () => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100]"
+          >
+            <div className={`px-6 py-3 rounded-2xl shadow-xl border flex items-center gap-3 ${
+              toast.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'
+            }`}>
+              {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+              <p className="text-sm font-bold">{toast.message}</p>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

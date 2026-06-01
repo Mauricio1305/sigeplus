@@ -2412,10 +2412,20 @@ app.post("/api/agenda", authMiddleware, planMiddleware('agenda'), async (req: an
       const [emp] = await pool.query("SELECT whatsapp_automatico, email_automatico FROM empresas WHERE tenant_id = ?", [tenant_id]) as any[];
 
       if (emp[0]?.whatsapp_automatico) {
-        await processNotification(tenant_id, agendaId, 'whatsapp', 'confirmacao');
+        await processNotification(tenant_id, agendaId, 'whatsapp', 'confirmacao', undefined, true);
+        const [ag] = await pool.query("SELECT data_inicio FROM agendamentos WHERE id = ?", [agendaId]) as any[];
+        if (ag[0]) {
+          const scheduledDate = new Date(new Date(ag[0].data_inicio).getTime() - 2 * 60 * 60 * 1000);
+          await processNotification(tenant_id, agendaId, 'whatsapp', 'lembrete', scheduledDate, true);
+        }
       }
       if (emp[0]?.email_automatico) {
-        await processNotification(tenant_id, agendaId, 'email', 'confirmacao');
+        await processNotification(tenant_id, agendaId, 'email', 'confirmacao', undefined, true);
+        const [ag] = await pool.query("SELECT data_inicio FROM agendamentos WHERE id = ?", [agendaId]) as any[];
+        if (ag[0]) {
+          const scheduledDate = new Date(new Date(ag[0].data_inicio).getTime() - 2 * 60 * 60 * 1000);
+          await processNotification(tenant_id, agendaId, 'email', 'lembrete', scheduledDate, true);
+        }
       }
     } catch (e) {
       console.error("Auto-notify on create error:", e);
@@ -2468,10 +2478,20 @@ app.put("/api/agenda/:id", authMiddleware, planMiddleware('agenda'), async (req:
         const [emp] = await pool.query("SELECT whatsapp_automatico, email_automatico FROM empresas WHERE tenant_id = ?", [tenant_id]) as any[];
 
         if (emp[0]?.whatsapp_automatico) {
-          await processNotification(tenant_id, parseInt(id), 'whatsapp', 'confirmacao');
+          await processNotification(tenant_id, parseInt(id), 'whatsapp', 'confirmacao', undefined, true);
+          const [ag] = await pool.query("SELECT data_inicio FROM agendamentos WHERE id = ?", [id]) as any[];
+          if (ag[0]) {
+            const scheduledDate = new Date(new Date(ag[0].data_inicio).getTime() - 2 * 60 * 60 * 1000);
+            await processNotification(tenant_id, parseInt(id), 'whatsapp', 'lembrete', scheduledDate, true);
+          }
         }
         if (emp[0]?.email_automatico) {
-          await processNotification(tenant_id, parseInt(id), 'email', 'confirmacao');
+          await processNotification(tenant_id, parseInt(id), 'email', 'confirmacao', undefined, true);
+          const [ag] = await pool.query("SELECT data_inicio FROM agendamentos WHERE id = ?", [id]) as any[];
+          if (ag[0]) {
+            const scheduledDate = new Date(new Date(ag[0].data_inicio).getTime() - 2 * 60 * 60 * 1000);
+            await processNotification(tenant_id, parseInt(id), 'email', 'lembrete', scheduledDate, true);
+          }
         }
       } catch (e) {
         console.error("Auto-notify on update error:", e);
@@ -2546,7 +2566,7 @@ app.post("/api/agenda/:id/concluir", authMiddleware, planMiddleware('agenda'), a
 });
 
 // Helper function to process notifications and log to DB
-async function processNotification(tenant_id: any, agenda_id: number, type: 'whatsapp' | 'email', contexto: 'confirmacao' | 'lembrete' = 'confirmacao', scheduledDate?: Date) {
+async function processNotification(tenant_id: any, agenda_id: number, type: 'whatsapp' | 'email', contexto: 'confirmacao' | 'lembrete' = 'confirmacao', scheduledDate?: Date, enqueueOnly: boolean = false) {
   let logId: number | null = null;
   try {
     // Check if already sent for this specific context to avoid duplicates
@@ -2622,7 +2642,7 @@ async function processNotification(tenant_id: any, agenda_id: number, type: 'wha
     // Record initial pending log or update existing one
     if (pending.length > 0) {
       logId = pending[0].id;
-      await pool.query("UPDATE notificacoes SET mensagem = ?, data_prevista = ?, criado_at = CURRENT_TIMESTAMP WHERE id = ?", [msg, scheduledDate || null, logId]);
+      await pool.query("UPDATE notificacoes SET mensagem = ?, data_prevista = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?", [msg, scheduledDate || null, logId]);
     } else {
       const [logResult] = await pool.query(`
         INSERT INTO notificacoes (tenant_id, agenda_id, tipo, status, mensagem, contexto, data_prevista)
@@ -2631,10 +2651,10 @@ async function processNotification(tenant_id: any, agenda_id: number, type: 'wha
       logId = logResult.insertId;
     }
 
-    // If it's for future, stop here
+    // If it's for future or enqueueOnly is true, stop here
     const now = new Date();
-    if (scheduledDate && scheduledDate > now) {
-      return { success: true, scheduled: true };
+    if (enqueueOnly || (scheduledDate && scheduledDate > now)) {
+      return { success: true, scheduled: !!scheduledDate, enqueued: enqueueOnly };
     }
 
     if (type === 'email') {
@@ -2899,10 +2919,10 @@ app.post("/api/admin/cron/process-notifications", async (req, res) => {
       for (const ag of agendamentos) {
         const scheduledDate = new Date(new Date(ag.data_inicio).getTime() - 2 * 60 * 60 * 1000);
         if (emp.whatsapp_automatico) {
-          await processNotification(emp.tenant_id, ag.id, 'whatsapp', 'lembrete', scheduledDate);
+          await processNotification(emp.tenant_id, ag.id, 'whatsapp', 'lembrete', scheduledDate, true);
         }
         if (emp.email_automatico) {
-          await processNotification(emp.tenant_id, ag.id, 'email', 'lembrete', scheduledDate);
+          await processNotification(emp.tenant_id, ag.id, 'email', 'lembrete', scheduledDate, true);
         }
       }
     }
