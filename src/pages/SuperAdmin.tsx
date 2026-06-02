@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, X } from 'lucide-react';
+import { Search, Plus, Edit2, Trash2, X, Activity, Terminal, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { Toast } from '../components/ui/Toast';
@@ -9,7 +9,8 @@ import { formatMoney } from '../utils/format';
 export const SuperAdmin = () => {
   const [companies, setCompanies] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'companies' | 'plans'>('companies');
+  const [cronLogs, setCronLogs] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'companies' | 'plans' | 'logs'>('companies');
   const [editingPlan, setEditingPlan] = useState<any>(null);
   const [editingCompany, setEditingCompany] = useState<any>(null);
   const [isNewPlanModalOpen, setIsNewPlanModalOpen] = useState(false);
@@ -90,9 +91,14 @@ export const SuperAdmin = () => {
       })
       .then(setCompanies);
     fetch('/api/plans').then(res => res.json()).then(setPlans);
+    if (activeTab === 'logs') {
+      fetch('/api/admin/cron/logs', { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(setCronLogs);
+    }
   };
 
-  useEffect(fetchData, [token]);
+  useEffect(fetchData, [token, activeTab]);
 
   const handleVerifyStripeStatus = async () => {
     if (!editingCompany?.id) return;
@@ -284,6 +290,12 @@ export const SuperAdmin = () => {
           >
             Configurações de Planos
           </button>
+          <button 
+            onClick={() => setActiveTab('logs')}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'logs' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Logs do Sistema
+          </button>
         </div>
       </div>
 
@@ -385,6 +397,70 @@ export const SuperAdmin = () => {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      ) : activeTab === 'logs' ? (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+              <Terminal className="w-6 h-6 text-indigo-600" />
+              Logs de Execução (Cron)
+            </h2>
+            <button 
+              onClick={fetchData}
+              className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center gap-2"
+            >
+              <Activity className="w-4 h-4" /> Atualizar
+            </button>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold">Data/Hora</th>
+                    <th className="px-6 py-4 font-semibold">Status</th>
+                    <th className="px-6 py-4 font-semibold">Processados</th>
+                    <th className="px-6 py-4 font-semibold">Mensagem/Erro</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {cronLogs.length > 0 ? (
+                    cronLogs.map(log => (
+                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2 text-slate-700 font-medium">
+                            <Clock className="w-4 h-4 text-slate-400" />
+                            {new Date(log.created_at).toLocaleString('pt-BR')}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase flex items-center gap-1 w-fit ${
+                            log.status === 'sucesso' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                          }`}>
+                            {log.status === 'sucesso' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                            {log.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 font-bold text-slate-900">
+                          {log.processed_count} notificações
+                        </td>
+                        <td className="px-6 py-4 text-slate-500 max-w-xs truncate">
+                          {log.error_message || '-'}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-slate-400">
+                        Nenhum log de execução encontrado.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       ) : (

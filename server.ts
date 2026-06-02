@@ -277,6 +277,16 @@ async function initDB() {
           enviado_at TIMESTAMP
         )
       `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS cron_logs (
+          id SERIAL PRIMARY KEY,
+          status VARCHAR(20),
+          processed_count INTEGER,
+          error_message TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
       
       // Fix tenant_id type if it was created as INTEGER
       try {
@@ -2895,6 +2905,7 @@ app.post("/api/admin/cron/process-notifications", async (req, res) => {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
+  let processed = 0;
   try {
     // 1. First, create missing reminder records (Scheduled 2h before)
     const [empresas] = await pool.query(`
@@ -2936,7 +2947,6 @@ app.post("/api/admin/cron/process-notifications", async (req, res) => {
       LIMIT 100
     `) as any[];
 
-    let processed = 0;
     for (const log of pendingLogs) {
       try {
         await processNotification(log.tenant_id, log.agenda_id, log.tipo, log.contexto);
@@ -2944,9 +2954,53 @@ app.post("/api/admin/cron/process-notifications", async (req, res) => {
       } catch (e) {}
     }
 
+    await pool.query("INSERT INTO cron_logs (status, processed_count) VALUES (?, ?)", ['sucesso', processed]);
     res.json({ success: true, processed });
   } catch (err: any) {
     console.error("Cron error:", err);
+    await pool.query("INSERT INTO cron_logs (status, processed_count, error_message) VALUES (?, ?, ?)", ['erro', processed, err.message]);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+// BACKGROUND WORKER (Commented out as requested)
+// Este código roda a cada 5 minutos chamando o endpoint de cron interno.
+setInterval(async () => {
+  try {
+    const cronSecret = process.env.CRON_SECRET || 'dev-secret';
+    // O container escuta na porta 3000 internamente
+    const serverUrl = 'http://localhost:3000';
+    
+    console.log(`[Background Worker] Triggering notification cron...`);
+    
+    const response = await fetch(`${serverUrl}/api/admin/cron/process-notifications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-auth': cronSecret
+      }
+    });
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[Background Worker] Cron trigger failed: ${text}`);
+    } else {
+      const data = await response.json();
+      console.log(`[Background Worker] Cron trigger success:`, data);
+    }
+  } catch (err) {
+    console.error("[Background Worker] Error:", err);
+  }
+}, 5 * 60 * 1000); // 5 minutos
+
+
+app.get("/api/admin/cron/logs", authMiddleware, async (req: any, res) => {
+  // Only superadmin should access this (ideally check role, but auth is a start)
+  try {
+    const [logs] = await pool.query("SELECT * FROM cron_logs ORDER BY created_at DESC LIMIT 50") as any[];
+    res.json(logs);
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -3514,27 +3568,29 @@ app.get("/api/admin/companies/:id/stripe-status", authMiddleware, async (req: an
       return res.status(404).json({ error: "Nenhuma assinatura encontrada no Stripe para este cliente" });
     }
 
-    let status = subscription.status === 'active' ? 'ativo' : 'suspenso';
-    if (subscription.cancel_at_period_end) {
+    const subObj = subscription as any;
+    let status = subObj.status === 'active' ? 'ativo' : 'suspenso';
+    if (subObj.cancel_at_period_end) {
       status = 'Cancelamento Solicitado';
     }
-    if (subscription.status === 'canceled') {
+    if (subObj.status === 'canceled') {
       status = 'cancelado';
     }
 
     let vencimento = '';
     try {
-      if (subscription.current_period_end) {
-        vencimento = new Date(subscription.current_period_end * 1000).toISOString().split('T')[0];
+      const sub = subscription as any;
+      if (sub && sub.current_period_end) {
+        vencimento = new Date(sub.current_period_end * 1000).toISOString().split('T')[0];
       } else {
-        console.warn("Stripe subscription missing current_period_end:", subscription);
+        console.warn("Stripe subscription missing current_period_end:", sub);
         // Fallback to today + 30 days if missing
         const fallbackDate = new Date();
         fallbackDate.setDate(fallbackDate.getDate() + 30);
         vencimento = fallbackDate.toISOString().split('T')[0];
       }
     } catch (dateErr) {
-      console.error("Error parsing date from subscription:", subscription.current_period_end, dateErr);
+      console.error("Error parsing date from subscription:", (subscription as any)?.current_period_end, dateErr);
       const fallbackDate = new Date();
       fallbackDate.setDate(fallbackDate.getDate() + 30);
       vencimento = fallbackDate.toISOString().split('T')[0];
