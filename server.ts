@@ -905,3 +905,33 @@ startServer().catch(err => {
   console.error("Failed to start server:", err);
   process.exit(1);
 });
+
+// BACKGROUND WORKER
+// Este código roda a cada 5 minutos chamando o endpoint de cron interno.
+setInterval(async () => {
+  try {
+    const cronSecret = process.env.CRON_SECRET || 'dev-secret';
+    // O container escuta na porta 3000 internamente
+    const serverUrl = 'http://localhost:3000';
+    
+    console.log(`[Background Worker] Triggering notification cron...`);
+    
+    const response = await fetch(`${serverUrl}/api/admin/cron/process-notifications`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-auth': cronSecret
+      }
+    });
+    
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[Background Worker] Cron trigger failed: ${text}`);
+    } else {
+      const data = await response.json();
+      console.log(`[Background Worker] Cron trigger success:`, data);
+    }
+  } catch (err) {
+    console.error("[Background Worker] Error:", err);
+  }
+}, 5 * 60 * 1000); // 5 minutos

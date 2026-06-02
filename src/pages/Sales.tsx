@@ -556,7 +556,9 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                 const matchesStatus = statusFilter === 'todos' || s.status === statusFilter;
                 if (!matchesStatus) return false;
                 const dateStr = s.data_venda.includes('T') ? s.data_venda : s.data_venda.replace(' ', 'T');
-                const saleDate = new Date(dateStr).toISOString().split('T')[0];
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return false;
+                const saleDate = d.toISOString().split('T')[0];
                 const matchesSearch = s.sequencial_id.toString().includes(term) || (s.cliente_nome && s.cliente_nome.toLowerCase().includes(term));
                 const matchesDate = saleDate >= startDate && saleDate <= endDate;
                 return matchesSearch && matchesDate;

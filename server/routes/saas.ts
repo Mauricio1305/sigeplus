@@ -135,12 +135,25 @@ router.post("/admin/cron/process-notifications", async (req: any, res) => {
     
     // 1. Create missing reminder records (Scheduled 2h before)
     const [empresas] = await pool.query(`
-      SELECT tenant_id, whatsapp_automatico, email_automatico
-      FROM empresas 
-      WHERE (whatsapp_automatico = 1 OR email_automatico = 1)
+      SELECT e.tenant_id, e.whatsapp_automatico, e.email_automatico, p.modulos
+      FROM empresas e
+      LEFT JOIN planos p ON e.plano_id = p.id
+      WHERE (e.whatsapp_automatico = true OR e.email_automatico = true)
     `) as any[];
 
     for (const emp of empresas) {
+      let mods: string[] = [];
+      try {
+        mods = typeof emp.modulos === 'string' ? JSON.parse(emp.modulos) : (emp.modulos || []);
+      } catch (e) {
+        mods = [];
+      }
+
+      const hasWhatsappMod = mods.includes('lembrete_whatsapp');
+      const hasEmailMod = mods.includes('lembrete_email');
+
+      if (!hasWhatsappMod && !hasEmailMod) continue; // Skip if neither are in plan
+
       const [agendamentos] = await pool.query(`
         SELECT a.id, a.data_inicio
         FROM agendamentos a
@@ -154,10 +167,10 @@ router.post("/admin/cron/process-notifications", async (req: any, res) => {
 
       for (const ag of agendamentos) {
         const scheduledDate = new Date(new Date(ag.data_inicio).getTime() - 2 * 60 * 60 * 1000);
-        if (emp.whatsapp_automatico) {
+        if (emp.whatsapp_automatico && hasWhatsappMod) {
           await processNotification(emp.tenant_id, ag.id, 'whatsapp', 'lembrete', scheduledDate, true);
         }
-        if (emp.email_automatico) {
+        if (emp.email_automatico && hasEmailMod) {
           await processNotification(emp.tenant_id, ag.id, 'email', 'lembrete', scheduledDate, true);
         }
       }

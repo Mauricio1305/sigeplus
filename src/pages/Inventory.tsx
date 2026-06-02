@@ -4,7 +4,6 @@ import { motion } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney } from '../utils/format';
 import { getDirectImageUrl } from '../utils/image';
-import * as XLSX from 'xlsx';
 
 export const Inventory = () => {
   const [products, setProducts] = useState<any[]>([]);
@@ -26,28 +25,50 @@ export const Inventory = () => {
   const token = useAuthStore(state => state.token);
   const user = useAuthStore(state => state.user);
   const { modulos } = user || {};
-  const canImport = modulos?.includes('import_produtos');
+  const canImport = user?.perfil === 'superadmin' || user?.modulos?.includes('import_produtos');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const downloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      {
-        "Nome do Item": "Produto Exemplo",
-        "Tipo": "produto",
-        "Unidade": "UN",
-        "Custo": 10.50,
-        "Valor de Venda": 25.00,
-        "Estoque Atual": 100,
-        "Estoque Mínimo": 10,
-        "Categoria": "Geral",
-        "Código de Barras": "7891234567890",
-        "Ativo": "SIM",
-        "Marca": "Marca XYZ"
-      }
-    ]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Produtos");
-    XLSX.writeFile(wb, "Modelo_Importacao_Produtos.xlsx");
+  const downloadTemplate = async () => {
+    const ExcelJS = await import('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Produtos');
+    
+    ws.columns = [
+      { header: "Nome do Item", key: "Nome do Item" },
+      { header: "Tipo", key: "Tipo" },
+      { header: "Unidade", key: "Unidade" },
+      { header: "Custo", key: "Custo" },
+      { header: "Valor de Venda", key: "Valor de Venda" },
+      { header: "Estoque Atual", key: "Estoque Atual" },
+      { header: "Estoque Mínimo", key: "Estoque Mínimo" },
+      { header: "Categoria", key: "Categoria" },
+      { header: "Código de Barras", key: "Código de Barras" },
+      { header: "Ativo", key: "Ativo" },
+      { header: "Marca", key: "Marca" }
+    ];
+
+    ws.addRow({
+      "Nome do Item": "Produto Exemplo",
+      "Tipo": "produto",
+      "Unidade": "UN",
+      "Custo": 10.50,
+      "Valor de Venda": 25.00,
+      "Estoque Atual": 100,
+      "Estoque Mínimo": 10,
+      "Categoria": "Geral",
+      "Código de Barras": "7891234567890",
+      "Ativo": "SIM",
+      "Marca": "Marca XYZ"
+    });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "Modelo_Importacao_Produtos.xlsx";
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,14 +80,43 @@ export const Inventory = () => {
       const reader = new FileReader();
       reader.onload = async (evt) => {
         try {
-          const bstr = evt.target?.result;
-          const wb = XLSX.read(bstr, { type: 'binary' });
-          const wsname = wb.SheetNames[0];
-          const ws = wb.Sheets[wsname];
-          const data: any[] = XLSX.utils.sheet_to_json(ws);
+          const buffer = evt.target?.result as ArrayBuffer;
+          const ExcelJS = await import('exceljs');
+          const wb = new ExcelJS.Workbook();
+          await wb.xlsx.load(buffer);
+          
+          const ws = wb.worksheets[0];
+          if (!ws) {
+            alert("A planilha está vazia.");
+            setIsUploading(false);
+            return;
+          }
+
+          const data: any[] = [];
+          const headers: string[] = [];
+          
+          ws.getRow(1).eachCell((cell, colNumber) => {
+            headers[colNumber] = cell.text;
+          });
+
+          ws.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return; // skip header
+            const obj: any = {};
+            row.eachCell((cell, colNumber) => {
+              const headerName = headers[colNumber];
+              if (headerName) {
+                 obj[headerName] = cell.value;
+                 if (cell.value && typeof cell.value === 'object' && 'result' in (cell.value as any)) {
+                     obj[headerName] = (cell.value as any).result;
+                 }
+              }
+            });
+            data.push(obj);
+          });
 
           if (data.length === 0) {
-            alert("A planilha está vazia.");
+            alert("A planilha está sem dados.");
+            setIsUploading(false);
             return;
           }
 
@@ -119,7 +169,7 @@ export const Inventory = () => {
           if (e.target) e.target.value = '';
         }
       };
-      reader.readAsBinaryString(file);
+      reader.readAsArrayBuffer(file);
     } catch (e: any) {
       setIsUploading(false);
       console.error(e);

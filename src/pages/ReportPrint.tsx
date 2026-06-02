@@ -89,7 +89,9 @@ export const ReportPrint = () => {
       if (!s.data_venda) return false;
       if (s.tipo !== 'venda' && s.tipo !== 'mesa') return false;
       const dateStr = s.data_venda.includes('T') ? s.data_venda : s.data_venda.replace(' ', 'T');
-      const saleDate = new Date(dateStr).toISOString().split('T')[0];
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return false;
+      const saleDate = d.toISOString().split('T')[0];
       const matchesDate = saleDate >= startDate && saleDate <= endDate;
       const matchesStatus = statusFilter === 'todos' || s.status === statusFilter;
       const matchesOrigem = origemFilter === 'Todas' || s.origem === origemFilter;
@@ -100,7 +102,9 @@ export const ReportPrint = () => {
     filteredData = data.filter(a => {
       if (!a.vencimento) return false;
       const dateStr = a.vencimento.includes('T') ? a.vencimento : a.vencimento + 'T12:00:00';
-      const dueDate = new Date(dateStr).toISOString().split('T')[0];
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return false;
+      const dueDate = d.toISOString().split('T')[0];
       const matchesDate = dueDate >= startDate && dueDate <= endDate;
 
       const normalizeLocal = (l: string | null, t: 'receita' | 'despesa') => {

@@ -243,7 +243,7 @@ router.put("/company/settings", authMiddleware, async (req: any, res) => {
       numero, cep, cidade, estado, logo,
       whatsapp_api_url, whatsapp_api_key, whatsapp_instance, whatsapp_msg_agendamento,
       email_host, email_port, email_user, email_pass, email_from, email_msg_agendamento,
-      whatsapp_automatico ? 1 : 0, email_automatico ? 1 : 0,
+      whatsapp_automatico ? true : false, email_automatico ? true : false,
       tenant_id
     ]);
     res.json({ success: true });

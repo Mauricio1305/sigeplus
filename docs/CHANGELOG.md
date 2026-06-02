@@ -22,5 +22,19 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
 - Documentação técnica completa (`README.md`, `API.md`, `DATABASE.md`, `BUSINESS_RULES.md`).
 - Padronização de logs de erro e monitoramento preliminar.
 
+
+## [1.1.2] - 2026-06-02
+- Modularizaçao do código separando a regra de negócios /serve/routes
+- Criacao de CRON para enviar mensagens de lembrete de agendamento via e-mail e whatsApp
+- Implementação de Integração com API EVOLUTION para envio de Mensagens pelo WhatsApp
+- Melhoria na regra de Agendamento para cancelar a gendamento apenas de nao houver pedido com status Finalizado e cancelar o pedido automatico se o status for em Orcamento.
+- Melhorias de responsívidade para telas Mobile
+
+## [1.1.3] - 2026-06-02
+ - Correção serviço de Cron que parou de ser executado após modularização
+ - Correção de funcionalidades do Excel que nao aparesia para o usuário admin
+ - Atualização da biblioteca PDFJS para ultima versão que acusava como erro critido
+ - Troca da biblioteca XLSX pela EXCELJS
+ - Implementado Filtro no Relatório de Log de Mensagem
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*

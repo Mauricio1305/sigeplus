@@ -430,6 +430,9 @@ export const Settings = () => {
     }
   };
 
+  const canUseWhatsApp = user?.modulos?.includes('lembrete_whatsapp');
+  const canUseEmail = user?.modulos?.includes('lembrete_email');
+
   return (
     <div className="space-y-6 max-w-6xl relative">
       <AnimatePresence>
@@ -1554,16 +1557,17 @@ export const Settings = () => {
                       </FormField>
                     </div>
                     <div className="md:col-span-2">
-                      <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-all">
+                      <label className={`flex items-center gap-3 p-3 rounded-xl border border-slate-100 transition-all ${!canUseWhatsApp ? 'bg-slate-100 opacity-70 cursor-not-allowed' : 'bg-slate-50 cursor-pointer hover:bg-slate-100'}`}>
                         <input 
                           type="checkbox" 
-                          className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          disabled={!canUseWhatsApp}
+                          className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           checked={company.whatsapp_automatico || false}
                           onChange={e => setCompany({...company, whatsapp_automatico: e.target.checked})}
                         />
                         <div>
                           <p className="text-sm font-bold text-slate-700">Lembrete Automático via WhatsApp</p>
-                          <p className="text-[11px] text-slate-500">Enviar automaticamente para o cliente 2 horas antes do agendamento.</p>
+                          <p className="text-[11px] text-slate-500">Enviar automaticamente para o cliente 2 horas antes do agendamento. {!canUseWhatsApp && <span className="text-rose-500 font-bold ml-1">(Não disponível no seu plano)</span>}</p>
                         </div>
                       </label>
                     </div>
@@ -1666,16 +1670,17 @@ export const Settings = () => {
                       </FormField>
                     </div>
                     <div className="md:col-span-2">
-                      <label className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 cursor-pointer hover:bg-slate-100 transition-all">
+                      <label className={`flex items-center gap-3 p-3 rounded-xl border border-slate-100 transition-all ${!canUseEmail ? 'bg-slate-100 opacity-70 cursor-not-allowed' : 'bg-slate-50 cursor-pointer hover:bg-slate-100'}`}>
                         <input 
                           type="checkbox" 
-                          className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          disabled={!canUseEmail}
+                          className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           checked={company.email_automatico || false}
                           onChange={e => setCompany({...company, email_automatico: e.target.checked})}
                         />
                         <div>
                           <p className="text-sm font-bold text-slate-700">Lembrete Automático via E-mail</p>
-                          <p className="text-[11px] text-slate-500">Enviar automaticamente para o cliente 2 horas antes do agendamento.</p>
+                          <p className="text-[11px] text-slate-500">Enviar automaticamente para o cliente 2 horas antes do agendamento. {!canUseEmail && <span className="text-rose-500 font-bold ml-1">(Não disponível no seu plano)</span>}</p>
                         </div>
                       </label>
                     </div>

@@ -3,13 +3,12 @@ import { useParams } from "react-router-dom";
 import { AlertCircle, FileText, FileSpreadsheet, Eye, RefreshCw } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import { formatMoney, formatDate, formatTime, formatDateTime } from "../utils/format";
-import * as XLSX from "xlsx";
 
 export const Reports = () => {
   const { type } = useParams();
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
-  const canExportExcel = user?.modulos?.includes("export_excel");
+  const canExportExcel = user?.perfil === 'superadmin' || user?.modulos?.includes("export_excel");
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +25,12 @@ export const Reports = () => {
       .toISOString()
       .split("T")[0];
   });
+  
+  const [notificationDate, setNotificationDate] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
+  const [notificationTimeFilter, setNotificationTimeFilter] = useState("1h");
+
   const [statusFilter, setStatusFilter] = useState("todos");
   const [origemFilter, setOrigemFilter] = useState("Todas");
   const [personFilter, setPersonFilter] = useState("todos");
@@ -90,7 +95,7 @@ export const Reports = () => {
         url = "/api/agenda?includeCanceled=true";
         break;
       case "notifications":
-        url = "/api/reports/notifications";
+        url = `/api/reports/notifications?date=${notificationDate}&time=${notificationTimeFilter}`;
         break;
       default:
         return;
@@ -108,7 +113,7 @@ export const Reports = () => {
         setError(err.message);
         setLoading(false);
       });
-  }, [type, token]);
+  }, [type, token, notificationDate, notificationTimeFilter]);
 
   const getTitle = () => {
     switch (type) {
@@ -163,7 +168,9 @@ export const Reports = () => {
         const dateStr = s.data_venda.includes("T")
           ? s.data_venda
           : s.data_venda.replace(" ", "T");
-        const saleDate = new Date(dateStr).toISOString().split("T")[0];
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
+        const saleDate = d.toISOString().split("T")[0];
         const matchesDate = saleDate >= startDate && saleDate <= endDate;
         const matchesStatus =
           statusFilter === "todos" || s.status === statusFilter;
@@ -181,7 +188,9 @@ export const Reports = () => {
         const dateStr = a.vencimento.includes("T")
           ? a.vencimento
           : a.vencimento + "T12:00:00";
-        const dueDate = new Date(dateStr).toISOString().split("T")[0];
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
+        const dueDate = d.toISOString().split("T")[0];
         const matchesDate = dueDate >= startDate && dueDate <= endDate;
 
         const normalizeLocal = (l: string | null, t: "receita" | "despesa") => {
@@ -306,17 +315,15 @@ export const Reports = () => {
 
     if (type === "notifications") {
       filteredData = data.filter((log) => {
-        const logDate = new Date(log.created_at).toISOString().split("T")[0];
-        const matchesDate = logDate >= startDate && logDate <= endDate;
         const matchesStatus = statusFilter === "todos" || log.status === statusFilter;
-        return matchesDate && matchesStatus;
+        return matchesStatus;
       });
     }
 
     return filteredData;
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     const filteredData = getFilteredData();
     if (filteredData.length === 0) {
       alert("Não há dados para exportar.");
@@ -395,10 +402,25 @@ export const Reports = () => {
       });
     }
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Relatório");
-    XLSX.writeFile(wb, `Relatorio_${type}_${new Date().getTime()}.xlsx`);
+    const ExcelJS = await import('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Relatório');
+    
+    if (exportData.length > 0) {
+      ws.columns = Object.keys(exportData[0]).map(key => ({ header: key, key: key }));
+      exportData.forEach(item => {
+        ws.addRow(item);
+      });
+    }
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Relatorio_${type}_${new Date().getTime()}.xlsx`;
+    a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const renderTable = () => {
@@ -949,26 +971,56 @@ export const Reports = () => {
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="space-y-1 md:col-span-2 lg:col-span-2">
-            <label className="block text-xs font-bold text-slate-500 uppercase">
-              Período
-            </label>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-              <span className="text-slate-400 self-center">a</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-              />
+          {type === "notifications" ? (
+            <>
+              <div className="space-y-1 md:col-span-1 lg:col-span-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">
+                  Data
+                </label>
+                <input
+                  type="date"
+                  value={notificationDate}
+                  onChange={(e) => setNotificationDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">
+                  Filtro de Tempo
+                </label>
+                <select
+                  value={notificationTimeFilter}
+                  onChange={(e) => setNotificationTimeFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="1h">Última 1 hora</option>
+                  <option value="24h">Últimas 24 horas</option>
+                  <option value="all">Todo o Período</option>
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-1 md:col-span-2 lg:col-span-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase">
+                Período
+              </label>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <span className="text-slate-400 self-center">a</span>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {type === "sales" && (
             <>

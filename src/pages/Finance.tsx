@@ -245,7 +245,9 @@ export const Finance = () => {
     return list.filter(r => {
       const effectiveLocal = r.tp_local || r.local || 'Receber';
       if (effectiveLocal !== 'Receber' && effectiveLocal !== 'Contas a Receber') return false;
-      const dueDate = new Date(r.vencimento).toISOString().split('T')[0];
+      const d = new Date(r.vencimento);
+      if (isNaN(d.getTime())) return false;
+      const dueDate = d.toISOString().split('T')[0];
       const matchesDate = (!filterStartDate || dueDate >= filterStartDate) && (!filterEndDate || dueDate <= filterEndDate);
       const matchesOrder = !filterOrderNumber || (r.venda_id && r.venda_id.toString().includes(filterOrderNumber));
       const matchesPerson = !filterPerson || (r.cliente_nome && r.cliente_nome.toLowerCase().includes(filterPerson.toLowerCase()));
@@ -258,7 +260,9 @@ export const Finance = () => {
     return list.filter(p => {
       const effectiveLocal = p.tp_local || p.local || 'Pagar';
       if (effectiveLocal !== 'Pagar' && effectiveLocal !== 'Contas a Pagar') return false;
-      const dueDate = new Date(p.vencimento).toISOString().split('T')[0];
+      const d = new Date(p.vencimento);
+      if (isNaN(d.getTime())) return false;
+      const dueDate = d.toISOString().split('T')[0];
       const matchesDate = (!filterStartDate || dueDate >= filterStartDate) && (!filterEndDate || dueDate <= filterEndDate);
       const matchesOrder = !filterOrderNumber || (p.venda_id && p.venda_id.toString().includes(filterOrderNumber));
       const matchesPerson = !filterPerson || (p.fornecedor_nome && p.fornecedor_nome.toLowerCase().includes(filterPerson.toLowerCase()));
@@ -269,7 +273,9 @@ export const Finance = () => {
 
   const getFilteredCardBankMovements = (movements: any[]) => {
     return movements.filter(t => {
-      const date = new Date(t.vencimento || t.data_movimentacao).toISOString().split('T')[0];
+      const d = new Date(t.vencimento || t.data_movimentacao);
+      if (isNaN(d.getTime())) return false;
+      const date = d.toISOString().split('T')[0];
       const matchesDate = (!filterStartDate || date >= filterStartDate) && (!filterEndDate || date <= filterEndDate);
       const matchesOrder = !filterOrderNumber || (t.venda_id && t.venda_id.toString().includes(filterOrderNumber));
       const personName = t.cliente_nome || t.fornecedor_nome || t.pessoa_nome || '';
@@ -282,7 +288,9 @@ export const Finance = () => {
   const getFilteredCashierMovements = (movements: any[]) => {
     return movements.filter(m => {
       if (m.local !== 'Caixa') return false;
-      const date = new Date(m.created_at).toISOString().split('T')[0];
+      const d = new Date(m.created_at);
+      if (isNaN(d.getTime())) return false;
+      const date = d.toISOString().split('T')[0];
       const matchesDate = (!filterStartDate || date >= filterStartDate) && (!filterEndDate || date <= filterEndDate);
       const matchesOrder = !filterOrderNumber || (m.venda_id && m.venda_id.toString().includes(filterOrderNumber));
       const personName = m.pessoa_nome || '';

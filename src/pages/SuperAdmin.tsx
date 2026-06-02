@@ -37,6 +37,9 @@ export const SuperAdmin = () => {
     { id: 'os', label: 'Ordens de Serviço' },
     { id: 'mesas', label: 'Mesas & Comandas' },
     { id: 'pdv', label: 'PDV' },
+    { id: 'agenda', label: 'Agenda (Serviços)' },
+    { id: 'lembrete_whatsapp', label: 'Lembretes Automáticos WhatsApp' },
+    { id: 'lembrete_email', label: 'Lembretes Automáticos E-mail' },
     { id: 'export_excel', label: 'Exportar Relatórios Excel' },
     { id: 'import_produtos', label: 'Importar Produtos (Excel)' }
   ];
