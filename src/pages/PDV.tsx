@@ -210,7 +210,7 @@ export default function PDV() {
     };
 
     try {
-      const res = await fetch('/api/sales', {
+      const res = await fetch('/api/pdv', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

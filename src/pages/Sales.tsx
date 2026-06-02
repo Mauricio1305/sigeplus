@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Wrench, Search, Plus, Edit2, MoreVertical, Printer, MessageCircle, Trash2, Ban, AlertCircle, X, FileText, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
-import { formatMoney } from '../utils/format';
+import { formatMoney, formatDate } from '../utils/format';
 import { validatePayment } from '../utils/paymentValidation';
 
 export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
@@ -33,7 +33,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
     frete: 0,
     pagamentos: [],
     status: 'finalizada',
-    tipo: 'venda',
+    tipo: mode,
     origem: 'Balcao'
   });
   const [currentPayment, setCurrentPayment] = useState<any>({
@@ -55,10 +55,12 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
   
   const token = useAuthStore(state => state.token);
 
+  const baseApi = mode === 'os' ? '/api/os' : '/api/sales';
+
   const handleCancelSale = async (id: any) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/sales/${id}/cancel`, {
+      const response = await fetch(`${baseApi}/${id}/cancel`, {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${token}`,
@@ -82,7 +84,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
   };
 
   const fetchData = () => {
-    fetch('/api/sales', { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch(baseApi, { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -133,7 +135,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
   const handlePrintSale = async (saleId: number, type: 'print' | 'whatsapp') => {
     setLoadingPrint(true);
     try {
-      const res = await fetch(`/api/sales/${saleId}`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${baseApi}/${saleId}`, { headers: { 'Authorization': `Bearer ${token}` } });
       const sale = await res.json();
       if (!res.ok) throw new Error(sale.error || 'Erro ao carregar venda');
 
@@ -141,7 +143,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
         let text = company?.nome_fantasia ? `*${company.nome_fantasia}*\n` : '';
         text += `\n*${sale.tipo === 'os' ? 'ORDEM DE SERVIÇO' : 'PEDIDO DE VENDA'}*\n`;
         text += `Pedido: #${sale.sequencial_id || sale.id}\n`;
-        text += `Data: ${new Date(sale.data_venda).toLocaleDateString()}\n`;
+        text += `Data: ${formatDate(sale.data_venda)}\n`;
         text += `Cliente: ${sale.cliente_nome || 'Consumidor Final'}\n`;
         
         if (sale.tipo === 'os') {
@@ -350,7 +352,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
 
   const handleEdit = async (id: number) => {
     try {
-      const res = await fetch(`/api/sales/${id}`, {
+      const res = await fetch(`${baseApi}/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -386,7 +388,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
 
     setIsSaving(true);
     try {
-      const url = newSale.sequencial_id ? `/api/sales/${newSale.sequencial_id}` : '/api/sales';
+      const url = newSale.sequencial_id ? `${baseApi}/${newSale.sequencial_id}` : baseApi;
       const method = newSale.sequencial_id ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
@@ -409,7 +411,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
           frete: 0,
           pagamentos: [],
           status: 'finalizada',
-          tipo: 'venda'
+          tipo: mode
         });
         setClientSearchTerm('');
         setProductSearchTerm('');
@@ -567,7 +569,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                     return (
                       <tr key={s.sequencial_id}>
                         <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900 hidden md:table-cell">#{s.sequencial_id.toString().padStart(6, '0')}</td>
-                        <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden sm:table-cell">{new Date(s.data_venda).toLocaleDateString()}</td>
+                        <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden sm:table-cell">{formatDate(s.data_venda)}</td>
                         <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 whitespace-nowrap hidden lg:table-cell">
                           <span className="px-1.5 md:px-2 py-0.5 md:py-1 bg-slate-100 text-slate-600 rounded-lg text-[8px] md:text-[10px] font-medium">
                             {s.origem || 'Balcão'}
@@ -577,7 +579,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                           <div className="font-medium text-slate-900 leading-tight">
                             <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{s.cliente_nome || 'Consumidor Final'}</div>
                           </div>
-                          <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5 sm:hidden">#{s.sequencial_id.toString().padStart(6, '0')} • {new Date(s.data_venda).toLocaleDateString()}</div>
+                          <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5 sm:hidden">#{s.sequencial_id.toString().padStart(6, '0')} • {formatDate(s.data_venda)}</div>
                           <div className="text-[8px] sm:text-[10px] text-slate-400 mt-0.5 lg:hidden">{s.origem || 'Balcão'}</div>
                           <div className="md:hidden mt-0.5">
                             <span className={`px-1.5 py-0.5 text-[8px] sm:text-[10px] font-black rounded-full uppercase ${

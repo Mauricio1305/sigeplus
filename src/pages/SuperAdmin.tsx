@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { Toast } from '../components/ui/Toast';
 import { FormField } from '../components/ui/FormField';
-import { formatMoney } from '../utils/format';
+import { formatMoney, formatDate, formatDateTime } from '../utils/format';
 
 export const SuperAdmin = () => {
   const [companies, setCompanies] = useState<any[]>([]);
@@ -63,13 +63,8 @@ export const SuperAdmin = () => {
 
   const token = useAuthStore(state => state.token);
 
-  const formatVencimento = (dateString: string) => {
-    if (!dateString) return '-';
-    if (dateString.includes('T')) {
-      const [year, month, day] = dateString.split('T')[0].split('-');
-      return `${day}/${month}/${year}`;
-    }
-    return new Date(dateString).toLocaleDateString('pt-BR');
+  const formatVencimento = (dateString: any) => {
+    return formatDate(dateString);
   };
 
   const filteredCompanies = companies.filter(c => {
@@ -432,7 +427,7 @@ export const SuperAdmin = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2 text-slate-700 font-medium">
                             <Clock className="w-4 h-4 text-slate-400" />
-                            {new Date(log.created_at).toLocaleString('pt-BR')}
+                            {formatDateTime(log.created_at)}
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -844,7 +839,11 @@ export const SuperAdmin = () => {
                 <input 
                   type="date" 
                   className="w-full px-4 py-2 rounded-xl border border-slate-200"
-                  value={editingCompany.vencimento_assinatura ? (typeof editingCompany.vencimento_assinatura === 'string' ? editingCompany.vencimento_assinatura.split('T')[0].split(' ')[0] : new Date(editingCompany.vencimento_assinatura).toISOString().split('T')[0]) : ''}
+                  value={editingCompany.vencimento_assinatura ? (() => {
+                    const d = new Date(editingCompany.vencimento_assinatura);
+                    if (isNaN(d.getTime())) return '';
+                    return d.toISOString().split('T')[0];
+                  })() : ''}
                   onChange={e => setEditingCompany({...editingCompany, vencimento_assinatura: e.target.value})}
                 />
               </div>

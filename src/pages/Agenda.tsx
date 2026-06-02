@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
+import { formatMoney, formatDate, formatTime } from '../utils/format';
 
 interface Agendamento {
   id: number;
@@ -301,7 +302,7 @@ const Agenda = () => {
 
   const handleUpdateStatus = async (id: number, status: string) => {
     try {
-      await fetch(`/api/agenda/${id}`, {
+      const response = await fetch(`/api/agenda/${id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -309,11 +310,19 @@ const Agenda = () => {
         },
         body: JSON.stringify({ status })
       });
+      
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao atualizar status');
+      }
+      
       fetchAgendamentos();
       if (isDetailsOpen) {
         setSelectedEvent({ ...selectedEvent, status });
       }
-    } catch (err) {
+      setToast({ message: 'Status atualizado com sucesso!', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err.message, type: 'error' });
       console.error('Error updating status:', err);
     }
   };
@@ -350,10 +359,6 @@ const Agenda = () => {
     } finally {
       setNotifying(null);
     }
-  };
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   };
 
   const getStatusColor = (status: string) => {
@@ -511,7 +516,7 @@ const Agenda = () => {
           dayMaxEvents={true}
           weekends={true}
           nowIndicator={true}
-          scrollTime={new Date().toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit' }) + ':00'}
+          scrollTime={formatTime(new Date()) + ':00'}
           height="100%"
           slotMinTime="00:00:00"
           slotMaxTime="23:59:00"
@@ -760,7 +765,7 @@ const Agenda = () => {
                               <p className="font-bold text-slate-900 text-sm">{p.nome}</p>
                               <p className="text-xs text-slate-500">{p.tipo === 'servico' ? `Serviço • ${p.tempo_execucao}min` : 'Produto'}</p>
                             </div>
-                            <p className="font-bold text-indigo-600">{formatCurrency(p.preco_venda)}</p>
+                            <p className="font-bold text-indigo-600">{formatMoney(p.preco_venda)}</p>
                           </button>
                         ))}
                       </div>
@@ -789,7 +794,7 @@ const Agenda = () => {
                               }}
                             />
                           </div>
-                          <p className="font-bold text-slate-900 w-20 sm:w-24 text-right">{formatCurrency(item.subtotal)}</p>
+                          <p className="font-bold text-slate-900 w-20 sm:w-24 text-right">{formatMoney(item.subtotal)}</p>
                           <button 
                             type="button" 
                             onClick={() => setFormData({ ...formData, items: formData.items.filter((_, i) => i !== idx) })}
@@ -805,7 +810,7 @@ const Agenda = () => {
                   <div className="flex items-center justify-between pt-4 px-2">
                     <p className="text-sm font-bold text-slate-400">Total Previsto</p>
                     <p className="text-2xl font-black text-indigo-600">
-                      {formatCurrency(formData.items.reduce((acc, i) => acc + i.subtotal, 0))}
+                      {formatMoney(formData.items.reduce((acc, i) => acc + i.subtotal, 0))}
                     </p>
                   </div>
                 </div>
@@ -926,10 +931,10 @@ const Agenda = () => {
                     <div className="flex items-center gap-3">
                       <Clock className="w-5 h-5 text-indigo-600" />
                       <p className="font-bold text-slate-900">
-                        {new Date(selectedEvent.data_inicio.replace(' ', 'T')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(selectedEvent.data_fim.replace(' ', 'T')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {formatTime(selectedEvent.data_inicio)} - {formatTime(selectedEvent.data_fim)}
                       </p>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1 font-medium">{new Date(selectedEvent.data_inicio.replace(' ', 'T')).toLocaleDateString()}</p>
+                    <p className="text-xs text-slate-500 mt-1 font-medium">{formatDate(selectedEvent.data_inicio)}</p>
                   </div>
                   <div className="bg-slate-50 p-6 rounded-3xl">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Profissional</p>
@@ -949,14 +954,14 @@ const Agenda = () => {
                       <div key={idx} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl">
                         <div>
                           <p className="font-bold text-slate-900">{item.nome}</p>
-                          <p className="text-xs text-slate-500">{item.quantidade} x {formatCurrency(item.preco_unitario)}</p>
+                          <p className="text-xs text-slate-500">{item.quantidade} x {formatMoney(item.preco_unitario)}</p>
                         </div>
-                        <p className="font-black text-slate-900">{formatCurrency(item.subtotal)}</p>
+                        <p className="font-black text-slate-900">{formatMoney(item.subtotal)}</p>
                       </div>
                     ))}
                     <div className="flex justify-between items-center px-4 pt-4 border-t border-slate-100">
                       <p className="font-bold text-slate-400">Total</p>
-                      <p className="text-xl font-black text-indigo-600">{formatCurrency(selectedEvent.valor_total)}</p>
+                      <p className="text-xl font-black text-indigo-600">{formatMoney(selectedEvent.valor_total)}</p>
                     </div>
                   </div>
                 </div>
@@ -1008,6 +1013,13 @@ const Agenda = () => {
                 </div>
 
                 <div className="flex gap-4">
+                  <button 
+                    onClick={() => setIsDetailsOpen(false)}
+                    className="flex-1 py-4 px-6 border-2 border-slate-100 text-slate-500 rounded-2xl font-black text-sm uppercase tracking-wider hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-5 h-5" />
+                    Salvar
+                  </button>
                   <button 
                     disabled={selectedEvent.status === 'Concluido' || selectedEvent.venda_id}
                     onClick={() => handleConcluir(selectedEvent.id)}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Printer } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { formatMoney } from '../utils/format';
+import { formatMoney, formatDate, formatTime, formatDateTime } from '../utils/format';
 
 export const ReportPrint = () => {
   const { type } = useParams();
@@ -217,12 +217,8 @@ export const ReportPrint = () => {
             <div className="bg-slate-900 text-white px-4 py-2 rounded-lg mb-2">
               <h1 className="text-xl font-black uppercase tracking-widest">{getTitle()}</h1>
             </div>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-1">Gerado em: {new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</p>
-            <p className="text-slate-500 text-[10px] font-bold uppercase">Período: {(() => {
-              const start = new Date(startDate + 'T12:00:00');
-              const end = new Date(endDate + 'T12:00:00');
-              return `${isNaN(start.getTime()) ? startDate : start.toLocaleDateString()} - ${isNaN(end.getTime()) ? endDate : end.toLocaleDateString()}`;
-            })()}</p>
+            <p className="text-slate-500 text-xs font-bold uppercase mt-1">Gerado em: {formatDateTime(new Date())}</p>
+            <p className="text-slate-500 text-[10px] font-bold uppercase">Período: {formatDate(startDate)} - {formatDate(endDate)}</p>
           </div>
         </div>
 
@@ -242,7 +238,7 @@ export const ReportPrint = () => {
                 {filteredData.map(s => (
                   <tr key={`sale-${s.id}`}>
                     <td className="py-2 text-slate-700">#{s.id.toString().padStart(6, '0')}</td>
-                    <td className="py-2 text-slate-700">{new Date(s.data_venda).toLocaleDateString()}</td>
+                    <td className="py-2 text-slate-700">{formatDate(s.data_venda)}</td>
                     <td className="py-2 text-slate-700">{s.cliente_nome || 'Consumidor Final'}</td>
                     <td className="py-2 text-slate-700 text-right font-bold">R$ {formatMoney(s.valor_total)}</td>
                     <td className="py-2 text-center">
@@ -328,7 +324,7 @@ export const ReportPrint = () => {
                 const groups: { [key: string]: any[] } = {};
                 filteredData.forEach(item => {
                   let key = '';
-                  if (groupBy === 'data') key = new Date(item.vencimento + (item.vencimento.includes('T') ? '' : 'T12:00:00')).toLocaleDateString();
+                  if (groupBy === 'data') key = formatDate(item.vencimento);
                   else if (groupBy === 'tipo') key = item.tipo === 'receita' ? 'Entradas' : 'Saídas';
                   else if (groupBy === 'status') key = item.pago ? 'Pagas' : 'Pendentes';
                   else if (groupBy === 'pessoa') key = item.pessoa_nome || 'Sem Pessoa';
@@ -354,7 +350,7 @@ export const ReportPrint = () => {
                       <tbody className="divide-y divide-slate-100">
                         {items.map(a => (
                           <tr key={`finance-print-grouped-${a.local}-${a.id}-${a.tipo}`}>
-                            <td className="py-2 text-slate-700">{new Date(a.vencimento + (a.vencimento.includes('T') ? '' : 'T12:00:00')).toLocaleDateString()}</td>
+                            <td className="py-2 text-slate-700">{formatDate(a.vencimento)}</td>
                             <td className="py-2 text-slate-700 font-medium">{a.descricao}</td>
                             <td className="py-2 text-slate-700">{a.categoria_nome || '-'}</td>
                             <td className="py-2 text-slate-700">{a.pessoa_nome || '-'}</td>
@@ -388,7 +384,7 @@ export const ReportPrint = () => {
                   <tbody className="divide-y divide-slate-100">
                     {filteredData.map(a => (
                       <tr key={`finance-print-${a.local}-${a.id}-${a.tipo}`}>
-                        <td className="py-2 text-slate-700">{new Date(a.vencimento + (a.vencimento.includes('T') ? '' : 'T12:00:00')).toLocaleDateString()}</td>
+                        <td className="py-2 text-slate-700">{formatDate(a.vencimento)}</td>
                         <td className="py-2 text-slate-700 font-medium">{a.descricao}</td>
                         <td className="py-2 text-slate-700">{a.categoria_nome || '-'}</td>
                         <td className="py-2 text-slate-700">{a.pessoa_nome || '-'}</td>
@@ -439,7 +435,7 @@ export const ReportPrint = () => {
                     <td className="py-2 text-slate-700 font-mono text-xs">{p.cpf_cnpj}</td>
                     <td className="py-2 text-slate-700">{p.telefone_celular || p.telefone}</td>
                     <td className="py-2 text-slate-700 text-right">
-                      {p.data_aniversario ? new Date(p.data_aniversario.includes('T') ? p.data_aniversario : p.data_aniversario + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '-'}
+                      {p.data_aniversario ? formatDate(p.data_aniversario) : '-'}
                     </td>
                   </tr>
                 ))}
@@ -463,20 +459,14 @@ export const ReportPrint = () => {
                   <tr key={`agenda-${a.id}`}>
                     <td className="py-2 text-slate-700 whitespace-nowrap">
                       {(() => {
-                        const dStart = new Date(a.data_inicio);
-                        const dEnd = new Date(a.data_fim);
-                        if (isNaN(dStart.getTime())) return "-";
-                        
-                        const datePart = dStart.toLocaleDateString("pt-BR", { 
-                          day: "2-digit", month: "2-digit", year: "2-digit"
-                        });
-                        const timeStart = dStart.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-                        const timeEnd = !isNaN(dEnd.getTime()) ? dEnd.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+                        const datePart = formatDate(a.data_inicio);
+                        const timeStart = formatTime(a.data_inicio);
+                        const timeEnd = formatTime(a.data_fim);
                         
                         return (
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-900">{datePart}</span>
-                            <span className="text-[10px] text-slate-500">{timeStart}{timeEnd ? ` - ${timeEnd}` : ""}</span>
+                            <span className="text-[10px] text-slate-500">{timeStart}{timeEnd !== '-' ? ` - ${timeEnd}` : ""}</span>
                           </div>
                         );
                       })()}

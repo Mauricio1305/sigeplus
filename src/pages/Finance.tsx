@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Plus, X, Search, Edit2, AlertCircle, TrendingUp, DollarSign, FileText, Package, MoreVertical } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
-import { formatMoney } from '../utils/format';
+import { formatMoney, formatDate } from '../utils/format';
 
 export const Finance = () => {
   const [activeTab, setActiveTab] = useState<'receivables' | 'payables' | 'cashier' | 'reports' | 'card' | 'bank'>('receivables');
@@ -375,7 +375,7 @@ export const Finance = () => {
                       </div>
                       {r.descricao && <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{r.descricao}</div>}
                     </td>
-                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap">{new Date(r.vencimento).toLocaleDateString()}</td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap">{formatDate(r.vencimento)}</td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold text-slate-900 whitespace-nowrap">R$ {formatMoney(r.valor)}</td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right text-emerald-600 font-medium whitespace-nowrap hidden sm:table-cell">R$ {formatMoney(r.valor_pago)}</td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden md:table-cell">
@@ -431,9 +431,9 @@ export const Finance = () => {
                           <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{t.cliente_nome || t.fornecedor_nome || 'Diversos'}</div>
                         </div>
                         <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{t.descricao}</div>
-                        <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</div>
+                        <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{formatDate(t.vencimento || t.data_movimentacao)}</div>
                       </td>
-                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap hidden sm:table-cell">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap hidden sm:table-cell">{formatDate(t.vencimento || t.data_movimentacao)}</td>
                       <td className={`px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold whitespace-nowrap ${t.tType === 'receivable' ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {t.tType === 'receivable' ? '+' : '-'} R$ {formatMoney(t.valor)}
                       </td>
@@ -490,9 +490,9 @@ export const Finance = () => {
                           <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{t.cliente_nome || t.fornecedor_nome || 'Diversos'}</div>
                         </div>
                         <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{t.descricao}</div>
-                        <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</div>
+                        <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{formatDate(t.vencimento || t.data_movimentacao)}</div>
                       </td>
-                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap hidden sm:table-cell">{new Date(t.vencimento || t.data_movimentacao).toLocaleDateString()}</td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap hidden sm:table-cell">{formatDate(t.vencimento || t.data_movimentacao)}</td>
                       <td className={`px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold whitespace-nowrap ${t.tType === 'receivable' ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {t.tType === 'receivable' ? '+' : '-'} R$ {formatMoney(t.valor)}
                       </td>
@@ -543,7 +543,7 @@ export const Finance = () => {
                       </div>
                       {p.descricao && <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{p.descricao}</div>}
                     </td>
-                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap">{new Date(p.vencimento).toLocaleDateString()}</td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-500 whitespace-nowrap">{formatDate(p.vencimento)}</td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold text-slate-900 whitespace-nowrap">R$ {formatMoney(p.valor)}</td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right text-rose-600 font-medium whitespace-nowrap hidden sm:table-cell">R$ {formatMoney(p.valor_pago)}</td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-center hidden md:table-cell">
@@ -632,7 +632,7 @@ export const Finance = () => {
                           <td className="px-3 md:px-8 py-3 md:py-5 text-slate-400 font-medium whitespace-nowrap hidden sm:table-cell">{new Date(m.created_at).toLocaleString()}</td>
                           <td className="px-3 md:px-8 py-3 md:py-5">
                             <div className="font-bold text-slate-900 line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{m.descricao || 'Venda'}</div>
-                            <div className="text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(m.created_at).toLocaleDateString()}</div>
+                            <div className="text-[10px] text-slate-400 sm:hidden mt-0.5">{formatDate(m.created_at)}</div>
                           </td>
                           <td className="px-3 md:px-8 py-3 md:py-5 text-center hidden md:table-cell">
                             <span className={`px-2 md:px-3 py-1 text-[8px] md:text-[10px] font-black rounded-full uppercase ${(m.status || 'paga') === 'paga' ? 'bg-emerald-100 text-emerald-700' : (m.status || 'paga') === 'cancelada' ? 'bg-rose-100 text-rose-700 line-through' : 'bg-slate-200 text-slate-600'}`}>

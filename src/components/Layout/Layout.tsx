@@ -22,6 +22,7 @@ import {
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../../store/authStore';
+import { formatDate } from '../../utils/format';
 
 const SubscriptionWarning = () => {
   const user = useAuthStore(state => state.user);
@@ -29,10 +30,16 @@ const SubscriptionWarning = () => {
   if (!user || user.perfil === 'superadmin') return null;
 
   let daysSinceExpiration = -1;
+  const today = new Date();
+  let expirationDate: Date | null = null;
+  
   if (user.vencimento_assinatura) {
-    const expirationDate = new Date(user.vencimento_assinatura);
-    const today = new Date();
-    daysSinceExpiration = Math.floor((today.getTime() - expirationDate.getTime()) / (1000 * 60 * 60 * 24));
+    expirationDate = new Date(user.vencimento_assinatura);
+    if (!isNaN(expirationDate.getTime())) {
+      daysSinceExpiration = Math.floor((today.getTime() - expirationDate.getTime()) / (1000 * 60 * 60 * 24));
+    } else {
+      expirationDate = null;
+    }
   }
 
   // Se a conta já tiver sido cancelada explicitamente, mostramos um aviso
@@ -43,14 +50,16 @@ const SubscriptionWarning = () => {
   // - Menos de 7 dias para expirar (aviso antecipado)
   // - Vencido (mesmo com os 10 dias de tolerância)
   // - Cancelamento já efetivado ou solicitado
-  const today = new Date();
-  const expirationDate = user.vencimento_assinatura ? new Date(user.vencimento_assinatura) : null;
   const isExpiredSoon = expirationDate && (expirationDate.getTime() - today.getTime()) < (7 * 24 * 60 * 60 * 1000);
   const isVencido = expirationDate && expirationDate < today;
 
   if (!isVencido && !isCanceled && !isCancellationRequested && !isExpiredSoon) return null;
 
   const isBlocked = isCanceled || daysSinceExpiration > 10;
+
+  const formatSafeDate = (d: string | undefined | null) => {
+    return formatDate(d);
+  };
 
   return (
     <div className={`fixed bottom-4 right-4 z-[9999] max-w-sm w-full transition-all duration-500 animate-in slide-in-from-bottom-10`}>
@@ -71,11 +80,11 @@ const SubscriptionWarning = () => {
           {isBlocked
             ? 'Sua assinatura expirou ou foi cancelada e o acesso foi bloqueado.'
             : isCancellationRequested
-              ? `Acesso liberado até ${new Date(user.vencimento_assinatura).toLocaleDateString()}, porém a renovação automática está desativada no Stripe.`
+              ? `Acesso liberado até ${formatSafeDate(user.vencimento_assinatura)}, porém a renovação automática está desativada no Stripe.`
               : isVencido
                 ? `Sua assinatura está vencida há ${daysSinceExpiration} dias. Em breve o acesso será bloqueado.`
                 : isExpiredSoon 
-                  ? `Sua assinatura vencerá em breve (${new Date(user.vencimento_assinatura).toLocaleDateString()}). Verifique seus pagamentos.`
+                  ? `Sua assinatura vencerá em breve (${formatSafeDate(user.vencimento_assinatura)}). Verifique seus pagamentos.`
                   : 'Há um problema com sua assinatura. Verifique os detalhes do plano.'}
         </p>
         <button
@@ -307,7 +316,7 @@ export const Layout = () => {
           
           {(isSidebarOpen || isMobileMenuOpen) ? (
             <div className="px-4 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-              <span>v1.0.0</span>
+              <span>v1.1.2</span>
               <span className="opacity-50">GM</span>
             </div>
           ) : (

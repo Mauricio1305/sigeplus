@@ -3,6 +3,7 @@ import { User as UserIcon, CreditCard, Camera, AlertCircle, CheckCircle, Setting
 import { motion, AnimatePresence } from 'motion/react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { formatMoney, formatDate } from '../utils/format';
 import { FormField } from '../components/ui/FormField';
 
 export const UserProfile = () => {
@@ -121,12 +122,7 @@ export const UserProfile = () => {
   };
 
   const formatVencimento = (dateString: string) => {
-    if (!dateString) return '-';
-    if (dateString.includes('T')) {
-      const [year, month, day] = dateString.split('T')[0].split('-');
-      return `${day}/${month}/${year}`;
-    }
-    return new Date(dateString).toLocaleDateString('pt-BR');
+    return formatDate(dateString);
   };
 
   const compressImage = (file: File): Promise<string> => {

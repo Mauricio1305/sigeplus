@@ -51,7 +51,7 @@ export default function Mesas() {
   const navigate = useNavigate();
 
   const fetchMesas = () => {
-    fetch('/api/sales', { headers: { 'Authorization': `Bearer ${token}` } })
+    fetch('/api/mesas', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json())
       .then(data => {
         // filter mesas that are open
@@ -70,7 +70,7 @@ export default function Mesas() {
   }, [token]);
 
   const loadMesaDetails = async (mesa: any) => {
-    const res = await fetch(`/api/sales/${mesa.sequencial_id}`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const res = await fetch(`/api/mesas/${mesa.sequencial_id}`, { headers: { 'Authorization': `Bearer ${token}` } });
     const fullMesa = await res.json();
     setSelectedMesa(fullMesa);
   };
@@ -81,7 +81,7 @@ export default function Mesas() {
 
     setIsOpeningMesa(true);
     try {
-      const res = await fetch('/api/sales', {
+      const res = await fetch('/api/mesas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({
@@ -140,7 +140,7 @@ export default function Mesas() {
         valor_total: newTotal
       };
 
-      const res = await fetch(`/api/sales/${selectedMesa.sequencial_id}`, {
+      const res = await fetch(`/api/mesas/${selectedMesa.sequencial_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(updatePayload)
@@ -185,7 +185,7 @@ export default function Mesas() {
 
     const updatePayload = { ...selectedMesa, items, valor_total: newTotal };
 
-    await fetch(`/api/sales/${selectedMesa.sequencial_id}`, {
+    await fetch(`/api/mesas/${selectedMesa.sequencial_id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify(updatePayload)
@@ -292,7 +292,7 @@ export default function Mesas() {
         pagamentos: pagamentos
       };
 
-      const res = await fetch(`/api/sales/${selectedMesa.sequencial_id}`, {
+      const res = await fetch(`/api/mesas/${selectedMesa.sequencial_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify(payload)

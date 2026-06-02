@@ -101,7 +101,8 @@ export const Login = () => {
         setAuth(data.user, data.token);
         
         if (isRegistering) {
-            const isTrial = data.user.status_assinatura === 'ativo' && new Date(data.user.vencimento_assinatura) > new Date();
+            const vencimento = data.user.vencimento_assinatura ? new Date(data.user.vencimento_assinatura) : null;
+            const isTrial = data.user.status_assinatura === 'ativo' && vencimento && !isNaN(vencimento.getTime()) && vencimento > new Date();
             if (isTrial) {
                navigate('/dashboard');
             } else {

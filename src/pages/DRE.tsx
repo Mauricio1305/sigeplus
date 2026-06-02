@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 
+import { formatDate } from '../utils/format';
+
 const formatMoney = (v: number | string | undefined | null) => {
   if (v === undefined || v === null) return '0,00';
   const num = typeof v === 'string' ? parseFloat(v) : v;
@@ -72,7 +74,7 @@ export const DRE = () => {
           <div className="text-center border-b border-slate-100 pb-4 mb-6">
             <h2 className="text-xl text-slate-900 font-black uppercase tracking-tight">Demonstração do Resultado do Exercício</h2>
             <p className="text-slate-500 text-sm">
-              Período de {new Date(startDate + 'T12:00:00').toLocaleDateString()} a {new Date(endDate + 'T12:00:00').toLocaleDateString()}
+              Período de {formatDate(startDate)} a {formatDate(endDate)}
             </p>
           </div>
 

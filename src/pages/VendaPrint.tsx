@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Printer, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { formatMoney } from '../utils/format';
+import { formatMoney, formatDate } from '../utils/format';
 
 export const VendaPrint = () => {
   const { id } = useParams();
@@ -98,7 +98,7 @@ export const VendaPrint = () => {
               <h1 className="text-xl font-black uppercase tracking-widest">{sale.tipo === 'os' ? 'Ordem de Serviço' : 'Pedido de Venda'}</h1>
             </div>
             <p className="text-2xl font-black text-slate-900">#{(sale.sequencial_id || sale.id).toString().padStart(6, '0')}</p>
-            <p className="text-slate-500 text-xs font-bold uppercase mt-1">Data: {sale.data_venda ? new Date(sale.data_venda).toLocaleDateString() : ''}</p>
+            <p className="text-slate-500 text-xs font-bold uppercase mt-1">Data: {formatDate(sale.data_venda)}</p>
           </div>
         </div>
 

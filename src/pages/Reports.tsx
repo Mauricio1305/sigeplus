@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { AlertCircle, FileText, FileSpreadsheet, Eye, RefreshCw } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
-import { formatMoney } from "../utils/format";
+import { formatMoney, formatDate, formatTime, formatDateTime } from "../utils/format";
 import * as XLSX from "xlsx";
 
 export const Reports = () => {
@@ -90,7 +90,7 @@ export const Reports = () => {
         url = "/api/agenda?includeCanceled=true";
         break;
       case "notifications":
-        url = "/api/notifications/logs";
+        url = "/api/reports/notifications";
         break;
       default:
         return;
@@ -327,11 +327,7 @@ export const Reports = () => {
 
     if (type === "sales") {
       exportData = filteredData.map((s) => ({
-        Data: new Date(
-          s.data_venda.includes("T")
-            ? s.data_venda
-            : s.data_venda.replace(" ", "T"),
-        ).toLocaleDateString("pt-BR"),
+        Data: formatDate(s.data_venda),
         Tipo: s.tipo === "mesa" ? "Mesa" : "Venda Rápida",
         Identificação: s.identificacao || `Venda #${s.sequencial_id || s.id}`,
         Cliente: s.cliente_nome || "Consumidor Final",
@@ -345,11 +341,7 @@ export const Reports = () => {
       }));
     } else if (type === "finance") {
       exportData = filteredData.map((a) => ({
-        Vencimento: new Date(
-          a.vencimento.includes("T")
-            ? a.vencimento
-            : a.vencimento + "T12:00:00",
-        ).toLocaleDateString("pt-BR"),
+        Vencimento: formatDate(a.vencimento),
         Descrição: a.descricao,
         Tipo: a.tipo === "receita" ? "Entrada" : "Saída",
         Valor: parseFloat(a.valor),
@@ -386,21 +378,15 @@ export const Reports = () => {
         Email: p.email,
         Cidade: p.cidade,
         UF: p.uf,
-        Aniversário: p.data_aniversario
-          ? new Date(
-              p.data_aniversario.includes("T")
-                ? p.data_aniversario
-                : p.data_aniversario + "T12:00:00",
-            ).toLocaleDateString("pt-BR")
-          : "",
+        Aniversário: p.data_aniversario ? formatDate(p.data_aniversario) : "",
       }));
     } else if (type === "agenda") {
       exportData = filteredData.map((a) => {
         const d = new Date(a.data_inicio);
         const isValid = !isNaN(d.getTime());
         return {
-          Data: isValid ? d.toLocaleDateString("pt-BR") : "-",
-          Hora: isValid ? d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "-",
+          Data: formatDate(a.data_inicio),
+          Hora: formatTime(a.data_inicio),
           Profissional: a.profissional_nome || "-",
           Cliente: a.cliente_nome || "-",
           Valor: parseFloat(a.valor_total || 0),
@@ -467,18 +453,18 @@ export const Reports = () => {
                     <tr key={log.id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-6 py-4">
                         <p className="text-xs font-bold text-slate-700">
-                          {log.enviado_at ? new Date(log.enviado_at).toLocaleDateString("pt-BR") : "-"}
+                          {formatDate(log.enviado_at)}
                         </p>
                         <p className="text-[10px] text-slate-400">
-                          {log.enviado_at ? new Date(log.enviado_at).toLocaleTimeString("pt-BR") : "-"}
+                          {log.enviado_at ? formatTime(log.enviado_at) : "-" }
                         </p>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-xs font-bold text-indigo-600">
-                          {log.data_prevista ? new Date(log.data_prevista).toLocaleDateString("pt-BR") : "Imediato"}
+                          {formatDate(log.data_prevista)}
                         </p>
                         <p className="text-[10px] text-indigo-400">
-                          {log.data_prevista ? new Date(log.data_prevista).toLocaleTimeString("pt-BR") : ""}
+                          {log.data_prevista ? formatTime(log.data_prevista) : ""}
                         </p>
                       </td>
                       <td className="px-6 py-4">
@@ -546,11 +532,11 @@ export const Reports = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] font-bold text-slate-400">
-                        Envio: {log.enviado_at ? new Date(log.enviado_at).toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' }) : '-'}
+                        Envio: {log.enviado_at ? formatTime(log.enviado_at) : '-'}
                       </p>
                       {log.data_prevista && (
                         <p className="text-[9px] text-indigo-500 font-medium">
-                          Previsto: {new Date(log.data_prevista).toLocaleDateString("pt-BR")} {new Date(log.data_prevista).toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' })}
+                          Previsto: {formatDateTime(log.data_prevista)}
                         </p>
                       )}
                     </div>
@@ -601,7 +587,7 @@ export const Reports = () => {
                       #{s.sequencial_id?.toString().padStart(6, "0")}
                     </td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden sm:table-cell">
-                      {new Date(s.data_venda).toLocaleDateString()}
+                      {formatDate(s.data_venda)}
                     </td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 whitespace-nowrap hidden lg:table-cell">
                       <span className="px-1.5 md:px-2 py-0.5 md:py-1 bg-slate-100 text-slate-600 rounded-lg text-[8px] md:text-[10px] font-medium">
@@ -612,7 +598,7 @@ export const Reports = () => {
                       <div className="font-medium text-slate-900 leading-tight">
                         <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{s.cliente_nome || "Consumidor Final"}</div>
                       </div>
-                      <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5 sm:hidden">#{s.sequencial_id?.toString().padStart(6, '0')} • {new Date(s.data_venda).toLocaleDateString()}</div>
+                      <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5 sm:hidden">#{s.sequencial_id?.toString().padStart(6, '0')} • {formatDate(s.data_venda)}</div>
                       <div className="md:hidden mt-0.5">
                         <span className={`px-1.5 py-0.5 text-[8px] font-bold rounded uppercase ${s.status === "finalizada" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
                           {s.status}
@@ -692,10 +678,7 @@ export const Reports = () => {
           filteredData.forEach((item) => {
             let key = "";
             if (groupBy === "data")
-              key = new Date(
-                item.vencimento +
-                  (item.vencimento.includes("T") ? "" : "T12:00:00"),
-              ).toLocaleDateString();
+              key = formatDate(item.vencimento);
             else if (groupBy === "tipo")
               key = item.tipo === "receita" ? "Entradas" : "Saídas";
             else if (groupBy === "status")
@@ -743,15 +726,12 @@ export const Reports = () => {
                           key={`finance-grouped-${a.id}-${a.local}-${a.tipo}`}
                         >
                           <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 border-r border-slate-50 hidden sm:table-cell whitespace-nowrap">
-                            {new Date(
-                              a.vencimento +
-                                (a.vencimento.includes("T") ? "" : "T12:00:00"),
-                            ).toLocaleDateString()}
+                            {formatDate(a.vencimento)}
                           </td>
                           <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900">
                             <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{a.descricao}</div>
                             <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5 md:hidden uppercase">{a.categoria_nome || "Sem Categoria"}</div>
-                            <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(a.vencimento + (a.vencimento.includes("T") ? "" : "T12:00:00")).toLocaleDateString()}</div>
+                            <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{formatDate(a.vencimento)}</div>
                           </td>
                           <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden md:table-cell">
                             <span className="px-1.5 md:px-2 py-0.5 md:py-1 bg-slate-100 text-slate-600 rounded text-[8px] md:text-[10px] uppercase font-bold">
@@ -806,15 +786,12 @@ export const Reports = () => {
                 {filteredData.map((a) => (
                   <tr key={`finance-${a.local}-${a.id}-${a.tipo}`}>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden sm:table-cell whitespace-nowrap">
-                      {new Date(
-                        a.vencimento +
-                          (a.vencimento.includes("T") ? "" : "T12:00:00"),
-                      ).toLocaleDateString()}
+                      {formatDate(a.vencimento)}
                     </td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900">
                       <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{a.descricao}</div>
                       <div className="text-[8px] sm:text-[10px] text-slate-400 font-mono md:hidden mt-0.5 uppercase">{a.categoria_nome || "Sem Categoria"}</div>
-                      <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{new Date(a.vencimento + (a.vencimento.includes("T") ? "" : "T12:00:00")).toLocaleDateString()}</div>
+                      <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{formatDate(a.vencimento)}</div>
                     </td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden md:table-cell">
                       <span className="px-1.5 md:px-2 py-0.5 md:py-1 bg-slate-100 text-slate-600 rounded text-[8px] md:text-[10px] uppercase font-bold">
@@ -872,16 +849,7 @@ export const Reports = () => {
                       <div className="whitespace-nowrap">{p.telefone_celular || p.telefone}</div>
                     </td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 text-right hidden sm:table-cell whitespace-nowrap">
-                      {p.data_aniversario
-                        ? new Date(
-                            p.data_aniversario.includes("T")
-                              ? p.data_aniversario
-                              : p.data_aniversario + "T12:00:00",
-                          ).toLocaleDateString("pt-BR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                          })
-                        : "-"}
+                      {p.data_aniversario ? formatDate(p.data_aniversario) : "-"}
                     </td>
                   </tr>
                 ))}
@@ -907,20 +875,14 @@ export const Reports = () => {
                   <tr key={`agenda-${a.id}`}>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 whitespace-nowrap">
                       {(() => {
-                        const dStart = new Date(a.data_inicio);
-                        const dEnd = new Date(a.data_fim);
-                        if (isNaN(dStart.getTime())) return "-";
-                        
-                        const datePart = dStart.toLocaleDateString("pt-BR", { 
-                          day: "2-digit", month: "2-digit", year: "2-digit"
-                        });
-                        const timeStart = dStart.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-                        const timeEnd = !isNaN(dEnd.getTime()) ? dEnd.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "";
+                        const datePart = formatDate(a.data_inicio);
+                        const timeStart = formatTime(a.data_inicio);
+                        const timeEnd = formatTime(a.data_fim);
                         
                         return (
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-900">{datePart}</span>
-                            <span className="text-[10px] text-slate-500">{timeStart}{timeEnd ? ` - ${timeEnd}` : ""}</span>
+                            <span className="text-[10px] text-slate-500">{timeStart}{timeEnd !== '-' ? ` - ${timeEnd}` : ""}</span>
                           </div>
                         );
                       })()}
