@@ -365,6 +365,17 @@ export default function PDV() {
     }
   };
 
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (filteredProdutos.length > 0) {
+        // Se houver uma correspondência exata de código de barras, usa ela, senão pega o primeiro
+        const exactMatch = filteredProdutos.find(p => p.codigo_barras === searchTerm);
+        addToCart(exactMatch || filteredProdutos[0]);
+        setSearchTerm('');
+      }
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-100 flex flex-col md:flex-row z-50 overflow-hidden font-sans">
       
@@ -398,48 +409,104 @@ export default function PDV() {
               maxLength={255}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              autoFocus
               className="w-full bg-slate-100 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-100 rounded-xl py-3 pl-10 pr-4 transition-all text-slate-900 font-medium"
             />
+
+            {/* Floating Search Results */}
+            {searchTerm.length > 0 && (
+              <div className="absolute left-0 right-0 top-[calc(100%+8px)] bg-white rounded-2xl shadow-2xl border border-slate-200 z-[100] max-h-[60vh] overflow-y-auto overflow-x-hidden">
+                <div className="p-2">
+                  {filteredProdutos.length > 0 ? (
+                    filteredProdutos.map((produto) => (
+                      <button
+                        key={produto.id}
+                        type="button"
+                        onClick={() => {
+                          addToCart(produto);
+                          setSearchTerm('');
+                        }}
+                        className="w-full flex items-center gap-4 p-3 hover:bg-indigo-50 rounded-xl transition-colors text-left group"
+                      >
+                        <div className="w-12 h-12 bg-slate-100 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden border border-slate-200">
+                          {produto.foto ? (
+                            <img 
+                              src={getDirectImageUrl(produto.foto)} 
+                              alt={produto.nome} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=P' }}
+                            />
+                          ) : (
+                            <MonitorPlay className="w-6 h-6 text-slate-300" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-slate-900 truncate group-hover:text-indigo-600 transition-colors">
+                            {produto.nome}
+                          </h4>
+                          <p className="text-xs text-slate-500 font-medium truncate">
+                            {produto.codigo_barras || 'Sem código'}
+                          </p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-black text-indigo-600 text-sm">
+                            R$ {formatMoney(produto.preco_venda)}
+                          </p>
+                          <p className={`text-[10px] font-bold uppercase mt-0.5 ${produto.estoque_atual <= 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                            Estoque: {produto.estoque_atual}
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center text-slate-500">
+                      <Search className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p className="font-bold uppercase text-[10px] tracking-widest">Nenhum produto encontrado</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Products Grid */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 hide-scrollbar">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4">
-            {filteredProdutos.map(produto => (
-              <button 
-                key={produto.id}
-                onClick={() => addToCart(produto)}
-                className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-200 hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100 transition-all text-left flex flex-col justify-between min-h-[9rem] active:scale-95 group"
-              >
-                <div className="flex gap-3">
-                  {produto.foto && (
-                    <img 
-                      src={getDirectImageUrl(produto.foto)} 
-                      alt={produto.nome} 
-                      className="w-12 h-12 object-cover rounded-lg border border-slate-100 flex-shrink-0"
-                      onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=Err' }}
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-slate-800 text-sm sm:text-base line-clamp-2 leading-tight group-hover:text-indigo-700 transition-colors">{produto.nome}</h3>
-                    <p className="text-[10px] sm:text-xs text-slate-400 mt-1 truncate">{produto.codigo_barras || 'Sem código'}</p>
-                  </div>
-                </div>
-                <div className="flex flex-col sm:flex-row justify-between sm:items-end mt-3 gap-1 sm:gap-0">
-                  <span className="font-black text-indigo-600 text-sm sm:text-base">R$ {formatMoney(produto.preco_venda)}</span>
-                  <span className={`text-[10px] sm:text-xs font-bold px-2 py-0.5 sm:py-1 rounded bg-slate-100 w-fit ${produto.estoque_atual <= 0 ? 'text-red-500' : 'text-slate-500'}`}>
-                    Estq: {produto.estoque_atual}
-                  </span>
-                </div>
-              </button>
-            ))}
-            {filteredProdutos.length === 0 && (
-              <div className="col-span-full py-12 text-center text-slate-400">
-                <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                Nenhum produto encontrado
+        {/* Company Logo Display (Replacing Products Grid) */}
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white">
+          <div className="max-w-md w-full flex flex-col items-center text-center space-y-6">
+            {company?.logo ? (
+              <motion.img 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                src={getDirectImageUrl(company.logo)} 
+                alt={company.nome_fantasia} 
+                className="w-64 h-64 object-contain"
+                onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/400x400?text=' + company?.nome_fantasia }}
+              />
+            ) : (
+              <div className="w-64 h-64 bg-slate-100 rounded-full flex items-center justify-center border-4 border-slate-50 shadow-inner">
+                <MonitorPlay className="w-24 h-24 text-slate-300" />
               </div>
             )}
+            
+            <div>
+              <h2 className="text-3xl font-black text-slate-900">{company?.nome_fantasia || 'Bem-vindo'}</h2>
+              <p className="text-slate-500 font-medium mt-2">Ponto de Venda Ativo</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 w-full pt-8">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                <p className="text-emerald-600 font-bold flex items-center justify-center gap-2">
+                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                  Operacional
+                </p>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Operador</p>
+                <p className="text-slate-700 font-bold">Admin</p>
+              </div>
+            </div>
           </div>
         </div>
 

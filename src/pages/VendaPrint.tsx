@@ -95,7 +95,9 @@ export const VendaPrint = () => {
           </div>
           <div className="text-right shrink-0">
             <div className="bg-slate-900 text-white px-4 py-2 rounded-lg mb-2">
-              <h1 className="text-xl font-black uppercase tracking-widest">{sale.tipo === 'os' ? 'Ordem de Serviço' : 'Pedido de Venda'}</h1>
+              <h1 className="text-xl font-black uppercase tracking-widest">
+                {sale.tipo === 'os' ? 'Ordem de Serviço' : (sale.tipo === 'mesa' ? 'Comanda' : 'Pedido de Venda')}
+              </h1>
             </div>
             <p className="text-2xl font-black text-slate-900">#{(sale.sequencial_id || sale.id).toString().padStart(6, '0')}</p>
             <p className="text-slate-500 text-xs font-bold uppercase mt-1">Data: {formatDate(sale.data_venda)}</p>
@@ -125,7 +127,7 @@ export const VendaPrint = () => {
           <div className="text-right">
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">Detalhes do Pedido</h3>
             <p className="text-slate-700"><span className="font-semibold">Status:</span> <span className="uppercase">{sale.status}</span></p>
-            <p className="text-slate-700"><span className="font-semibold">Tipo:</span> <span className="uppercase">{sale.tipo === 'os' ? 'Ordem de Serviço' : 'Pedido de Venda'}</span></p>
+            <p className="text-slate-700"><span className="font-semibold">Tipo:</span> <span className="uppercase">{sale.tipo === 'os' ? 'Ordem de Serviço' : (sale.tipo === 'mesa' ? 'Comanda' : 'Pedido de Venda')}</span></p>
           </div>
         </div>
 

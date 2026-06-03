@@ -43,5 +43,10 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Melhoria FrontEnd na tela de Pedidos e Orçamentos que nao conseguia Editar o Primeiro Registro do Grid
  - Melhoria no FrontEnd quando o tamanho da tela era Tablet ficava desconfigurado o campo de pesquisa por nome na tela de Pedidos e Orcamentos.
  - Melhoria o Balao de aviso de assinatura que nao permitia ser fechado, agora tem a opçao de fechar.
+
+ ## [1.1.5] - 2026-06-03
+ - Correcao listagem de pedidos de origem comandas
+ - Melhoria PDV para nao listar produtos e exibir a logo da empresa.
+ - Melhoria no Estoque: Implementada importação de produtos via XML (NFe) com validação de dados, sanitização de segurança, limite de 100 itens e notificações estilizadas.
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Edit2, X, Save, Upload, Download } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney } from '../utils/format';
 import { getDirectImageUrl } from '../utils/image';
+import { Toast } from '../components/ui/Toast';
+import { XMLParser } from 'fast-xml-parser';
 
 export const Inventory = () => {
   const [products, setProducts] = useState<any[]>([]);
@@ -18,6 +20,7 @@ export const Inventory = () => {
   const [activeTab, setActiveTab] = useState<'lista' | 'etiquetas'>('lista');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [newProduct, setNewProduct] = useState<any>({
     nome: '', tipo: 'produto', unidade: 'UN', custo: '', preco_venda: '', estoque_atual: '', estoque_minimo: '', categoria: '', codigo_barras: '', ativo: true, grupo_id: '', foto: '', marca: '', tempo_execucao: 0
@@ -75,70 +78,127 @@ export const Inventory = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const isXml = file.name.toLowerCase().endsWith('.xml');
     setIsUploading(true);
+
     try {
       const reader = new FileReader();
       reader.onload = async (evt) => {
         try {
-          const buffer = evt.target?.result as ArrayBuffer;
-          const ExcelJS = await import('exceljs');
-          const wb = new ExcelJS.Workbook();
-          await wb.xlsx.load(buffer);
-          
-          const ws = wb.worksheets[0];
-          if (!ws) {
-            alert("A planilha está vazia.");
+          const content = evt.target?.result;
+          let data: any[] = [];
+
+          if (isXml) {
+            const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "" });
+            const jsonObj = parser.parse(content as string);
+            
+            // Tenta localizar produtos em um XML de NFe (Nota Fiscal Eletrônica)
+            // Estrutura comum: nfeProc -> NFe -> infNFe -> det[] -> prod
+            let produtosRaw = jsonObj?.nfeProc?.NFe?.infNFe?.det || jsonObj?.NFe?.infNFe?.det;
+            
+            if (!produtosRaw) {
+              // Tenta estrutura simplificada se não for processamento completo
+              produtosRaw = jsonObj?.NFe?.det || jsonObj?.det || jsonObj?.produtos?.produto;
+            }
+
+            if (produtosRaw) {
+              const items = Array.isArray(produtosRaw) ? produtosRaw : [produtosRaw];
+              data = items.map(item => {
+                const p = item.prod || item;
+                return {
+                  'Nome do Item': p.xProd || p.nome,
+                  'Tipo': 'produto',
+                  'Unidade': p.uCom || p.unidade || 'UN',
+                  'Valor de Venda': parseFloat(p.vUnCom || p.preco_venda || 0) * 1.5, // Markup de exemplo se for NFe de compra
+                  'Custo': parseFloat(p.vUnCom || p.custo || 0),
+                  'Estoque Atual': parseFloat(p.qCom || p.quantidade || 0),
+                  'Estoque Mínimo': 0,
+                  'Categoria': 'Geral',
+                  'Código de Barras': p.cEAN !== 'SEM GTIN' ? p.cEAN : (p.codigo_barras || ''),
+                  'Ativo': 'SIM',
+                  'Marca': ''
+                };
+              });
+            }
+          } else {
+            const buffer = content as ArrayBuffer;
+            const ExcelJS = await import('exceljs');
+            const wb = new ExcelJS.Workbook();
+            await wb.xlsx.load(buffer);
+            
+            const ws = wb.worksheets[0];
+            if (!ws) {
+              setToast({ message: "A planilha está vazia.", type: 'error' });
+              setIsUploading(false);
+              return;
+            }
+
+            const headers: string[] = [];
+            ws.getRow(1).eachCell((cell, colNumber) => {
+              headers[colNumber] = cell.text;
+            });
+
+            ws.eachRow((row, rowNumber) => {
+              if (rowNumber === 1) return;
+              const obj: any = {};
+              row.eachCell((cell, colNumber) => {
+                const headerName = headers[colNumber];
+                if (headerName) {
+                  obj[headerName] = cell.value;
+                  if (cell.value && typeof cell.value === 'object' && 'result' in (cell.value as any)) {
+                    obj[headerName] = (cell.value as any).result;
+                  }
+                }
+              });
+              data.push(obj);
+            });
+          }
+
+          if (data.length === 0) {
+            setToast({ message: "Nenhum dado válido encontrado para importação.", type: 'error' });
             setIsUploading(false);
             return;
           }
 
-          const data: any[] = [];
-          const headers: string[] = [];
-          
-          ws.getRow(1).eachCell((cell, colNumber) => {
-            headers[colNumber] = cell.text;
-          });
-
-          ws.eachRow((row, rowNumber) => {
-            if (rowNumber === 1) return; // skip header
-            const obj: any = {};
-            row.eachCell((cell, colNumber) => {
-              const headerName = headers[colNumber];
-              if (headerName) {
-                 obj[headerName] = cell.value;
-                 if (cell.value && typeof cell.value === 'object' && 'result' in (cell.value as any)) {
-                     obj[headerName] = (cell.value as any).result;
-                 }
-              }
-            });
-            data.push(obj);
-          });
-
-          if (data.length === 0) {
-            alert("A planilha está sem dados.");
-            setIsUploading(false);
-            return;
+          // LIMITE DE 100 PRODUTOS
+          if (data.length > 100) {
+            setToast({ message: "O limite máximo por importação é de 100 produtos. O sistema processará apenas os 100 primeiros.", type: 'info' });
+            data = data.slice(0, 100);
           }
 
           let successCount = 0;
           let errorCount = 0;
 
-          for (const row of data) {
-            const nome = row['Nome do Item'];
-            const tipo = row['Tipo']?.toString().toLowerCase() === 'servico' || row['Tipo']?.toString().toLowerCase() === 'serviço' ? 'servico' : 'produto';
-            const unidade = row['Unidade'] || 'UN';
-            const preco_venda = row['Valor de Venda'];
-            const custo = row['Custo'] || 0;
-            const estoque_atual = row['Estoque Atual'] || 0;
-            const estoque_minimo = row['Estoque Mínimo'] || 0;
-            const categoria = row['Categoria'] || '';
-            const codigo_barras = row['Código de Barras'] || '';
-            const ativo = row['Ativo']?.toString().toUpperCase() !== 'NÃO' && row['Ativo']?.toString().toUpperCase() !== 'NAO';
-            const marca = row['Marca'] || '';
+          // Função de sanitização básica
+          const sanitize = (val: any) => {
+            if (typeof val !== 'string') return val;
+            return val.replace(/['";]/g, '').trim();
+          };
 
-            if (!nome || !tipo || !unidade || preco_venda === undefined) {
+          for (const row of data) {
+            const nome = sanitize(row['Nome do Item']);
+            const tipo = row['Tipo']?.toString().toLowerCase() === 'servico' || row['Tipo']?.toString().toLowerCase() === 'serviço' ? 'servico' : 'produto';
+            const unidade = sanitize(row['Unidade'] || 'UN');
+            const preco_venda = parseFloat(row['Valor de Venda']?.toString() || '0');
+            const custo = parseFloat(row['Custo']?.toString() || '0');
+            const estoque_atual = parseFloat(row['Estoque Atual']?.toString() || '0');
+            const estoque_minimo = parseFloat(row['Estoque Mínimo']?.toString() || '0');
+            const categoria = sanitize(row['Categoria'] || '');
+            const codigo_barras = sanitize(row['Código de Barras'] || '');
+            const ativo = row['Ativo']?.toString().toUpperCase() !== 'NÃO' && row['Ativo']?.toString().toUpperCase() !== 'NAO';
+            const marca = sanitize(row['Marca'] || '');
+
+            // VALIDAÇÃO DE DADOS
+            if (!nome || nome.length < 2) {
+              console.warn("Produto ignorado: nome inválido", row);
               errorCount++;
-              continue; 
+              continue;
+            }
+
+            if (isNaN(preco_venda) || preco_venda < 0) {
+              console.warn("Produto ignorado: preço inválido", row);
+              errorCount++;
+              continue;
             }
 
             const res = await fetch('/api/products', {
@@ -159,21 +219,29 @@ export const Inventory = () => {
             }
           }
 
-          alert(`Importação concluída.\nSucesso: ${successCount} produtos.\nErros: ${errorCount} (itens incompletos ou dados inválidos).`);
+          setToast({ 
+            message: `Importação concluída. Sucesso: ${successCount} | Erros: ${errorCount}.`, 
+            type: successCount > 0 ? 'success' : 'error' 
+          });
           fetchProducts();
         } catch (e: any) {
           console.error(e);
-          alert("Erro ao processar a planilha.");
+          setToast({ message: "Erro ao processar o arquivo. Verifique o formato e tente novamente.", type: 'error' });
         } finally {
           setIsUploading(false);
           if (e.target) e.target.value = '';
         }
       };
-      reader.readAsArrayBuffer(file);
+
+      if (isXml) {
+        reader.readAsText(file);
+      } else {
+        reader.readAsArrayBuffer(file);
+      }
     } catch (e: any) {
       setIsUploading(false);
       console.error(e);
-      alert("Erro ao ler arquivo.");
+      setToast({ message: "Erro ao ler arquivo.", type: 'error' });
     }
   };
 
@@ -454,7 +522,7 @@ export const Inventory = () => {
               </button>
               <input 
                 type="file" 
-                accept=".xlsx, .xls" 
+                accept=".xlsx, .xls, .xml" 
                 className="hidden" 
                 ref={fileInputRef}
                 onChange={handleImport}
@@ -928,6 +996,15 @@ export const Inventory = () => {
         </motion.div>
       </div>
       )}
+      <AnimatePresence>
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type} 
+            onClose={() => setToast(null)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
