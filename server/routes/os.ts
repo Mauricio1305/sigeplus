@@ -56,7 +56,7 @@ router.post("/", authMiddleware, planMiddleware('os'), async (req: any, res) => 
       for (const pg of pagamentos) {
         await connection.query(
           "INSERT INTO vendas_pagamentos (tenant_id, venda_id, tipo_pagamento_id, nome, valor, parcelas) VALUES (?, ?, ?, ?, ?, ?)",
-          [tenant_id, os_id, pg.tipo_pagamento_id === 'Dinheiro' ? null : pg.tipo_pagamento_id, pg.nome, pg.valor, pg.parcelas || 1]
+          [tenant_id, os_id, (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id, pg.nome, pg.valor, pg.parcelas || 1]
         );
       }
     }
@@ -101,7 +101,7 @@ router.post("/", authMiddleware, planMiddleware('os'), async (req: any, res) => 
             if (caixaAberto) {
               await connection.query(
                 "INSERT INTO movimentacoes_caixa (tenant_id, caixa_id, tipo, valor, descricao, venda_id, tipo_pagamento_id, origem) VALUES (?, ?, 'entrada', ?, ?, ?, ?, 'OS')",
-                [tenant_id, caixaAberto.id, pg.valor, descricao, os_id, pg.tipo_pagamento_id !== 'Dinheiro' ? pg.tipo_pagamento_id : null]
+                [tenant_id, caixaAberto.id, pg.valor, descricao, os_id, (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id]
               );
             }
           } else {
@@ -128,7 +128,7 @@ router.post("/", authMiddleware, planMiddleware('os'), async (req: any, res) => 
                   dataPagamentoCR ? dataPagamentoCR.slice(0, 19).replace('T', ' ') : null, 
                   descricao + (pg.parcelas > 1 ? ` (${i+1}/${pg.parcelas})` : ''), 
                   localLancamento, 
-                  pg.tipo_pagamento_id !== 'Dinheiro' ? pg.tipo_pagamento_id : null
+                  (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id
                 ]
               );
             }
@@ -238,7 +238,7 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
       for (const pg of pagamentos) {
         await connection.query(
           "INSERT INTO vendas_pagamentos (tenant_id, venda_id, tipo_pagamento_id, nome, valor, parcelas) VALUES (?, ?, ?, ?, ?, ?)",
-          [tenant_id, existingOs.id, pg.tipo_pagamento_id === 'Dinheiro' ? null : pg.tipo_pagamento_id, pg.nome, pg.valor, pg.parcelas || 1]
+          [tenant_id, existingOs.id, (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id, pg.nome, pg.valor, pg.parcelas || 1]
         );
       }
     }
@@ -280,7 +280,7 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
             if (caixaAberto) {
               await connection.query(
                 "INSERT INTO movimentacoes_caixa (tenant_id, caixa_id, tipo, valor, descricao, venda_id, tipo_pagamento_id, origem) VALUES (?, ?, 'entrada', ?, ?, ?, ?, 'OS')",
-                [tenant_id, caixaAberto.id, pg.valor, descricao, existingOs.id, pg.tipo_pagamento_id !== 'Dinheiro' ? pg.tipo_pagamento_id : null]
+                [tenant_id, caixaAberto.id, pg.valor, descricao, existingOs.id, (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id]
               );
             }
           } else {
@@ -295,7 +295,7 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
 
               await connection.query(
                 "INSERT INTO lancamentos (tenant_id, tipo, pessoa_id, venda_id, vencimento, valor, valor_pago, status, data_pagamento, descricao, local, tipo_pagamento_id) VALUES (?, 'CR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [tenant_id, pessoa_id || null, existingOs.id, vencimento.toISOString().slice(0, 19).replace('T', ' '), valorParcela, valorPagoCR, statusCR, dataPagamentoCR ? dataPagamentoCR.slice(0, 19).replace('T', ' ') : null, descricao + (pg.parcelas > 1 ? ` (${i+1}/${pg.parcelas})` : ''), localLancamento, pg.tipo_pagamento_id !== 'Dinheiro' ? pg.tipo_pagamento_id : null]
+                [tenant_id, pessoa_id || null, existingOs.id, vencimento.toISOString().slice(0, 19).replace('T', ' '), valorParcela, valorPagoCR, statusCR, dataPagamentoCR ? dataPagamentoCR.slice(0, 19).replace('T', ' ') : null, descricao + (pg.parcelas > 1 ? ` (${i+1}/${pg.parcelas})` : ''), localLancamento, (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id]
               );
             }
           }

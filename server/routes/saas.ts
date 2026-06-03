@@ -203,8 +203,24 @@ router.post("/admin/cron/process-notifications", async (req: any, res) => {
 
 router.get("/admin/cron/logs", authMiddleware, async (req: any, res) => {
   if (req.user.perfil !== 'superadmin') return res.status(403).json({ error: "Forbidden" });
+  
+  const { date, time } = req.query;
   try {
-    const [logs] = await pool.query("SELECT * FROM cron_logs ORDER BY created_at DESC LIMIT 50");
+    let whereClause = "1=1";
+    const queryParams: any[] = [];
+
+    if (date) {
+      if (time === "1h") {
+        whereClause += " AND created_at >= NOW() - INTERVAL '1 hour'";
+      } else if (time === "24h") {
+        whereClause += " AND created_at >= NOW() - INTERVAL '24 hours'";
+      } else {
+        whereClause += " AND DATE(created_at) = ?";
+        queryParams.push(date);
+      }
+    }
+
+    const [logs] = await pool.query(`SELECT * FROM cron_logs WHERE ${whereClause} ORDER BY created_at DESC LIMIT 500`, queryParams);
     res.json(logs);
   } catch (err: any) {
     res.status(500).json({ error: err.message });

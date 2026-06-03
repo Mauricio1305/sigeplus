@@ -27,7 +27,9 @@ import { formatDate } from '../../utils/format';
 const SubscriptionWarning = () => {
   const user = useAuthStore(state => state.user);
   const navigate = useNavigate();
-  if (!user || user.perfil === 'superadmin') return null;
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  if (!user || user.perfil === 'superadmin' || isDismissed) return null;
 
   let daysSinceExpiration = -1;
   const today = new Date();
@@ -68,13 +70,21 @@ const SubscriptionWarning = () => {
         animate={{ scale: 1, opacity: 1 }}
         className={`p-6 rounded-3xl shadow-2xl border ${isBlocked ? 'bg-rose-600 border-rose-500 shadow-rose-200' : 'bg-amber-500 border-amber-400 shadow-amber-200'} text-white`}
       >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="bg-white/20 p-2 rounded-xl">
-            <AlertCircle className="w-6 h-6" />
+        <div className="flex items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-2 rounded-xl">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <h4 className="font-black uppercase tracking-tight">
+              {isBlocked ? 'Assinatura Bloqueada' : 'Aviso de Assinatura'}
+            </h4>
           </div>
-          <h4 className="font-black uppercase tracking-tight">
-            {isBlocked ? 'Assinatura Bloqueada' : 'Aviso de Assinatura'}
-          </h4>
+          <button 
+            onClick={() => setIsDismissed(true)}
+            className="p-1 hover:bg-white/20 rounded-full transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
         <p className="text-sm font-medium mb-6 text-white/90 leading-relaxed">
           {isBlocked
@@ -316,7 +326,7 @@ export const Layout = () => {
           
           {(isSidebarOpen || isMobileMenuOpen) ? (
             <div className="px-4 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-              <span>v1.1.3</span>
+              <span>v1.1.4</span>
               <span className="opacity-50">GM</span>
             </div>
           ) : (

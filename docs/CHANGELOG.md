@@ -36,5 +36,12 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Atualização da biblioteca PDFJS para ultima versão que acusava como erro critido
  - Troca da biblioteca XLSX pela EXCELJS
  - Implementado Filtro no Relatório de Log de Mensagem
+
+ ## [1.1.4] - 2026-06-03
+ - Correção tela de Registro que dava erro no numero do WhatsApp
+ - Implementação de Filtros ta tela de Logs do Cron
+ - Melhoria FrontEnd na tela de Pedidos e Orçamentos que nao conseguia Editar o Primeiro Registro do Grid
+ - Melhoria no FrontEnd quando o tamanho da tela era Tablet ficava desconfigurado o campo de pesquisa por nome na tela de Pedidos e Orcamentos.
+ - Melhoria o Balao de aviso de assinatura que nao permitia ser fechado, agora tem a opçao de fechar.
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*

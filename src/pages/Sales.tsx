@@ -467,7 +467,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
         </button>
       </div>
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-4">
+        <div className="p-4 border-b border-slate-100 flex flex-col xl:flex-row gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
             <input 
@@ -567,7 +567,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
               return (
                 <>
                   {filteredSales.map((s, index) => {
-                    const isNearBottom = index >= filteredSales.length - 3 && filteredSales.length >= 2;
+                    const isNearBottom = index >= filteredSales.length - 3 && index >= 3;
                     return (
                       <tr key={s.sequencial_id}>
                         <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900 hidden md:table-cell">#{s.sequencial_id.toString().padStart(6, '0')}</td>
@@ -700,7 +700,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
             
             <div className="p-8 overflow-y-auto">
               <form onSubmit={handleSubmit} className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
                   <div className="relative">
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Cliente</label>
                     <div className="relative">
@@ -778,7 +778,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                     <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Produtos e Serviços</h3>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-sm">
-                    <div className="flex flex-col sm:flex-row gap-4 relative">
+                    <div className="flex flex-col lg:flex-row gap-4 relative">
                       <div className="relative flex-1">
                         <input 
                           type="text" 

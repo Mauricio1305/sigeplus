@@ -112,13 +112,13 @@ router.post("/", authMiddleware, planMiddleware('vendas'), async (req: any, res)
             if (caixaAberto) {
               await connection.query(
                 "INSERT INTO movimentacoes_caixa (tenant_id, caixa_id, tipo, valor, descricao, venda_id, tipo_pagamento_id, origem) VALUES (?, ?, 'entrada', ?, ?, ?, ?, ?)",
-                [tenant_id, caixaAberto.id, pg.valor, descricao, venda_id, (typeof pg.tipo_pagamento_id === 'number' || (typeof pg.tipo_pagamento_id === 'string' && pg.tipo_pagamento_id !== 'Dinheiro')) ? pg.tipo_pagamento_id : null, 'Venda']
+                [tenant_id, caixaAberto.id, pg.valor, descricao, venda_id, (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id, 'Venda']
               );
             } else {
               // Fallback to lancamentos if cashier is closed but intended for Caixa
               await connection.query(
                 "INSERT INTO lancamentos (tenant_id, tipo, pessoa_id, venda_id, vencimento, valor, valor_pago, status, data_pagamento, descricao, local, tipo_pagamento_id) VALUES (?, 'CR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [tenant_id, pessoaIdToInsert, venda_id, new Date().toISOString().slice(0, 19).replace('T', ' '), pg.valor, 0, 'aberta', null, descricao + ' (Caixa Fechado)', 'Caixa', (typeof pg.tipo_pagamento_id === 'number' || (typeof pg.tipo_pagamento_id === 'string' && pg.tipo_pagamento_id !== 'Dinheiro')) ? pg.tipo_pagamento_id : null]
+                [tenant_id, pessoaIdToInsert, venda_id, new Date().toISOString().slice(0, 19).replace('T', ' '), pg.valor, 0, 'aberta', null, descricao + ' (Caixa Fechado)', 'Caixa', (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id]
               );
             }
           } else {
@@ -277,8 +277,8 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
 
     // Update Sale
     await connection.query(
-      "UPDATE vendas SET pessoa_id = ?, valor_total = ?, desconto = ?, frete = ?, status = ?, solicitacao = ?, laudo_tecnico = ?, identificacao = ?, taxa_servico = ?, origem = ?, tipo = ?, updated_at = CURRENT_TIMESTAMP WHERE sequencial_id = ? AND tenant_id = ?",
-      [pessoaIdToInsert, valor_total, desconto || 0, frete || 0, status, solicitacao || null, laudo_tecnico || null, identificacao || existingSale.identificacao, taxa_servico || existingSale.taxa_servico, origem || existingSale.origem, tipo || existingSale.tipo, id, tenant_id]
+      "UPDATE vendas SET pessoa_id = ?, valor_total = ?, desconto = ?, frete = ?, status = ?, solicitacao = ?, laudo_tecnico = ?, identificacao = ?, taxa_servico = ?, origem = ?, tipo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?",
+      [pessoaIdToInsert, valor_total, desconto || 0, frete || 0, status, solicitacao || null, laudo_tecnico || null, identificacao || existingSale.identificacao, taxa_servico || existingSale.taxa_servico, origem || existingSale.origem, tipo || existingSale.tipo, existingSale.id, tenant_id]
     );
     
     // Delete old items
@@ -300,7 +300,7 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
       for (const pg of pagamentos) {
         await connection.query(
           "INSERT INTO vendas_pagamentos (tenant_id, venda_id, tipo_pagamento_id, nome, valor, parcelas) VALUES (?, ?, ?, ?, ?, ?)",
-          [tenant_id, existingSale.id, pg.tipo_pagamento_id === 'Dinheiro' ? null : pg.tipo_pagamento_id, pg.nome, pg.valor, pg.parcelas || 1]
+          [tenant_id, existingSale.id, (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id, pg.nome, pg.valor, pg.parcelas || 1]
         );
       }
     }
@@ -349,13 +349,13 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
             if (caixaAberto) {
               await connection.query(
                 "INSERT INTO movimentacoes_caixa (tenant_id, caixa_id, tipo, valor, descricao, venda_id, tipo_pagamento_id, origem) VALUES (?, ?, 'entrada', ?, ?, ?, ?, ?)",
-                [tenant_id, caixaAberto.id, pg.valor, descricao, existingSale.id, (typeof pg.tipo_pagamento_id === 'number' || (typeof pg.tipo_pagamento_id === 'string' && pg.tipo_pagamento_id !== 'Dinheiro')) ? pg.tipo_pagamento_id : null, 'Venda']
+                [tenant_id, caixaAberto.id, pg.valor, descricao, existingSale.id, (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id, 'Venda']
               );
             } else {
               // Fallback to lancamentos if cashier is closed but intended for Caixa
               await connection.query(
                 "INSERT INTO lancamentos (tenant_id, tipo, pessoa_id, venda_id, vencimento, valor, valor_pago, status, data_pagamento, descricao, local, tipo_pagamento_id) VALUES (?, 'CR', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                [tenant_id, pessoaIdToInsert, existingSale.id, new Date().toISOString().slice(0, 19).replace('T', ' '), pg.valor, 0, 'aberta', null, descricao + ' (Caixa Fechado)', 'Caixa', (typeof pg.tipo_pagamento_id === 'number' || (typeof pg.tipo_pagamento_id === 'string' && pg.tipo_pagamento_id !== 'Dinheiro')) ? pg.tipo_pagamento_id : null]
+                [tenant_id, pessoaIdToInsert, existingSale.id, new Date().toISOString().slice(0, 19).replace('T', ' '), pg.valor, 0, 'aberta', null, descricao + ' (Caixa Fechado)', 'Caixa', (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id]
               );
             }
           } else {
@@ -387,7 +387,7 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
                   dataPagamentoCR ? dataPagamentoCR.slice(0, 19).replace('T', ' ') : null, 
                   descricao + (pg.parcelas > 1 ? ` (${i+1}/${pg.parcelas})` : ''), 
                   localLancamento, 
-                  (typeof pg.tipo_pagamento_id === 'number' || (typeof pg.tipo_pagamento_id === 'string' && pg.tipo_pagamento_id !== 'Dinheiro')) ? pg.tipo_pagamento_id : null
+                  (!pg.tipo_pagamento_id || pg.tipo_pagamento_id === 'Dinheiro') ? null : pg.tipo_pagamento_id
                 ]
               );
             }
@@ -400,7 +400,7 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
     res.json({ success: true });
   } catch (err: any) {
     await connection.rollback();
-    console.error("Error updating sale:", err);
+    console.error("====== Error updating sale ======\n", err);
     res.status(400).json({ error: err.message });
   } finally {
     connection.release();

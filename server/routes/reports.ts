@@ -15,15 +15,9 @@ router.get("/notifications", authMiddleware, async (req: any, res) => {
 
     if (date) {
       if (time === "1h") {
-        const fromTime = new Date();
-        fromTime.setHours(fromTime.getHours() - 1);
-        whereClause += " AND n.created_at >= ?";
-        queryParams.push(fromTime);
+        whereClause += " AND n.created_at >= NOW() - INTERVAL '1 hour'";
       } else if (time === "24h") {
-        const fromTime = new Date();
-        fromTime.setHours(fromTime.getHours() - 24);
-        whereClause += " AND n.created_at >= ?";
-        queryParams.push(fromTime);
+        whereClause += " AND n.created_at >= NOW() - INTERVAL '24 hours'";
       } else {
         whereClause += " AND DATE(n.created_at) = ?";
         queryParams.push(date);

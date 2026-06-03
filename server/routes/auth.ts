@@ -53,9 +53,13 @@ const sendWelcomeEmail = async (toEmail: string, userName: string, companyName: 
 };
 
 router.post("/register", async (req, res) => {
-  const { nome, email, senha, empresa } = req.body;
+  const { nome, email, senha, empresa, companyName, password, name, whatsapp, plano_id } = req.body;
   
-  if (!nome || !email || !senha || !empresa) {
+  const finalNome = nome || name;
+  const finalSenha = senha || password;
+  const finalEmpresa = empresa || companyName;
+
+  if (!finalNome || !email || !finalSenha || !finalEmpresa) {
     return res.status(400).json({ error: "Todos os campos são obrigatórios." });
   }
 
@@ -67,22 +71,36 @@ router.post("/register", async (req, res) => {
 
     const tenant_id = `t_${Date.now()}`;
     const salt = bcrypt.genSaltSync(10);
-    const hashedPassword = bcrypt.hashSync(senha, salt);
+    const hashedPassword = bcrypt.hashSync(finalSenha, salt);
     
-    const [allPlans] = await pool.query("SELECT id, modulos, trial_days FROM planos WHERE is_trial = 1 ORDER BY id ASC LIMIT 1") as any[];
-    const defaultPlan = allPlans[0] || { id: 1, trial_days: 7 };
+    // Determine the plan
+    let planId = 1;
+    let trialDays = 7;
+    if (plano_id) {
+       const [chosenPlans] = await pool.query("SELECT id, trial_days FROM planos WHERE id = ?", [plano_id]) as any[];
+       if (chosenPlans.length > 0) {
+         planId = chosenPlans[0].id;
+         trialDays = chosenPlans[0].trial_days || 7;
+       }
+    } else {
+       const [allPlans] = await pool.query("SELECT id, trial_days FROM planos WHERE is_trial = 1 ORDER BY id ASC LIMIT 1") as any[];
+       if (allPlans.length > 0) {
+         planId = allPlans[0].id;
+         trialDays = allPlans[0].trial_days || 7;
+       }
+    }
     
     const vencimento = new Date();
-    vencimento.setDate(vencimento.getDate() + (defaultPlan.trial_days || 7));
+    vencimento.setDate(vencimento.getDate() + trialDays);
 
     await pool.query(
-      "INSERT INTO empresas (tenant_id, nome_fantasia, razao_social, email, status_assinatura, plano_id, vencimento_assinatura) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [tenant_id, empresa, empresa, email, 'ativo', defaultPlan.id, vencimento]
+      "INSERT INTO empresas (tenant_id, nome_fantasia, razao_social, email, whatsapp, status_assinatura, plano_id, vencimento_assinatura) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [tenant_id, finalEmpresa, finalEmpresa, email, whatsapp || null, 'ativo', planId, vencimento]
     );
 
     const [userResult] = await pool.query(
       "INSERT INTO usuarios (tenant_id, nome, email, senha, perfil) VALUES (?, ?, ?, ?, ?)",
-      [tenant_id, nome, email, hashedPassword, 'admin']
+      [tenant_id, finalNome, email, hashedPassword, 'admin']
     ) as any[];
 
     // Seed master group for NEW company
@@ -102,9 +120,62 @@ router.post("/register", async (req, res) => {
     
     await pool.query("UPDATE usuarios SET grupo_id = ? WHERE id = ?", [groupRes.insertId, userResult.insertId]);
 
-    await sendWelcomeEmail(email, nome, empresa);
+    await sendWelcomeEmail(email, finalNome, finalEmpresa);
 
-    res.status(201).json({ message: "Registro realizado com sucesso!" });
+    const userObj = {
+      id: userResult.insertId,
+      tenant_id,
+      nome: finalNome,
+      email,
+      perfil: 'admin',
+      grupo_id: groupRes.insertId,
+      telefone: whatsapp || null
+    };
+
+    const permissoesObj = JSON.parse(masterPermissoes);
+    
+    // Check if the plan we used has 'modulos'
+    let modulos: string[] = [];
+    if (plano_id) {
+       const [chosenPlans] = await pool.query("SELECT modulos FROM planos WHERE id = ?", [planId]) as any[];
+       if (chosenPlans.length > 0 && chosenPlans[0].modulos) {
+         modulos = typeof chosenPlans[0].modulos === 'string' ? JSON.parse(chosenPlans[0].modulos) : chosenPlans[0].modulos;
+       }
+    } else {
+       const [allPlans] = await pool.query("SELECT modulos FROM planos WHERE id = ?", [planId]) as any[];
+       if (allPlans.length > 0 && allPlans[0].modulos) {
+         modulos = typeof allPlans[0].modulos === 'string' ? JSON.parse(allPlans[0].modulos) : allPlans[0].modulos;
+       }
+    }
+
+    const token = jwt.sign(
+      { 
+        id: userObj.id, 
+        tenant_id, 
+        perfil: userObj.perfil, 
+        nome: userObj.nome, 
+        status_assinatura: 'ativo', 
+        vencimento_assinatura: vencimento, 
+        plano_id: planId, 
+        modulos, 
+        permissoes: permissoesObj 
+      },
+      JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.status(201).json({ 
+      message: "Registro realizado com sucesso!",
+      token,
+      user: { 
+        ...userObj, 
+        status_assinatura: 'ativo', 
+        vencimento_assinatura: vencimento, 
+        plano_id: planId, 
+        modulos, 
+        permissoes: permissoesObj 
+      }
+    });
   } catch (err: any) {
     console.error("Registration error:", err);
     res.status(500).json({ error: "Erro ao realizar registro: " + err.message });

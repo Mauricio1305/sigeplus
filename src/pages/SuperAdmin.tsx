@@ -64,6 +64,9 @@ export const SuperAdmin = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [planFilter, setPlanFilter] = useState('all');
 
+  const [cronDate, setCronDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [cronTimeFilter, setCronTimeFilter] = useState("1h");
+
   const token = useAuthStore(state => state.token);
 
   const formatVencimento = (dateString: any) => {
@@ -90,13 +93,13 @@ export const SuperAdmin = () => {
       .then(setCompanies);
     fetch('/api/plans').then(res => res.json()).then(setPlans);
     if (activeTab === 'logs') {
-      fetch('/api/admin/cron/logs', { headers: { 'Authorization': `Bearer ${token}` } })
+      fetch(`/api/admin/cron/logs?date=${cronDate}&time=${cronTimeFilter}`, { headers: { 'Authorization': `Bearer ${token}` } })
         .then(res => res.json())
         .then(setCronLogs);
     }
   };
 
-  useEffect(fetchData, [token, activeTab]);
+  useEffect(fetchData, [token, activeTab, cronDate, cronTimeFilter]);
 
   const handleVerifyStripeStatus = async () => {
     if (!editingCompany?.id) return;
@@ -399,17 +402,35 @@ export const SuperAdmin = () => {
         </div>
       ) : activeTab === 'logs' ? (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
               <Terminal className="w-6 h-6 text-indigo-600" />
               Logs de Execução (Cron)
             </h2>
-            <button 
-              onClick={fetchData}
-              className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center gap-2"
-            >
-              <Activity className="w-4 h-4" /> Atualizar
-            </button>
+            
+            <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto items-center">
+              <input
+                type="date"
+                value={cronDate}
+                onChange={(e) => setCronDate(e.target.value)}
+                className="w-full sm:w-auto px-3 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <select
+                value={cronTimeFilter}
+                onChange={(e) => setCronTimeFilter(e.target.value)}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl border border-slate-200 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+              >
+                <option value="1h">Última 1 hora</option>
+                <option value="24h">Últimas 24 horas</option>
+                <option value="all">Todo o Período</option>
+              </select>
+              <button 
+                onClick={fetchData}
+                className="w-full sm:w-auto px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center justify-center gap-2"
+              >
+                <Activity className="w-4 h-4" /> Atualizar
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
