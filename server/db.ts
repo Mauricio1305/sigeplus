@@ -6,7 +6,7 @@ dotenv.config();
 // Fix for timestamp timezone issues: return raw strings from PG
 pg.types.setTypeParser(1114, (stringValue) => stringValue);
 
-const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME'];
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME', 'DB_PORT'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
