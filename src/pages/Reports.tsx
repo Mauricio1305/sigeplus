@@ -164,7 +164,8 @@ export const Reports = () => {
     if (type === "sales") {
       filteredData = data.filter((s) => {
         if (!s.data_venda) return false;
-        if (s.tipo !== "venda" && s.tipo !== "mesa") return false;
+        // Permite Venda, Mesa (Comanda) e OS
+        if (s.tipo !== "venda" && s.tipo !== "mesa" && s.tipo !== "os") return false;
         const dateStr = s.data_venda.includes("T")
           ? s.data_venda
           : s.data_venda.replace(" ", "T");
@@ -174,8 +175,19 @@ export const Reports = () => {
         const matchesDate = saleDate >= startDate && saleDate <= endDate;
         const matchesStatus =
           statusFilter === "todos" || s.status === statusFilter;
+        
+        // Normalização da origem para comparação robusta
+        const normalizeOrigem = (o: string | null, tipo: string) => {
+            if (tipo === 'os') return "OS";
+            if (!o) return "Balcão";
+            const upper = o.toUpperCase();
+            if (upper === "BALCAO" || upper === "BALCÃO") return "Balcão";
+            if (upper === "MESA" || upper === "COMANDA") return "Mesa";
+            return o;
+        };
+
         const matchesOrigem =
-          origemFilter === "Todas" || s.origem === origemFilter;
+          origemFilter === "Todas" || normalizeOrigem(s.origem, s.tipo) === origemFilter;
         const matchesPerson =
           personFilter === "todos" || s.pessoa_id?.toString() === personFilter;
         return matchesDate && matchesStatus && matchesOrigem && matchesPerson;
@@ -1053,6 +1065,7 @@ export const Reports = () => {
                   <option value="Mesa">Mesa</option>
                   <option value="PDV">PDV</option>
                   <option value="OS">OS</option>
+                  <option value="Agenda">Agenda</option>
                 </select>
               </div>
             </>

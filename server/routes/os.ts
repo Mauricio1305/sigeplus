@@ -48,7 +48,7 @@ router.post("/", authMiddleware, planMiddleware('os'), async (req: any, res) => 
     for (const item of items) {
       await connection.query(
         "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        [tenant_id, os_id, item.id, item.quantidade, item.preco_venda, item.subtotal]
+        [tenant_id, os_id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal]
       );
     }
 
@@ -165,8 +165,24 @@ router.get("/:id", authMiddleware, async (req: any, res) => {
         p.endereco as cliente_endereco
       FROM vendas v 
       LEFT JOIN pessoas p ON v.pessoa_id = p.id 
-      WHERE (v.sequencial_id = ? OR v.id = ?) AND v.tenant_id = ? AND v.tipo = 'os'
-    `, [id, id, tenant_id]) as any[];
+      WHERE v.id = ? AND v.tenant_id = ? AND v.tipo = 'os'
+    `, [id, tenant_id]) as any[];
+
+    if (results.length === 0) {
+      [results] = await pool.query(`
+        SELECT 
+          v.*, 
+          p.nome as cliente_nome,
+          p.razao_social as cliente_razao_social,
+          p.cpf_cnpj as cliente_cpf_cnpj,
+          p.telefone as cliente_telefone,
+          p.email as cliente_email,
+          p.endereco as cliente_endereco
+        FROM vendas v 
+        LEFT JOIN pessoas p ON v.pessoa_id = p.id 
+        WHERE v.sequencial_id = ? AND v.tenant_id = ? AND v.tipo = 'os'
+      `, [id, tenant_id]) as any[];
+    }
 
     const os = results[0];
     if (!os) return res.status(404).json({ error: "OS não encontrada" });
@@ -190,7 +206,7 @@ router.get("/:id", authMiddleware, async (req: any, res) => {
         id: i.produto_id,
         nome: i.nome,
         quantidade: i.quantidade,
-        preco_venda: i.preco_unitario,
+        preco_unitario: i.preco_unitario,
         subtotal: i.subtotal
       })), 
       pagamentos 
@@ -211,9 +227,9 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
   try {
     await connection.beginTransaction();
 
-    let [existingOsRows] = await connection.query("SELECT * FROM vendas WHERE sequencial_id = ? AND tenant_id = ? AND tipo = 'os'", [id, tenant_id]) as any[];
+    let [existingOsRows] = await connection.query("SELECT * FROM vendas WHERE id = ? AND tenant_id = ? AND tipo = 'os'", [id, tenant_id]) as any[];
     if (existingOsRows.length === 0) {
-      [existingOsRows] = await connection.query("SELECT * FROM vendas WHERE id = ? AND tenant_id = ? AND tipo = 'os'", [id, tenant_id]) as any[];
+      [existingOsRows] = await connection.query("SELECT * FROM vendas WHERE sequencial_id = ? AND tenant_id = ? AND tipo = 'os'", [id, tenant_id]) as any[];
     }
     
     const existingOs = existingOsRows[0];
@@ -229,7 +245,7 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
     for (const item of items) {
       await connection.query(
         "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        [tenant_id, existingOs.id, item.id, item.quantidade, item.preco_venda, item.subtotal]
+        [tenant_id, existingOs.id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal]
       );
     }
 

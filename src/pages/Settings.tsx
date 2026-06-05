@@ -11,7 +11,7 @@ export const Settings = () => {
   const token = useAuthStore(state => state.token);
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'users' | 'inventory' | 'integrations'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'finance' | 'users' | 'inventory' | 'integrations' | 'vendas'>('general');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -41,7 +41,8 @@ export const Settings = () => {
     email_from: '',
     email_msg_agendamento: '',
     whatsapp_automatico: false,
-    email_automatico: false
+    email_automatico: false,
+    max_desconto_venda: 0
   });
 
   const [paymentTypes, setPaymentTypes] = useState<any[]>([]);
@@ -472,6 +473,12 @@ export const Settings = () => {
             Usuários
           </button>
           <button 
+            onClick={() => setActiveTab('vendas')} 
+            className={`whitespace-nowrap px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'vendas' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Vendas
+          </button>
+          <button 
             onClick={() => setActiveTab('integrations')} 
             className={`whitespace-nowrap px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'integrations' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
           >
@@ -726,6 +733,56 @@ export const Settings = () => {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'vendas' && (
+        <div className="max-w-4xl space-y-6">
+          <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <SettingsIcon className="w-5 h-5 text-indigo-600" />
+              Parâmetros de Venda
+            </h3>
+            <form onSubmit={handleSaveCompany} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <FormField 
+                    label="% Desconto Máximo" 
+                    helpText="Percentual máximo permitido para conceder desconto no checkout (0 a 100)"
+                  >
+                    <div className="relative">
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100"
+                        step="0.01"
+                        className="w-full pl-4 pr-12 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                        value={company.max_desconto_venda}
+                        onChange={e => {
+                           let val = parseFloat(e.target.value);
+                           if (isNaN(val)) val = 0;
+                           if (val < 0) val = 0;
+                           if (val > 100) val = 100;
+                           setCompany({...company, max_desconto_venda: val});
+                        }}
+                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</div>
+                    </div>
+                  </FormField>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
+                >
+                  {loading ? 'Salvando...' : 'Salvar Alterações'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -31,7 +31,7 @@ router.post("/", authMiddleware, planMiddleware('pdv'), async (req: any, res) =>
     for (const item of items) {
       await connection.query(
         "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        [tenant_id, venda_id, item.id, item.quantidade, item.preco_venda, item.subtotal]
+        [tenant_id, venda_id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal]
       );
     }
 

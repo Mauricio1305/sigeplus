@@ -391,6 +391,7 @@ async function initDB() {
           if (!columns.includes('cep')) await pool.query("ALTER TABLE empresas ADD COLUMN cep VARCHAR(20)");
           if (!columns.includes('cidade')) await pool.query("ALTER TABLE empresas ADD COLUMN cidade VARCHAR(255)");
           if (!columns.includes('estado')) await pool.query("ALTER TABLE empresas ADD COLUMN estado VARCHAR(2)");
+          if (!columns.includes('max_desconto_venda')) await pool.query("ALTER TABLE empresas ADD COLUMN max_desconto_venda DECIMAL(5, 2) DEFAULT 0");
           if (!columns.includes('stripe_customer_id')) await pool.query("ALTER TABLE empresas ADD COLUMN stripe_customer_id VARCHAR(255)");
           if (!columns.includes('stripe_subscription_id')) await pool.query("ALTER TABLE empresas ADD COLUMN stripe_subscription_id VARCHAR(255)");
           if (!columns.includes('stripe_price_id')) await pool.query("ALTER TABLE empresas ADD COLUMN stripe_price_id VARCHAR(255)");

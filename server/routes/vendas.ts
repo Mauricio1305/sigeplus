@@ -14,7 +14,7 @@ router.get("/", authMiddleware, planMiddleware('vendas'), async (req: any, res) 
         (SELECT COALESCE(SUM(quantidade), 0) FROM vendas_itens WHERE venda_id = v.id) as qtd_itens
       FROM vendas v 
       LEFT JOIN pessoas p ON v.pessoa_id = p.id 
-      WHERE v.tenant_id = ? AND v.tipo IN ('venda', 'mesa')
+      WHERE v.tenant_id = ? AND v.tipo IN ('venda', 'mesa', 'os')
       ORDER BY v.created_at DESC
     `, [req.user.tenant_id]) as any[];
     console.log(`Fetched ${(sales as any[]).length} sales for tenant ${req.user.tenant_id}`);
@@ -54,7 +54,7 @@ router.post("/", authMiddleware, planMiddleware('vendas'), async (req: any, res)
     for (const item of items) {
       await connection.query(
         "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        [tenant_id, venda_id, item.id, item.quantidade, item.preco_venda, item.subtotal]
+        [tenant_id, venda_id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal]
       );
     }
 
@@ -194,7 +194,7 @@ router.get("/:id", authMiddleware, async (req: any, res) => {
         p.uf as cliente_uf
       FROM vendas v 
       LEFT JOIN pessoas p ON v.pessoa_id = p.id 
-      WHERE v.sequencial_id = ? AND v.tenant_id = ? AND v.tipo IN ('venda', 'mesa')
+      WHERE v.id = ? AND v.tenant_id = ? AND v.tipo IN ('venda', 'mesa')
     `, [id, tenant_id]) as any[];
 
     if (sales.length === 0) {
@@ -216,7 +216,7 @@ router.get("/:id", authMiddleware, async (req: any, res) => {
           p.uf as cliente_uf
         FROM vendas v 
         LEFT JOIN pessoas p ON v.pessoa_id = p.id 
-        WHERE v.id = ? AND v.tenant_id = ? AND v.tipo IN ('venda', 'mesa')
+        WHERE v.sequencial_id = ? AND v.tenant_id = ? AND v.tipo IN ('venda', 'mesa')
       `, [id, tenant_id]) as any[];
     }
     
@@ -242,7 +242,7 @@ router.get("/:id", authMiddleware, async (req: any, res) => {
         id: i.produto_id,
         nome: i.nome,
         quantidade: i.quantidade,
-        preco_venda: i.preco_unitario,
+        preco_unitario: i.preco_unitario,
         subtotal: i.subtotal
       })), 
       pagamentos 
@@ -265,10 +265,10 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
   try {
     await connection.beginTransaction();
 
-    let [existingSales] = await connection.query("SELECT * FROM vendas WHERE sequencial_id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    let [existingSales] = await connection.query("SELECT * FROM vendas WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
     if (existingSales.length === 0) {
       // Fallback to internal ID if sequencial not found (helps with old records or frontend mismatches)
-      [existingSales] = await connection.query("SELECT * FROM vendas WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+      [existingSales] = await connection.query("SELECT * FROM vendas WHERE sequencial_id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
     }
     
     const existingSale = existingSales[0];
@@ -288,7 +288,7 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
     for (const item of items) {
       await connection.query(
         "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        [tenant_id, existingSale.id, item.id, item.quantidade, item.preco_venda, item.subtotal]
+        [tenant_id, existingSale.id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal]
       );
     }
 

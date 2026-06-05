@@ -87,14 +87,26 @@ export const ReportPrint = () => {
   if (type === 'sales') {
     filteredData = data.filter(s => {
       if (!s.data_venda) return false;
-      if (s.tipo !== 'venda' && s.tipo !== 'mesa') return false;
+      // Permite Venda, Mesa (Comanda) e OS
+      if (s.tipo !== 'venda' && s.tipo !== 'mesa' && s.tipo !== 'os') return false;
       const dateStr = s.data_venda.includes('T') ? s.data_venda : s.data_venda.replace(' ', 'T');
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return false;
       const saleDate = d.toISOString().split('T')[0];
       const matchesDate = saleDate >= startDate && saleDate <= endDate;
       const matchesStatus = statusFilter === 'todos' || s.status === statusFilter;
-      const matchesOrigem = origemFilter === 'Todas' || s.origem === origemFilter;
+      
+      // Normalização da origem similar ao Reports.tsx
+      const normalizeOrigem = (o: string | null, tipo: string) => {
+          if (tipo === 'os') return "OS";
+          if (!o) return "Balcão";
+          const upper = o.toUpperCase();
+          if (upper === "BALCAO" || upper === "BALCÃO") return "Balcão";
+          if (upper === "MESA" || upper === "COMANDA") return "Mesa";
+          return o;
+      };
+
+      const matchesOrigem = origemFilter === 'Todas' || normalizeOrigem(s.origem, s.tipo) === origemFilter;
       const matchesPerson = personFilter === 'todos' || s.pessoa_id?.toString() === personFilter;
       return matchesDate && matchesStatus && matchesOrigem && matchesPerson;
     });

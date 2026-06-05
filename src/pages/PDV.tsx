@@ -90,6 +90,7 @@ export default function PDV() {
   }, [searchTerm, produtos]);
 
   const addToCart = (produto: any) => {
+    setDiscount(0); // Reset discount on item change
     const preco = parseFloat(produto.preco_venda || 0);
     setCart(prev => {
       const existing = prev.find(item => item.id === produto.id);
@@ -103,7 +104,7 @@ export default function PDV() {
       return [...prev, { 
         id: produto.id, 
         nome: produto.nome, 
-        preco_venda: preco, 
+        preco_unitario: preco, 
         quantidade: 1, 
         subtotal: preco 
       }];
@@ -111,6 +112,7 @@ export default function PDV() {
   };
 
   const updateQuantity = (id: number, delta: number) => {
+    setDiscount(0); // Reset discount on item change
     setCart(prev => prev.map(item => {
       if (item.id === id) {
         const newQ = Math.max(1, item.quantidade + delta);
@@ -122,11 +124,12 @@ export default function PDV() {
   };
 
   const removeFromCart = (id: number) => {
+    setDiscount(0); // Reset discount on item change
     setCart(prev => prev.filter(item => item.id !== id));
   };
 
-  const cartTotal = cart.reduce((sum, item) => sum + parseFloat(item.subtotal || 0), 0);
-  const finalTotal = Math.max(0, cartTotal - parseFloat(discount as any || 0));
+  const cartTotal = cart.reduce((sum, item) => sum + (parseFloat(item.subtotal) || 0), 0);
+  const finalTotal = Math.max(0, cartTotal - (parseFloat(discount as any) || 0));
 
   const handleAddPayment = () => {
     if (!currentPayment.tipo_pagamento_id || currentPayment.valor <= 0) return;
@@ -532,7 +535,7 @@ export default function PDV() {
             <div key={item.id} className="bg-white border text-sm border-slate-200 rounded-lg p-3 flex gap-3 shadow-sm relative group">
               <div className="flex-1">
                 <h4 className="font-bold text-slate-800 leading-tight mb-1 pr-6">{item.nome}</h4>
-                <div className="font-medium text-slate-500">R$ {formatMoney(item.preco_venda)} un.</div>
+                <div className="font-medium text-slate-500">R$ {formatMoney(item.preco_unitario)} un.</div>
               </div>
               <div className="flex flex-col items-end justify-between">
                 <div className="font-black text-slate-900 mb-2">R$ {formatMoney(item.subtotal)}</div>
@@ -593,23 +596,30 @@ export default function PDV() {
               <span>R$ {formatMoney(cartTotal)}</span>
             </div>
             
-                  <div className="flex justify-between items-center text-sm font-medium">
-              <span className="text-slate-500">Desconto</span>
-              <div className="relative w-28">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">R$</span>
-                <input 
-                  type="number" 
-                  min="0"
-                  step="0.01"
-                  value={discount === 0 ? '' : discount}
-                  onChange={e => {
-                    const val = parseFloat(e.target.value);
-                    setDiscount(isNaN(val) ? 0 : val);
-                  }}
-                  className="w-full pl-8 pr-3 py-1.5 text-right bg-white border border-slate-200 rounded-lg text-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-mono"
-                  placeholder="0,00"
-                />
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-sm font-medium">
+                <span className="text-slate-500">Desconto</span>
+                <div className="relative w-28">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">R$</span>
+                  <input 
+                    type="number" 
+                    min="0"
+                    step="0.01"
+                    value={discount}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value);
+                      setDiscount(isNaN(val) ? 0 : val);
+                    }}
+                    className={`w-full pl-8 pr-3 py-1.5 text-right bg-white border ${(cartTotal > 0 && (discount / cartTotal) * 100 > (parseFloat(company?.max_desconto_venda) || 0) + 0.001) ? 'border-rose-500 ring-2 ring-rose-100' : 'border-slate-200'} rounded-lg text-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-mono`}
+                    placeholder="0,00"
+                  />
+                </div>
               </div>
+              {(cartTotal > 0 && (discount / cartTotal) * 100 > (parseFloat(company?.max_desconto_venda) || 0) + 0.001) && (
+                <p className="text-[10px] text-rose-500 font-bold text-right leading-none mt-1">
+                  Máximo {parseFloat(company?.max_desconto_venda) || 0}% ({(cartTotal * (parseFloat(company?.max_desconto_venda) || 0) / 100).toLocaleString('pt-br', {style: 'currency', currency: 'BRL'})})
+                </p>
+              )}
             </div>
           </div>
           
@@ -620,7 +630,16 @@ export default function PDV() {
 
           <button 
             disabled={cart.length === 0}
-            onClick={() => setIsFinishing(true)}
+            onClick={() => {
+              const maxDiscountPercent = parseFloat(company?.max_desconto_venda) || 0;
+              const currentDiscountPercent = cartTotal > 0 ? (discount / cartTotal) * 100 : 0;
+              
+              if (currentDiscountPercent > maxDiscountPercent + 0.001) { // 0.001 tolerance for floats
+                alert(`O desconto máximo permitido é de ${maxDiscountPercent}%. O desconto atual é de ${currentDiscountPercent.toFixed(2)}%.`);
+                return;
+              }
+              setIsFinishing(true);
+            }}
             className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-emerald-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
           >
             <CheckCircle className="w-6 h-6" />

@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS empresas (
     plano_id INTEGER,
     status_assinatura VARCHAR(50) DEFAULT 'ativo', -- ativo, suspenso, cancelado
     vencimento_assinatura TIMESTAMP,
+    max_desconto_venda DECIMAL(5, 2) DEFAULT 0,
     whatsapp_api_url VARCHAR(255),
     whatsapp_api_key VARCHAR(255),
     whatsapp_instance VARCHAR(100),

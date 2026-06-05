@@ -264,18 +264,19 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
     const newItem = {
       id: product.id,
       nome: product.nome,
-      preco_venda: product.preco_venda,
+      preco_unitario: product.preco_venda,
       quantidade: quantity,
-      subtotal: product.preco_venda * quantity
+      subtotal: (parseFloat(product.preco_venda) || 0) * quantity
     };
 
     const updatedItems = [...newSale.items, newItem];
-    const total = updatedItems.reduce((acc, item) => acc + item.subtotal, 0);
+    const total = updatedItems.reduce((acc, item) => acc + (parseFloat(item.subtotal) || 0), 0);
 
     setNewSale({
       ...newSale,
       items: updatedItems,
-      valor_total: total + (newSale.frete || 0) - (newSale.desconto || 0)
+      desconto: 0, // Reset discount on item change
+      valor_total: total + (parseFloat(newSale.frete) || 0)
     });
     setSelectedProduct('');
     setProductSearchTerm('');
@@ -337,17 +338,18 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
 
   const handleRemoveItem = (index: number) => {
     const updatedItems = newSale.items.filter((_: any, i: number) => i !== index);
-    const total = updatedItems.reduce((acc: number, item: any) => acc + item.subtotal, 0);
+    const total = updatedItems.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0);
     setNewSale({
       ...newSale,
       items: updatedItems,
-      valor_total: total + (newSale.frete || 0) - (newSale.desconto || 0)
+      desconto: 0, // Reset discount on item change
+      valor_total: total + (parseFloat(newSale.frete) || 0)
     });
   };
 
   const calculateTotal = (frete: number, desconto: number) => {
-    const itemsTotal = newSale.items.reduce((acc: number, item: any) => acc + item.subtotal, 0);
-    return itemsTotal + (frete || 0) - (desconto || 0);
+    const itemsTotal = newSale.items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0);
+    return itemsTotal + (parseFloat(frete as any) || 0) - (parseFloat(desconto as any) || 0);
   };
 
   const handleEdit = async (id: number) => {
@@ -386,10 +388,20 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
       return;
     }
 
+    // Discount validation
+    const maxDiscountPercent = parseFloat(company?.max_desconto_venda) || 0;
+    const itemsTotal = newSale.items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0);
+    const currentDiscountPercent = itemsTotal > 0 ? ((parseFloat(newSale.desconto) || 0) / itemsTotal) * 100 : 0;
+
+    if (currentDiscountPercent > maxDiscountPercent + 0.001) {
+      alert(`O desconto máximo permitido é de ${maxDiscountPercent}%. O desconto atual é de ${currentDiscountPercent.toFixed(2)}%.`);
+      return;
+    }
+
     setIsSaving(true);
     try {
-      const url = newSale.sequencial_id ? `${baseApi}/${newSale.sequencial_id}` : baseApi;
-      const method = newSale.sequencial_id ? 'PUT' : 'POST';
+      const url = newSale.id ? `${baseApi}/${newSale.id}` : baseApi;
+      const method = newSale.id ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
@@ -623,7 +635,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                                     className={`absolute right-0 ${isNearBottom ? 'bottom-full mb-2' : 'mt-2'} w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-50 py-1`}
                                   >
                                     <button onClick={() => { setPrintModalSale(s); setOpenActionMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Printer className="w-4 h-4" /> Imprimir</button>
-                                    {s.status === 'orcamento' && <button onClick={() => { handleEdit(s.sequencial_id); setOpenActionMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 flex items-center gap-2"><Edit2 className="w-4 h-4" /> Editar</button>}
+                                    {s.status === 'orcamento' && <button onClick={() => { handleEdit(s.id); setOpenActionMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 flex items-center gap-2"><Edit2 className="w-4 h-4" /> Editar</button>}
                                     {['aberta', 'orcamento', 'finalizada'].includes(s.status) && <button onClick={() => { setConfirmCancelId(s.id); setOpenActionMenuId(null); }} className="w-full text-left px-4 py-2 text-sm text-rose-600 hover:bg-rose-100 flex items-center gap-2 font-bold"><Ban className="w-4 h-4" /> Cancelar {mode === 'os' ? 'OS' : 'Pedido'}</button>}
                                   </motion.div>
                                 </>
@@ -651,19 +663,19 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
             <p className="text-slate-500 mb-6 text-sm">Escolha como deseja emitir o recibo para <br/><strong>Pedido #${printModalSale.sequencial_id}</strong></p>
             <div className="grid grid-cols-1 gap-3">
               <button 
-                onClick={() => { window.open('/print/venda/' + (printModalSale.sequencial_id || printModalSale.id) + '?t=' + token, '_blank') }}
+                onClick={() => { window.open('/print/venda/' + (printModalSale.id || printModalSale.sequencial_id) + '?t=' + token, '_blank') }}
                 className="w-full py-3.5 bg-indigo-600 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-indigo-700 transition-all shadow-md"
               >
                 <FileText className="w-5 h-5" /> Imprimir Pedido de Venda
               </button>
               <button 
-                onClick={() => handlePrintSale(printModalSale.sequencial_id || printModalSale.id, 'print')}
+                onClick={() => handlePrintSale(printModalSale.id || printModalSale.sequencial_id, 'print')}
                 className="w-full py-3.5 bg-slate-800 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-slate-900 transition-all shadow-md"
               >
                 <Printer className="w-5 h-5" /> Imprimir Recibo Não Fiscal
               </button>
               <button 
-                onClick={() => handlePrintSale(printModalSale.sequencial_id || printModalSale.id, 'whatsapp')}
+                onClick={() => handlePrintSale(printModalSale.id || printModalSale.sequencial_id, 'whatsapp')}
                 className="w-full py-3.5 bg-emerald-500 text-white rounded-2xl font-bold flex items-center justify-center gap-3 hover:bg-emerald-600 transition-all shadow-md"
               >
                 <MessageCircle className="w-5 h-5" /> Enviar via WhatsApp
@@ -847,6 +859,53 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                             </div>
                           ))}
                         </div>
+                        <div className="space-y-4 mt-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                          <div className="flex justify-between items-center text-sm font-medium">
+                            <span className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Frete</span>
+                            <div className="relative w-32">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">R$</span>
+                              <input 
+                                type="number" 
+                                min="0"
+                                step="0.01"
+                                className="w-full pl-8 pr-3 py-2 text-right bg-white border border-slate-200 rounded-lg text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold"
+                                value={newSale.frete || ''}
+                                onChange={e => {
+                                  const fr = parseFloat(e.target.value) || 0;
+                                  const itemsTotal = newSale.items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0);
+                                  setNewSale({...newSale, frete: fr, valor_total: itemsTotal + fr - (parseFloat(newSale.desconto) || 0)});
+                                }}
+                                placeholder="0,00"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <div className="flex justify-between items-center text-sm font-medium">
+                              <span className="text-slate-500 font-bold uppercase tracking-widest text-[10px]">Desconto</span>
+                              <div className="relative w-32">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">R$</span>
+                                <input 
+                                  type="number" 
+                                  min="0"
+                                  step="0.01"
+                                  className={`w-full pl-8 pr-3 py-2 text-right bg-white border ${((newSale.items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0) > 0 ? (parseFloat(newSale.desconto) || 0) / newSale.items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0) * 100 : 0) > (parseFloat(company?.max_desconto_venda) || 0) + 0.001) ? 'border-rose-500 ring-2 ring-rose-100' : 'border-slate-200'} rounded-lg text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold`}
+                                  value={newSale.desconto || ''}
+                                  onChange={e => {
+                                    const desc = parseFloat(e.target.value) || 0;
+                                    const itemsTotal = newSale.items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0);
+                                    setNewSale({...newSale, desconto: desc, valor_total: itemsTotal + (parseFloat(newSale.frete) || 0) - desc});
+                                  }}
+                                  placeholder="0,00"
+                                />
+                              </div>
+                            </div>
+                            {((newSale.items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0) > 0 ? (parseFloat(newSale.desconto) || 0) / newSale.items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0) * 100 : 0) > (parseFloat(company?.max_desconto_venda) || 0) + 0.001) && (
+                              <p className="text-[10px] text-rose-500 font-bold text-right">O desconto máximo permitido é de {parseFloat(company?.max_desconto_venda) || 0}% ({(newSale.items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0) * (parseFloat(company?.max_desconto_venda) || 0) / 100).toLocaleString('pt-br', {style: 'currency', currency: 'BRL'})})</p>
+                            )}
+                          </div>
+                        </div>
+
                         <div className="flex justify-between items-center bg-indigo-600 p-6 rounded-2xl shadow-xl shadow-indigo-100 mt-6">
                           <span className="text-indigo-100 font-bold uppercase tracking-widest text-xs">Total do Pedido</span>
                           <span className="text-white text-3xl font-black">R$ {formatMoney(newSale.valor_total)}</span>

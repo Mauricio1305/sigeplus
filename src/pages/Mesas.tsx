@@ -110,6 +110,7 @@ export default function Mesas() {
 
   const addProductToMesa = async (produto: any) => {
     if (!selectedMesa || isAddingProduct) return;
+    setDiscount(0); // Reset discount on item change
 
     setIsAddingProduct(true);
     try {
@@ -118,13 +119,13 @@ export default function Mesas() {
       if (existingIndex >= 0) {
         const existing = { ...items[existingIndex] };
         existing.quantidade = parseFloat(existing.quantidade) + 1;
-        existing.subtotal = existing.quantidade * parseFloat(existing.preco_venda);
+        existing.subtotal = existing.quantidade * parseFloat(existing.preco_unitario || existing.preco_venda);
         items[existingIndex] = existing;
       } else {
         items.push({
           id: produto.id,
           nome: produto.nome,
-          preco_venda: parseFloat(produto.preco_venda) || 0,
+          preco_unitario: parseFloat(produto.preco_venda) || 0,
           quantidade: 1,
           subtotal: parseFloat(produto.preco_venda) || 0
         });
@@ -165,6 +166,7 @@ export default function Mesas() {
 
   const updateItemQty = async (id: number, delta: number) => {
     if (!selectedMesa) return;
+    setDiscount(0); // Reset discount on item change
     
     let items = [...(selectedMesa.items || [])];
     const existingIndex = items.findIndex((i: any) => i.id === id);
@@ -196,10 +198,10 @@ export default function Mesas() {
 
   const calculateTotals = () => {
     if (!selectedMesa) return { subtotal: 0, service: 0, discount: 0, total: 0 };
-    const subtotal = (selectedMesa.items || []).reduce((acc: number, i: any) => acc + parseFloat(i.subtotal || 0), 0);
-    const serviceRate = parseFloat(selectedMesa.taxa_servico || 0) / 100;
+    const subtotal = (selectedMesa.items || []).reduce((acc: number, i: any) => acc + (parseFloat(i.subtotal) || 0), 0);
+    const serviceRate = (parseFloat(selectedMesa.taxa_servico) || 0) / 100;
     const service = subtotal * serviceRate;
-    const total = subtotal + service - discount;
+    const total = subtotal + service - (parseFloat(discount as any) || 0);
     return { subtotal, service, discount, total: Math.max(0, total) };
   };
 
@@ -276,6 +278,16 @@ export default function Mesas() {
 
     const { total } = calculateTotals();
     const alreadyPaid = pagamentos.reduce((acc, p) => acc + p.valor, 0);
+
+    // Discount validation
+    const maxDiscountPercent = parseFloat(company?.max_desconto_venda) || 0;
+    const subtotal = (selectedMesa.items || []).reduce((acc: number, i: any) => acc + parseFloat(i.subtotal || 0), 0);
+    const currentDiscountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
+
+    if (currentDiscountPercent > maxDiscountPercent + 0.001) {
+      alert(`O desconto máximo permitido é de ${maxDiscountPercent}%. O desconto atual é de ${currentDiscountPercent.toFixed(2)}%.`);
+      return;
+    }
 
     if (Math.abs(alreadyPaid - total) > 0.01) {
       alert("O valor total dos pagamentos deve ser igual ao total da venda.");
@@ -620,7 +632,7 @@ export default function Mesas() {
                 <div key={item.id} className="bg-white border text-sm border-slate-200 rounded-xl p-3 flex gap-3 items-center shadow-sm relative">
                   <div className="flex-1">
                     <h4 className="font-bold text-slate-800 leading-tight mb-1">{item.nome}</h4>
-                    <div className="font-medium text-slate-500">R$ {formatMoney(item.preco_venda)}</div>
+                    <div className="font-medium text-slate-500">R$ {formatMoney(item.preco_unitario)}</div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <div className="font-black text-slate-900">R$ {formatMoney(item.subtotal)}</div>
@@ -832,17 +844,25 @@ export default function Mesas() {
 
              <div className="p-6 overflow-y-auto space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                  <div className="space-y-1">
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">Desconto R$</label>
                     <input 
                       type="number" 
                       min="0" 
                       step="0.01" 
-                      value={discount === 0 ? '' : discount} 
-                      onChange={e => setDiscount(parseFloat(e.target.value) || 0)} 
-                      className="w-full border border-slate-200 rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" 
+                      value={discount} 
+                      onChange={e => {
+                         const val = parseFloat(e.target.value);
+                         setDiscount(isNaN(val) ? 0 : val);
+                      }} 
+                      className={`w-full border ${((selectedMesa?.items || []).reduce((acc: number, i: any) => acc + (parseFloat(i.subtotal) || 0), 0) > 0 && (discount / (selectedMesa?.items || []).reduce((acc: number, i: any) => acc + (parseFloat(i.subtotal) || 0), 0)) * 100 > (parseFloat(company?.max_desconto_venda) || 0) + 0.001) ? 'border-rose-500 ring-2 ring-rose-100' : 'border-slate-200'} rounded-xl px-4 py-3 bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold`} 
                       placeholder="0,00" 
                     />
+                    {((selectedMesa?.items || []).reduce((acc: number, i: any) => acc + (parseFloat(i.subtotal) || 0), 0) > 0 && (discount / (selectedMesa?.items || []).reduce((acc: number, i: any) => acc + (parseFloat(i.subtotal) || 0), 0)) * 100 > (parseFloat(company?.max_desconto_venda) || 0) + 0.001) && (
+                      <p className="text-[10px] text-rose-500 font-bold px-1">
+                        Desconto máximo permitido: {parseFloat(company?.max_desconto_venda) || 0}% ({( (selectedMesa?.items || []).reduce((acc: number, i: any) => acc + (parseFloat(i.subtotal) || 0), 0) * (parseFloat(company?.max_desconto_venda) || 0) / 100).toLocaleString('pt-br', {style: 'currency', currency: 'BRL'})})
+                      </p>
+                    )}
                   </div>
                   <div className="flex flex-col justify-end text-right">
                     <p className="text-slate-500 font-medium text-xs uppercase tracking-wider mb-1">Total a Pagar</p>

@@ -48,5 +48,10 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Correcao listagem de pedidos de origem comandas
  - Melhoria PDV para nao listar produtos e exibir a logo da empresa.
  - Melhoria no Estoque: Implementada importação de produtos via XML (NFe) com validação de dados, sanitização de segurança, limite de 100 itens e notificações estilizadas.
+
+ ## [1.1.6] - 2026-06-05
+ - Implementaçao de novo parametro de desconto nas configuracoe do sistema na aba Vendas.
+ - Correçao no relatório de Vendas que nao estava trazendo corretamente as informacoes de vendas por origem.
+ - Implementado Regra em todas as telas de venda para validar corretamente o percentual de desconto do novo parametro.
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*
