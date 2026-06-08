@@ -57,8 +57,9 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
 
 ## [1.1.7] - 2026-06-08
  - Resolução de bloqueio de pop-up que impedia a visualização da impressão do Recibo Não Fiscal em produção e OS.
+ - Correção de erro na impressão da Ordem de Serviço (tela em branco) após deploy devido às rotas relativas dos arquivos do sistema.
  - Módulo de Etiquetas (Impressão de Etiquetas) adicionado como funcionalidade configurável nos Planos, garantindo restrição de abas e proteção na API.
- - Melhoria Lancamento de Contas a Pagar/Receber parcelada.
+ - Melhoria Lançamento de Contas a Pagar/Receber parcelada (revisão de arredondamento).
  
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*
