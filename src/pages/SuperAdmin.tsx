@@ -41,7 +41,8 @@ export const SuperAdmin = () => {
     { id: 'lembrete_whatsapp', label: 'Lembretes Automáticos WhatsApp' },
     { id: 'lembrete_email', label: 'Lembretes Automáticos E-mail' },
     { id: 'export_excel', label: 'Exportar Relatórios Excel' },
-    { id: 'import_produtos', label: 'Importar Produtos (Excel)' }
+    { id: 'import_produtos', label: 'Importar Produtos (Excel)' },
+    { id: 'etiquetas', label: 'Impressão de Etiquetas' }
   ];
 
   const handleModuleToggle = (moduleId: string, isEditing: boolean) => {

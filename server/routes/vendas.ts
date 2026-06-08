@@ -194,7 +194,7 @@ router.get("/:id", authMiddleware, async (req: any, res) => {
         p.uf as cliente_uf
       FROM vendas v 
       LEFT JOIN pessoas p ON v.pessoa_id = p.id 
-      WHERE v.id = ? AND v.tenant_id = ? AND v.tipo IN ('venda', 'mesa')
+      WHERE v.id = ? AND v.tenant_id = ? AND v.tipo IN ('venda', 'mesa', 'os')
     `, [id, tenant_id]) as any[];
 
     if (sales.length === 0) {
@@ -216,7 +216,7 @@ router.get("/:id", authMiddleware, async (req: any, res) => {
           p.uf as cliente_uf
         FROM vendas v 
         LEFT JOIN pessoas p ON v.pessoa_id = p.id 
-        WHERE v.sequencial_id = ? AND v.tenant_id = ? AND v.tipo IN ('venda', 'mesa')
+        WHERE v.sequencial_id = ? AND v.tenant_id = ? AND v.tipo IN ('venda', 'mesa', 'os')
       `, [id, tenant_id]) as any[];
     }
     

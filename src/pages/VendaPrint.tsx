@@ -162,7 +162,7 @@ export const VendaPrint = () => {
               <tr key={index}>
                 <td className="py-3 text-slate-700">{item.nome}</td>
                 <td className="py-3 text-slate-700 text-center">{item.quantidade}</td>
-                <td className="py-3 text-slate-700 text-right">R$ {formatMoney(item.preco_venda)}</td>
+                <td className="py-3 text-slate-700 text-right">R$ {formatMoney(item.preco_unitario || item.preco_venda)}</td>
                 <td className="py-3 text-slate-700 text-right font-medium">R$ {formatMoney(item.subtotal)}</td>
               </tr>
             ))}

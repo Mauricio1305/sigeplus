@@ -101,7 +101,7 @@ router.delete("/inventory/groups/:id", authMiddleware, async (req: any, res) => 
 
 // --- LABEL LAYOUTS ---
 
-router.get("/inventory/layouts", authMiddleware, async (req: any, res) => {
+router.get("/inventory/layouts", authMiddleware, planMiddleware('etiquetas'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const [layouts] = await pool.query("SELECT * FROM layouts_etiquetas WHERE tenant_id = ?", [tenant_id]);
@@ -111,7 +111,7 @@ router.get("/inventory/layouts", authMiddleware, async (req: any, res) => {
   }
 });
 
-router.post("/inventory/layouts", authMiddleware, async (req: any, res) => {
+router.post("/inventory/layouts", authMiddleware, planMiddleware('etiquetas'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const { nome, largura, altura, colunas, json_config } = req.body;
@@ -125,7 +125,7 @@ router.post("/inventory/layouts", authMiddleware, async (req: any, res) => {
   }
 });
 
-router.put("/inventory/layouts/:id", authMiddleware, async (req: any, res) => {
+router.put("/inventory/layouts/:id", authMiddleware, planMiddleware('etiquetas'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const { id } = req.params;
@@ -140,7 +140,7 @@ router.put("/inventory/layouts/:id", authMiddleware, async (req: any, res) => {
   }
 });
 
-router.delete("/inventory/layouts/:id", authMiddleware, async (req: any, res) => {
+router.delete("/inventory/layouts/:id", authMiddleware, planMiddleware('etiquetas'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const { id } = req.params;

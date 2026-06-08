@@ -29,6 +29,7 @@ export const Inventory = () => {
   const user = useAuthStore(state => state.user);
   const { modulos } = user || {};
   const canImport = user?.perfil === 'superadmin' || user?.modulos?.includes('import_produtos');
+  const canUseEtiquetas = user?.tenant_id === 'System' || user?.modulos?.includes('etiquetas');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadTemplate = async () => {
@@ -504,12 +505,14 @@ export const Inventory = () => {
             >
               Lista
             </button>
-            <button 
-              onClick={() => setActiveTab('etiquetas')} 
-              className={`flex-1 sm:flex-none px-3 md:px-4 py-2 rounded-lg font-bold text-xs md:text-sm transition-all ${activeTab === 'etiquetas' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
-            >
-              Etiquetas
-            </button>
+            {canUseEtiquetas && (
+              <button 
+                onClick={() => setActiveTab('etiquetas')} 
+                className={`flex-1 sm:flex-none px-3 md:px-4 py-2 rounded-lg font-bold text-xs md:text-sm transition-all ${activeTab === 'etiquetas' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                Etiquetas
+              </button>
+            )}
           </div>
           {canImport && (
             <div className="flex gap-2 w-full sm:w-auto">

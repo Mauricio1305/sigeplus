@@ -232,6 +232,7 @@ export default function PDV() {
       const finishedData = {
         ...salePayload,
         sequencial_id: saleResponse.sequencial_id,
+        id: saleResponse.id,
         paymentName: pagamentos.map(p => p.nome).join(', ')
       };
 
@@ -822,7 +823,7 @@ export default function PDV() {
 
               <div className="p-4 space-y-3 pt-0">
                 <button 
-                  onClick={() => { window.open('/print/venda/' + (finishedSaleData?.sequencial_id || finishedSaleData?.id) + '?t=' + token, '_blank') }}
+                  onClick={() => { window.open('/print/venda/' + (finishedSaleData?.id || finishedSaleData?.sequencial_id) + '?t=' + token, '_blank') }}
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-6 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-md"
                 >
                   <FileText className="w-5 h-5" /> Imprimir Pedido de Venda

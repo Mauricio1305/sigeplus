@@ -646,25 +646,92 @@ router.get("/cashier/:id/report", authMiddleware, async (req: any, res) => {
 
 // Finance - Registration Receivable
 router.post("/receivable", authMiddleware, async (req: any, res) => {
-  const { pessoa_id, categoria_id, vencimento, valor, descricao, local } = req.body;
+  const { pessoa_id, categoria_id, vencimento, valor, descricao, local, is_parcelado, tipo_calculo, quantidade_parcelas } = req.body;
   const pId = pessoa_id === '' ? null : pessoa_id;
   const cId = categoria_id === '' ? null : categoria_id;
-  await pool.query(
-    "INSERT INTO lancamentos (tenant_id, tipo, pessoa_id, categoria_id, vencimento, valor, descricao, local) VALUES (?, 'CR', ?, ?, ?, ?, ?, ?)",
-    [req.user.tenant_id, pId, cId, vencimento.slice(0, 19).replace('T', ' '), valor, descricao, local || 'Contas a Receber']
-  );
+  
+  if (is_parcelado && quantidade_parcelas && quantidade_parcelas > 1) {
+    const valorParcelaBase = tipo_calculo === 'valor_total' ? Math.floor((valor / quantidade_parcelas) * 100) / 100 : valor;
+    let somaParcelas = 0;
+    
+    // Set up base date preserving timezone somewhat (user input is YYYY-MM-DD or slice)
+    // To add month correctly, we parse it manually
+    const [year, month, day] = vencimento.split('T')[0].split('-').map(Number);
+    
+    for (let i = 0; i < quantidade_parcelas; i++) {
+      let m = month + i;
+      let y = year + Math.floor((m - 1) / 12);
+      m = ((m - 1) % 12) + 1;
+      
+      const currentMonthDays = new Date(y, m, 0).getDate();
+      const d = Math.min(day, currentMonthDays);
+      
+      const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} 00:00:00`;
+      const descParcela = descricao ? `${descricao} - Parcela ${i + 1}/${quantidade_parcelas}` : `Parcela ${i + 1}/${quantidade_parcelas}`;
+      
+      let valorDaParcela = valorParcelaBase;
+      if (tipo_calculo === 'valor_total' && i === quantidade_parcelas - 1) {
+        valorDaParcela = Number((valor - somaParcelas).toFixed(2));
+      }
+      somaParcelas += valorDaParcela;
+      
+      await pool.query(
+        "INSERT INTO lancamentos (tenant_id, tipo, pessoa_id, categoria_id, vencimento, valor, descricao, local) VALUES (?, 'CR', ?, ?, ?, ?, ?, ?)",
+        [req.user.tenant_id, pId, cId, dateStr, valorDaParcela, descParcela, local || 'Contas a Receber']
+      );
+    }
+  } else {
+    await pool.query(
+      "INSERT INTO lancamentos (tenant_id, tipo, pessoa_id, categoria_id, vencimento, valor, descricao, local) VALUES (?, 'CR', ?, ?, ?, ?, ?, ?)",
+      [req.user.tenant_id, pId, cId, vencimento.slice(0, 19).replace('T', ' '), valor, descricao, local || 'Contas a Receber']
+    );
+  }
+  
   res.json({ success: true });
 });
 
 // Finance - Registration Payable
 router.post("/payable", authMiddleware, async (req: any, res) => {
-  const { pessoa_id, categoria_id, vencimento, valor, descricao, local } = req.body;
+  const { pessoa_id, categoria_id, vencimento, valor, descricao, local, is_parcelado, tipo_calculo, quantidade_parcelas } = req.body;
   const pId = pessoa_id === '' ? null : pessoa_id;
   const cId = categoria_id === '' ? null : categoria_id;
-  await pool.query(
-    "INSERT INTO lancamentos (tenant_id, tipo, pessoa_id, categoria_id, vencimento, valor, descricao, local) VALUES (?, 'CP', ?, ?, ?, ?, ?, ?)",
-    [req.user.tenant_id, pId, cId, vencimento.slice(0, 19).replace('T', ' '), valor, descricao, local || 'Caixa']
-  );
+  
+  if (is_parcelado && quantidade_parcelas && quantidade_parcelas > 1) {
+    const valorParcelaBase = tipo_calculo === 'valor_total' ? Math.floor((valor / quantidade_parcelas) * 100) / 100 : valor;
+    let somaParcelas = 0;
+    
+    // Set up base date preserving timezone somewhat (user input is YYYY-MM-DD or slice)
+    // To add month correctly, we parse it manually
+    const [year, month, day] = vencimento.split('T')[0].split('-').map(Number);
+    
+    for (let i = 0; i < quantidade_parcelas; i++) {
+      let m = month + i;
+      let y = year + Math.floor((m - 1) / 12);
+      m = ((m - 1) % 12) + 1;
+      
+      const currentMonthDays = new Date(y, m, 0).getDate();
+      const d = Math.min(day, currentMonthDays);
+      
+      const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')} 00:00:00`;
+      const descParcela = descricao ? `${descricao} - Parcela ${i + 1}/${quantidade_parcelas}` : `Parcela ${i + 1}/${quantidade_parcelas}`;
+      
+      let valorDaParcela = valorParcelaBase;
+      if (tipo_calculo === 'valor_total' && i === quantidade_parcelas - 1) {
+        valorDaParcela = Number((valor - somaParcelas).toFixed(2));
+      }
+      somaParcelas += valorDaParcela;
+      
+      await pool.query(
+        "INSERT INTO lancamentos (tenant_id, tipo, pessoa_id, categoria_id, vencimento, valor, descricao, local) VALUES (?, 'CP', ?, ?, ?, ?, ?, ?)",
+        [req.user.tenant_id, pId, cId, dateStr, valorDaParcela, descParcela, local || 'Caixa']
+      );
+    }
+  } else {
+    await pool.query(
+      "INSERT INTO lancamentos (tenant_id, tipo, pessoa_id, categoria_id, vencimento, valor, descricao, local) VALUES (?, 'CP', ?, ?, ?, ?, ?, ?)",
+      [req.user.tenant_id, pId, cId, vencimento.slice(0, 19).replace('T', ' '), valor, descricao, local || 'Caixa']
+    );
+  }
   res.json({ success: true });
 });
 

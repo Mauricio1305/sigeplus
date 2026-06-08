@@ -133,6 +133,17 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
   }, [sales]);
 
   const handlePrintSale = async (saleId: number, type: 'print' | 'whatsapp') => {
+    let printWindow: Window | null = null;
+    
+    // Open synchronously to avoid popup blockers
+    if (type === 'print') {
+      printWindow = window.open('', '_blank', 'width=300,height=600');
+      if (printWindow) printWindow.document.write('Gerando impressão...');
+    } else {
+      printWindow = window.open('', '_blank');
+      if (printWindow) printWindow.document.write('Redirecionando WhatsApp...');
+    }
+
     setLoadingPrint(true);
     try {
       const res = await fetch(`${baseApi}/${saleId}`, { headers: { 'Authorization': `Bearer ${token}` } });
@@ -165,7 +176,13 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
           });
         }
         text += `\nAgradecemos a preferência!`;
-        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+        
+        const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+        if (printWindow) {
+          printWindow.location.href = url;
+        } else {
+          window.open(url, '_blank');
+        }
       } else {
         const items = sale.items || [];
         const subtotal = items.reduce((acc: number, i: any) => acc + parseFloat(i.subtotal || 0), 0);
@@ -241,8 +258,8 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
           </div>
         `;
 
-        const printWindow = window.open('', '_blank', 'width=300,height=600');
         if (printWindow) {
+          printWindow.document.open();
           printWindow.document.write(`<html><head><title>Recibo #${sale.sequencial_id || sale.id}</title></head><body onload="window.print(); setTimeout(() => window.close(), 500);">${content}</body></html>`);
           printWindow.document.close();
         }
@@ -250,6 +267,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
     } catch (err) {
       console.error(err);
       alert("Erro ao imprimir");
+      if (printWindow) printWindow.close();
     } finally {
       setLoadingPrint(false);
       setPrintModalSale(null);

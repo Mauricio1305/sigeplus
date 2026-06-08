@@ -712,7 +712,18 @@ export const Finance = () => {
         </div>
       )}
 
-      {isModalOpen && (
+      {isModalOpen && (() => {
+        const checkInvalid = () => {
+          if (modalType === 'caixaClose') return formData.counted?.['Dinheiro'] < 0;
+          if (modalType === 'caixaManualEntry') return formData.valor < 0;
+          if (['receivable', 'payable'].includes(modalType)) return formData.valor < 0 || (formData.is_parcelado && formData.quantidade_parcelas < 2);
+          if (modalType === 'baixa') return formData.valor_pago < 0;
+          if (modalType === 'caixaOpen') return formData.valor_inicial < 0;
+          return false;
+        };
+        const isInvalid = checkInvalid();
+
+        return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
             <div className="flex justify-between items-center mb-6">
@@ -730,7 +741,7 @@ export const Finance = () => {
               {modalType === 'caixaClose' && selectedItem && (
                 <div className="space-y-4 text-sm text-slate-600">
                   <p>Informe o valor total em dinheiro:</p>
-                  <input type="number" step="0.01" className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, counted: { 'Dinheiro': parseFloat(e.target.value) }})} required />
+                  <input type="number" step="0.01" min="0" className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, counted: { 'Dinheiro': parseFloat(e.target.value) }})} required />
                 </div>
               )}
               {modalType === 'caixaManualEntry' && (
@@ -743,7 +754,7 @@ export const Finance = () => {
                     <option value="">Categoria...</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
-                  <input type="number" step="0.01" placeholder="Valor" className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, valor: parseFloat(e.target.value)})} required />
+                  <input type="number" step="0.01" min="0.01" placeholder="Valor" className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, valor: parseFloat(e.target.value)})} required />
                   <input type="text" placeholder="Descrição" maxLength={65535} className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, descricao: e.target.value})} required />
                 </>
               )}
@@ -757,14 +768,48 @@ export const Finance = () => {
                     <option value="">Categoria...</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                   </select>
-                  <input type="date" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.vencimento || ''} onChange={e => setFormData({...formData, vencimento: e.target.value})} required />
-                  <input type="number" step="0.01" placeholder="Valor" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.valor || ''} onChange={e => setFormData({...formData, valor: parseFloat(e.target.value)})} required />
-                  <input type="text" placeholder="Descrição" maxLength={65535} className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.descricao || ''} onChange={e => setFormData({...formData, descricao: e.target.value})} />
+                  
+                  <div className="flex items-center gap-2 px-1">
+                    <input type="checkbox" id="isParcelado" checked={!!formData.is_parcelado} onChange={e => setFormData({...formData, is_parcelado: e.target.checked, tipo_calculo: 'valor_parcela', quantidade_parcelas: 2})} className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500" />
+                    <label htmlFor="isParcelado" className="text-sm font-medium text-slate-700">Lançamento Parcelado (Múltiplas parcelas/mensalidades)</label>
+                  </div>
+
+                  {formData.is_parcelado && (
+                    <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl space-y-3">
+                      <div className="flex flex-col gap-2">
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <input type="radio" name="tipoCalculo" className="text-indigo-600 focus:ring-indigo-500" checked={formData.tipo_calculo === 'valor_parcela'} onChange={() => setFormData({...formData, tipo_calculo: 'valor_parcela'})} />
+                          Informar Valor da Parcela
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-slate-700">
+                          <input type="radio" name="tipoCalculo" className="text-indigo-600 focus:ring-indigo-500" checked={formData.tipo_calculo === 'valor_total'} onChange={() => setFormData({...formData, tipo_calculo: 'valor_total'})} />
+                          Informar Valor Total
+                        </label>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">Qtd. de Parcelas</label>
+                        <input type="number" min="2" max="120" className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" value={formData.quantidade_parcelas || 2} onChange={e => setFormData({...formData, quantidade_parcelas: parseInt(e.target.value)})} required />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">{formData.is_parcelado ? 'Data 1ª Parcela' : 'Vencimento'}</label>
+                      <input type="date" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" value={formData.vencimento || ''} onChange={e => setFormData({...formData, vencimento: e.target.value})} required />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1">{formData.is_parcelado ? (formData.tipo_calculo === 'valor_total' ? 'Valor Total do Lançamento' : 'Valor de Cada Parcela') : 'Valor'}</label>
+                      <input type="number" step="0.01" min="0.01" placeholder="Valor" className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" value={formData.valor || ''} onChange={e => setFormData({...formData, valor: parseFloat(e.target.value)})} required />
+                    </div>
+                  </div>
+                  
+                  <input type="text" placeholder="Descrição" maxLength={65535} className="w-full px-4 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all mt-2" value={formData.descricao || ''} onChange={e => setFormData({...formData, descricao: e.target.value})} />
                 </>
               )}
               {modalType === 'baixa' && (
                 <>
-                  <input type="number" step="0.01" placeholder="Valor Pago" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.valor_pago || ''} onChange={e => setFormData({...formData, valor_pago: parseFloat(e.target.value)})} required />
+                  <input type="number" step="0.01" min="0.01" placeholder="Valor Pago" className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.valor_pago || ''} onChange={e => setFormData({...formData, valor_pago: parseFloat(e.target.value)})} required />
                   <select className="w-full px-4 py-2 rounded-xl border border-slate-200" value={formData.local || ''} onChange={e => setFormData({...formData, local: e.target.value})} required>
                     <option value="">Local...</option>
                     <option value="Caixa">Caixa</option>
@@ -778,13 +823,27 @@ export const Finance = () => {
                 </>
               )}
               {modalType === 'caixaOpen' && (
-                <input type="number" step="0.01" placeholder="Valor Inicial" className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, valor_inicial: parseFloat(e.target.value)})} required />
+                <input type="number" step="0.01" min="0" placeholder="Valor Inicial" className="w-full px-4 py-2 rounded-xl border border-slate-200" onChange={e => setFormData({...formData, valor_inicial: parseFloat(e.target.value)})} required />
               )}
-              <button type="submit" className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all">Confirmar</button>
+              
+              {isInvalid && (
+                <div className="p-3 bg-rose-50 text-rose-600 rounded-xl text-sm font-medium border border-rose-100">
+                  Valores negativos ou inválidos não são permitidos.
+                </div>
+              )}
+              
+              <button 
+                type="submit" 
+                disabled={isInvalid}
+                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirmar
+              </button>
             </form>
           </motion.div>
         </div>
-      )}
+        );
+      })()}
 
       {cancelModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
