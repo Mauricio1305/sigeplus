@@ -563,7 +563,10 @@ const authLimiter = rateLimit({
 });
 
 app.use("/api/", globalLimiter);
-app.use("/api/auth/", authLimiter);
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/forgot-password", authLimiter);
+app.use("/api/auth/reset-password", authLimiter);
 
 // Stripe Webhook (must be before express.json())
 app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async (req, res) => {

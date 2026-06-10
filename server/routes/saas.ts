@@ -39,6 +39,18 @@ router.post("/stripe/create-checkout-session", authMiddleware, async (req: any, 
     const [companies] = await pool.query("SELECT stripe_customer_id FROM empresas WHERE tenant_id = ?", [tenant_id]) as any[];
     let customerId = companies[0]?.stripe_customer_id;
     
+    if (customerId) {
+      try {
+        await stripe.customers.retrieve(customerId);
+      } catch (err: any) {
+        if (err.statusCode === 404 || err.message.includes('No such customer') || err.message.includes('test mode')) {
+          customerId = null;
+        } else {
+          throw err;
+        }
+      }
+    }
+
     if (!customerId) {
       const customer = await stripe.customers.create({ email: userEmail, metadata: { tenant_id } });
       customerId = customer.id;
@@ -66,9 +78,19 @@ router.post("/stripe/create-portal-session", authMiddleware, async (req: any, re
   try {
     const stripe = getStripe();
     const [companies] = await pool.query("SELECT stripe_customer_id FROM empresas WHERE tenant_id = ?", [tenant_id]) as any[];
-    const customerId = companies[0]?.stripe_customer_id;
+    let customerId = companies[0]?.stripe_customer_id;
 
     if (!customerId) return res.status(400).json({ error: "Nenhum cliente Stripe encontrado." });
+
+    try {
+      await stripe.customers.retrieve(customerId);
+    } catch (err: any) {
+      if (err.statusCode === 404 || err.message.includes('No such customer') || err.message.includes('test mode')) {
+        return res.status(400).json({ error: "Cliente Stripe não encontrado ou ocorreu uma mudança de ambiente (Teste/Produção). Assine novamente para atualizar o cadastro." });
+      } else {
+        throw err;
+      }
+    }
 
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,

@@ -55,11 +55,22 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Correçao no relatório de Vendas que nao estava trazendo corretamente as informacoes de vendas por origem.
  - Implementado Regra em todas as telas de venda para validar corretamente o percentual de desconto do novo parametro.
 
-## [1.1.7] - 2026-06-08
+
+ ## [1.1.7] - 2026-06-08
  - Resolução de bloqueio de pop-up que impedia a visualização da impressão do Recibo Não Fiscal em produção e OS.
  - Correção de erro na impressão da Ordem de Serviço (tela em branco) após deploy devido às rotas relativas dos arquivos do sistema.
  - Módulo de Etiquetas (Impressão de Etiquetas) adicionado como funcionalidade configurável nos Planos, garantindo restrição de abas e proteção na API.
  - Melhoria Lançamento de Contas a Pagar/Receber parcelada (revisão de arredondamento).
+
+
+## [1.1.9] - 2026-06-10
+ - Correcao relatório que nao gerava em PDF
+
+ 
+## [1.1.9] - 2026-06-10
+ - Correção do problema de bloqueio de IP ("Muitas tentativas desse IP") na tela de validação do pagamento via Stripe.
+ - Limpeza e recriação condicional do Customer ID do Stripe em caso de divergência de ambiente (Teste vs Produção).
+
  
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*
