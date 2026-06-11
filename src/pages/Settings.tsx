@@ -358,7 +358,7 @@ export const Settings = () => {
     if (!formData.nome) errors.nome = 'Nome é obrigatório';
     if (modalType === 'paymentType') {
       if (formData.prazo_dias === undefined || formData.prazo_dias === null) errors.prazo_dias = 'Prazo é obrigatório';
-      if (!formData.qtd_parcelas) errors.qtd_parcelas = 'Quantidade de parcelas é obrigatória';
+      if (!formData.qtd_parcelas) formData.qtd_parcelas = 1;
     }
     if (modalType === 'user') {
       if (!formData.email) errors.email = 'E-mail é obrigatório';

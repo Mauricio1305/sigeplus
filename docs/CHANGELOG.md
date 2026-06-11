@@ -64,13 +64,13 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
 
 
 ## [1.1.9] - 2026-06-10
- - Correcao relatório que nao gerava em PDF
-
  
-## [1.1.9] - 2026-06-10
+ - Correção relatório que nao gerava em PDF.
  - Correção do problema de bloqueio de IP ("Muitas tentativas desse IP") na tela de validação do pagamento via Stripe.
  - Limpeza e recriação condicional do Customer ID do Stripe em caso de divergência de ambiente (Teste vs Produção).
 
- 
+ ## [1.1.10] - 2026-06-10
+
+ - Correção no formulário de cadastro de Novo Tipo de Pagamento para processar corretamente o limite padrão de parcelas quando não alterado pelo usuário.
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*
