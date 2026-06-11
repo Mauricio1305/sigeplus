@@ -30,6 +30,7 @@ import reportsRouter from "./server/routes/reports";
 import settingsRouter from "./server/routes/settings";
 import authRouter from "./server/routes/auth";
 import saasRouter from "./server/routes/saas";
+import suporteRouter from "./server/routes/suporte";
 import { processNotification } from "./server/services/notificationService";
 
 dotenv.config();
@@ -465,6 +466,33 @@ async function initDB() {
         )
       `);
 
+      // Create chamados tables
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS chamados (
+          id SERIAL PRIMARY KEY,
+          tenant_id VARCHAR(50),
+          usuario_id INTEGER,
+          email VARCHAR(255),
+          assunto VARCHAR(255),
+          status VARCHAR(50) DEFAULT 'Aguardando Análise',
+          unread_user BOOLEAN DEFAULT FALSE,
+          unread_admin BOOLEAN DEFAULT FALSE,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS chamados_mensagens (
+          id SERIAL PRIMARY KEY,
+          chamado_id INTEGER NOT NULL,
+          sender_type VARCHAR(20) NOT NULL,
+          mensagem TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (chamado_id) REFERENCES chamados(id)
+        )
+      `);
+
     // Seed Plans if not exists
     try {
       const [plans] = await pool.query("SELECT id FROM planos") as any[];
@@ -849,6 +877,7 @@ app.use("/api/mesas", mesasRouter);
 app.use("/api/pdv", pdvRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/reports", reportsRouter);
+app.use("/api/suporte", suporteRouter);
 
 // --- API 404 HANDLER ---
 app.use("/api", (req, res) => {

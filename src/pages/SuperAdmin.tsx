@@ -5,12 +5,24 @@ import { useAuthStore } from '../store/authStore';
 import { Toast } from '../components/ui/Toast';
 import { FormField } from '../components/ui/FormField';
 import { formatMoney, formatDate, formatDateTime } from '../utils/format';
+import SupportTicketsAdmin from '../components/SupportTicketsAdmin';
+
+import { Link, useSearchParams } from 'react-router-dom';
 
 export const SuperAdmin = () => {
   const [companies, setCompanies] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [cronLogs, setCronLogs] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'companies' | 'plans' | 'logs'>('companies');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const validTabs = ['companies', 'plans', 'logs', 'tickets'];
+  const [activeTab, setActiveTab] = useState<'companies' | 'plans' | 'logs' | 'tickets'>(validTabs.includes(initialTab as any) ? (initialTab as any) : 'companies');
+
+  useEffect(() => {
+    if (initialTab && validTabs.includes(initialTab)) {
+      setActiveTab(initialTab as any);
+    }
+  }, [initialTab]);
   const [editingPlan, setEditingPlan] = useState<any>(null);
   const [editingCompany, setEditingCompany] = useState<any>(null);
   const [isNewPlanModalOpen, setIsNewPlanModalOpen] = useState(false);
@@ -298,6 +310,12 @@ export const SuperAdmin = () => {
           >
             Logs do Sistema
           </button>
+          <button 
+            onClick={() => setActiveTab('tickets')}
+            className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'tickets' ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+          >
+            Suporte (Chamados)
+          </button>
         </div>
       </div>
 
@@ -483,7 +501,7 @@ export const SuperAdmin = () => {
             </div>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'plans' ? (
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-slate-900">Gestão de Planos</h2>
@@ -538,7 +556,14 @@ export const SuperAdmin = () => {
             ))}
           </div>
         </div>
-      )}
+      ) : activeTab === 'tickets' ? (
+        <motion.div
+           initial={{ opacity: 0, y: 20 }}
+           animate={{ opacity: 1, y: 0 }}
+        >
+          <SupportTicketsAdmin />
+        </motion.div>
+      ) : null}
 
       {isNewPlanModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">

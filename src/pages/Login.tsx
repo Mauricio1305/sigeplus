@@ -5,6 +5,7 @@ import { TrendingUp, AlertCircle } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { FormField } from '../components/ui/FormField';
 import { formatMoney } from '../utils/format';
+import SupportWidget from '../components/SupportWidget';
 
 export const Login = () => {
   const [email, setEmail] = useState('');
@@ -303,6 +304,7 @@ export const Login = () => {
           </button>
         </div>
       </motion.div>
+      <SupportWidget />
     </div>
   );
 };

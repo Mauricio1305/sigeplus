@@ -69,7 +69,14 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Correção do problema de bloqueio de IP ("Muitas tentativas desse IP") na tela de validação do pagamento via Stripe.
  - Limpeza e recriação condicional do Customer ID do Stripe em caso de divergência de ambiente (Teste vs Produção).
 
- ## [1.1.10] - 2026-06-10
+## [1.2.0] - 2026-06-11
+ - Implementação do canal de Suporte/Atendimento via Chat.
+ - Inclusão de Widget de Suporte inteligente estilo "Agente Virtual" na tela de Login/Cadastro.
+ - Inclusão de acompanhamento "Meus Chamados" no painel de Perfil do Usuário com validação de status duplo (Aguardando Análise, Aguardando Interação, Finalizado).
+ - Novo módulo nativo dentro de "Gestão do SaaS" focado em fila de atendimentos com interações contínuas e painel visual de chamados para os administradores gerais.
+ - Upgrade incremental de pacotes (Minor version bump) com rotas exclusivas para suporte on server `server/routes/suporte.ts`.
+
+## [1.1.10] - 2026-06-10
 
  - Correção no formulário de cadastro de Novo Tipo de Pagamento para processar corretamente o limite padrão de parcelas quando não alterado pelo usuário.
 ---

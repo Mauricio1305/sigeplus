@@ -4,6 +4,7 @@ import { CreditCard, AlertCircle, CheckCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney } from '../utils/format';
+import SupportWidget from '../components/SupportWidget';
 
 export const Subscription = () => {
   const user = useAuthStore(state => state.user);
@@ -205,6 +206,7 @@ export const Subscription = () => {
           </button>
         </div>
       </motion.div>
+      <SupportWidget />
     </div>
   );
 };

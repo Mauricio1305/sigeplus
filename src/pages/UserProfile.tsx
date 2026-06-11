@@ -5,13 +5,18 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney, formatDate } from '../utils/format';
 import { FormField } from '../components/ui/FormField';
+import SupportTickets from '../components/SupportTickets';
+import SupportWidget from '../components/SupportWidget';
 
 export const UserProfile = () => {
   const user = useAuthStore(state => state.user);
   const token = useAuthStore(state => state.token);
   const setAuth = useAuthStore(state => state.setAuth);
-  const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'profile' | 'subscription'>('profile');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab');
+  const validTabs = ['profile', 'subscription', 'tickets'];
+  const [activeTab, setActiveTab] = useState<'profile' | 'subscription' | 'tickets'>(validTabs.includes(initialTab as any) ? (initialTab as any) : 'profile');
+
   const [nome, setNome] = useState(user?.nome || '');
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
@@ -24,6 +29,12 @@ export const UserProfile = () => {
   const [company, setCompany] = useState<any>(null);
   const [plans, setPlans] = useState<any[]>([]);
   const [loadingSubscription, setLoadingSubscription] = useState(false);
+
+  useEffect(() => {
+    if (initialTab && validTabs.includes(initialTab)) {
+      setActiveTab(initialTab as any);
+    }
+  }, [initialTab]);
 
   useEffect(() => {
     if (activeTab === 'subscription') {
@@ -261,11 +272,22 @@ export const UserProfile = () => {
             <CreditCard className="w-4 h-4" />
             Assinatura
           </button>
+          <button
+            onClick={() => setActiveTab('tickets')}
+            className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${
+              activeTab === 'tickets'
+                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100'
+                : 'text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            <SettingsIcon className="w-4 h-4" />
+            Meus Chamados
+          </button>
         </div>
       </div>
 
       <AnimatePresence mode="wait">
-        {activeTab === 'profile' ? (
+        {activeTab === 'profile' && (
           <motion.div
             key="profile"
             initial={{ opacity: 0, y: 20 }}
@@ -369,7 +391,9 @@ export const UserProfile = () => {
               </form>
             </div>
           </motion.div>
-        ) : (
+        )}
+        
+        {activeTab === 'subscription' && (
           <motion.div
             key="subscription"
             initial={{ opacity: 0, y: 20 }}
@@ -489,7 +513,19 @@ export const UserProfile = () => {
             </div>
           </motion.div>
         )}
+
+        {activeTab === 'tickets' && (
+          <motion.div
+            key="tickets"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+          >
+            <SupportTickets />
+          </motion.div>
+        )}
       </AnimatePresence>
+      <SupportWidget />
     </div>
   );
 };

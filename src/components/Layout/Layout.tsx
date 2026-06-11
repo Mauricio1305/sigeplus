@@ -196,10 +196,31 @@ export const Layout = () => {
   const location = useLocation();
   const logout = useAuthStore(state => state.logout);
   const user = useAuthStore(state => state.user);
+  const token = useAuthStore(state => state.token);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location]);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      if (!user || !token) return;
+      try {
+        const res = await fetch('/api/suporte/unread_count', { headers: { Authorization: `Bearer ${token}` }});
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.unread || 0);
+        }
+      } catch (e) {}
+    };
+    
+    if (user) {
+      fetchUnread();
+      const interval = setInterval(fetchUnread, 15000); // Check every 15s
+      return () => clearInterval(interval);
+    }
+  }, [user, token, location.pathname]);
 
   const hasModule = (module: string) => {
     if (!user) return false;
@@ -326,7 +347,7 @@ export const Layout = () => {
           
           {(isSidebarOpen || isMobileMenuOpen) ? (
             <div className="px-4 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-              <span>v1.1.10</span>
+              <span>v1.2.0</span>
               <span className="opacity-50">GM</span>
             </div>
           ) : (
@@ -350,16 +371,21 @@ export const Layout = () => {
               <p className="text-sm font-bold text-slate-900">{user?.nome}</p>
               <p className="text-xs text-slate-500 capitalize">{user?.perfil}</p>
             </div>
-            <Link 
-              to="/profile"
-              className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 overflow-hidden hover:ring-2 hover:ring-indigo-500 transition-all"
-            >
-              {user?.avatar ? (
-                <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              ) : (
-                user?.nome.charAt(0)
+            <div className="relative">
+              <Link 
+                to={user?.perfil === 'superadmin' ? "/admin?tab=tickets" : "/profile?tab=tickets"}
+                className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0 overflow-hidden hover:ring-2 hover:ring-indigo-500 transition-all"
+              >
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  user?.nome.charAt(0)
+                )}
+              </Link>
+              {unreadCount > 0 && (
+                <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-white shadow-sm ring-2 ring-rose-200 ring-opacity-50 animate-pulse"></div>
               )}
-            </Link>
+            </div>
           </div>
         </header>
         <div className="flex-1 p-4 lg:p-8 overflow-y-auto print:p-0 print:overflow-visible">
