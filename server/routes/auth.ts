@@ -209,11 +209,15 @@ router.post("/login", async (req, res) => {
         const stripeStatus = subscription.status;
         const currentPeriodEnd = subscription.current_period_end;
         
-        let newVencimento = new Date(currentPeriodEnd * 1000);
+        let newVencimento = currentPeriodEnd ? new Date(currentPeriodEnd * 1000) : (company.vencimento_assinatura ? new Date(company.vencimento_assinatura) : new Date());
+        if (isNaN(newVencimento.getTime())) {
+          newVencimento = new Date();
+          newVencimento.setDate(newVencimento.getDate() + 30);
+        }
         let newStatus = company.status_assinatura;
 
         if (stripeStatus === 'active' || stripeStatus === 'trialing') {
-          newStatus = subscription.cancel_at_period_end ? 'Cancelamento Solicitado' : 'ativo';
+          newStatus = (subscription.cancel_at_period_end || (subscription as any).cancel_at || (subscription as any).cancellation_details?.reason === 'cancellation_requested') ? 'Cancelamento Solicitado' : 'ativo';
         } else if (stripeStatus === 'past_due') {
           newStatus = 'pagamento_pendente';
         } else {

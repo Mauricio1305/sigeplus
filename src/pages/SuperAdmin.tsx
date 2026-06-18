@@ -129,7 +129,8 @@ export const SuperAdmin = () => {
           ...editingCompany,
           status_assinatura: data.status_assinatura,
           vencimento_assinatura: data.vencimento_assinatura,
-          stripe_customer_id: data.stripe_customer_id
+          stripe_customer_id: data.stripe_customer_id,
+          data_ultimo_pagamento: data.data_ultimo_pagamento
         });
         setToast({ message: 'Status verificado e atualizado com sucesso!', type: 'success' });
         fetchData();
@@ -368,6 +369,7 @@ export const SuperAdmin = () => {
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden md:table-cell">ID Cliente</th>
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Plano</th>
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Status</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden md:table-cell">Ult. Pgto</th>
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden lg:table-cell">Vencimento</th>
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Ações</th>
                 </tr>
@@ -382,6 +384,9 @@ export const SuperAdmin = () => {
                         </div>
                         <div className="md:hidden text-[8px] sm:text-[10px] text-slate-400 font-mono mt-0.5">{c.tenant_id}</div>
                         <div className="text-[8px] sm:text-[10px] text-slate-400 sm:hidden mt-0.5">{c.plano_nome} • Venc: {formatVencimento(c.vencimento_assinatura)}</div>
+                        {c.data_ultimo_pagamento && (
+                          <div className="text-[8px] sm:text-[10px] text-slate-400 md:hidden mt-0.5">Pgto: {formatDateTime(c.data_ultimo_pagamento)}</div>
+                        )}
                         <div className="sm:hidden mt-0.5">
                           <span className={`px-1.5 py-0.5 text-[8px] font-bold rounded uppercase ${c.status_assinatura === 'ativo' ? 'bg-emerald-100 text-emerald-700' : c.status_assinatura === 'Cancelamento Solicitado' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
                             {c.status_assinatura}
@@ -394,6 +399,9 @@ export const SuperAdmin = () => {
                         <span className={`px-1.5 md:px-2 py-0.5 md:py-1 text-[8px] md:text-[10px] font-bold rounded uppercase ${c.status_assinatura === 'ativo' ? 'bg-emerald-100 text-emerald-700' : c.status_assinatura === 'Cancelamento Solicitado' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>
                           {c.status_assinatura}
                         </span>
+                      </td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden md:table-cell whitespace-nowrap">
+                        {c.data_ultimo_pagamento ? formatDateTime(c.data_ultimo_pagamento) : '-'}
                       </td>
                       <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden lg:table-cell whitespace-nowrap">
                         {formatVencimento(c.vencimento_assinatura)}
@@ -881,6 +889,7 @@ export const SuperAdmin = () => {
                   <option value="ativo">Ativo</option>
                   <option value="inativo">Inativo</option>
                   <option value="suspenso">Suspenso</option>
+                  <option value="Cancelamento Solicitado">Cancelamento Solicitado</option>
                   <option value="cancelado">Cancelado</option>
                 </select>
               </div>

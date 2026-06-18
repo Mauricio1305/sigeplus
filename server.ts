@@ -192,6 +192,9 @@ async function initDB() {
       if (!empresasColNames.includes('stripe_subscription_id')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN stripe_subscription_id VARCHAR(255)");
       }
+      if (!empresasColNames.includes('data_ultimo_pagamento')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN data_ultimo_pagamento TIMESTAMP");
+      }
 
       // Migration: Populate sequencial_id for existing sales
       const [salesWithoutSequencial] = await pool.query("SELECT id, tenant_id FROM vendas WHERE sequencial_id IS NULL") as any[];
@@ -224,6 +227,12 @@ async function initDB() {
       }
       if (!stripeLogCols.includes('tenant_id')) {
         await pool.query("ALTER TABLE stripe_logs ADD COLUMN tenant_id VARCHAR(255)");
+      }
+      if (!stripeLogCols.includes('status')) {
+        await pool.query("ALTER TABLE stripe_logs ADD COLUMN status VARCHAR(50)");
+      }
+      if (!stripeLogCols.includes('previous_attributes')) {
+        await pool.query("ALTER TABLE stripe_logs ADD COLUMN previous_attributes JSONB");
       }
       console.log("Verified stripe_logs table existence and columns");
 
@@ -757,7 +766,7 @@ app.post("/api/stripe/webhook", express.raw({ type: 'application/json' }), async
             }
 
             await pool.query(
-              "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ? WHERE stripe_subscription_id = ?",
+              "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ?, data_ultimo_pagamento = CURRENT_TIMESTAMP WHERE stripe_subscription_id = ?",
               [status, vencimento, subscriptionId]
             );
             console.log(`Webhook: Payment succeeded for subscription ${subscriptionId}. Status: ${status}, Expiry: ${vencimento}`);

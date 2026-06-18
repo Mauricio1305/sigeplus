@@ -356,26 +356,57 @@ router.get("/admin/companies/:id/stripe-status", authMiddleware, async (req: any
 
     const subObj = subscription as any;
     let status = subObj.status === 'active' ? 'ativo' : 'suspenso';
-    if (subObj.cancel_at_period_end) status = 'Cancelamento Solicitado';
+    if (subObj.cancel_at_period_end || subObj.cancel_at || subObj.cancellation_details?.reason === 'cancellation_requested') status = 'Cancelamento Solicitado';
     if (subObj.status === 'canceled') status = 'cancelado';
 
-    let vencimento = '';
+    let vencimento: Date;
     if (subObj.current_period_end) {
-      vencimento = new Date(subObj.current_period_end * 1000).toISOString().split('T')[0];
+      vencimento = new Date(subObj.current_period_end * 1000);
     } else {
-      const fallbackDate = new Date();
-      fallbackDate.setDate(fallbackDate.getDate() + 30);
-      vencimento = fallbackDate.toISOString().split('T')[0];
+      vencimento = new Date();
+      vencimento.setDate(vencimento.getDate() + 30);
+    }
+    
+    if (isNaN(vencimento.getTime())) {
+      vencimento = new Date();
+      vencimento.setDate(vencimento.getDate() + 30);
+    }
+    const vencimentoStr = vencimento.toISOString().split('T')[0];
+
+    // Fetch the latest paid invoice to update data_ultimo_pagamento
+    let dataUltimoPagamentoStr = null;
+    let dataUltimoPagamentoISO = null;
+    try {
+      const invoices = await stripe.invoices.list({ subscription: subscription.id, limit: 1, status: 'paid' });
+      if (invoices.data.length > 0) {
+        const lastPaid = invoices.data[0];
+        const paidAt = lastPaid.status_transitions?.paid_at || lastPaid.created;
+        if (paidAt) {
+          const datePaid = new Date(paidAt * 1000);
+          dataUltimoPagamentoStr = datePaid.toISOString().slice(0, 19).replace('T', ' ');
+          dataUltimoPagamentoISO = datePaid.toISOString();
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching latest invoice:", e);
     }
 
-    await pool.query(
-      "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ?, stripe_customer_id = ?, stripe_subscription_id = ? WHERE id = ?",
-      [status, vencimento, subscription.customer as string, subscription.id, id]
-    );
+    if (dataUltimoPagamentoStr) {
+      await pool.query(
+        "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ?, data_ultimo_pagamento = ?, stripe_customer_id = ?, stripe_subscription_id = ? WHERE id = ?",
+        [status, vencimentoStr, dataUltimoPagamentoStr, subscription.customer as string, subscription.id, id]
+      );
+    } else {
+      await pool.query(
+        "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ?, stripe_customer_id = ?, stripe_subscription_id = ? WHERE id = ?",
+        [status, vencimentoStr, subscription.customer as string, subscription.id, id]
+      );
+    }
 
     res.json({
       status_assinatura: status,
-      vencimento_assinatura: vencimento,
+      vencimento_assinatura: vencimentoStr,
+      data_ultimo_pagamento: dataUltimoPagamentoISO,
       stripe_subscription_id: subscription.id,
       stripe_customer_id: subscription.customer as string
     });

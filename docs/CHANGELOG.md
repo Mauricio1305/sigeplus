@@ -69,6 +69,11 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Correção do problema de bloqueio de IP ("Muitas tentativas desse IP") na tela de validação do pagamento via Stripe.
  - Limpeza e recriação condicional do Customer ID do Stripe em caso de divergência de ambiente (Teste vs Produção).
 
+
+## [1.1.10] - 2026-06-10
+
+ - Correção no formulário de cadastro de Novo Tipo de Pagamento para processar corretamente o limite padrão de parcelas quando não alterado pelo usuário.
+
 ## [1.2.0] - 2026-06-11
  - Implementação do canal de Suporte/Atendimento via Chat.
  - Inclusão de Widget de Suporte inteligente estilo "Agente Virtual" na tela de Login/Cadastro.
@@ -76,8 +81,9 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Novo módulo nativo dentro de "Gestão do SaaS" focado em fila de atendimentos com interações contínuas e painel visual de chamados para os administradores gerais.
  - Upgrade incremental de pacotes (Minor version bump) com rotas exclusivas para suporte on server `server/routes/suporte.ts`.
 
-## [1.1.10] - 2026-06-10
+##[1.2.1] - 2026-06-18
+ - Melhoria ao receber evento de cancelamento do Stripe via Webhook
+ - Criação de novo campo para alimentar a data do ultimo pagamento aprovado no Stripe
 
- - Correção no formulário de cadastro de Novo Tipo de Pagamento para processar corretamente o limite padrão de parcelas quando não alterado pelo usuário.
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*
