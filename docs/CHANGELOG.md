@@ -85,5 +85,8 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Melhoria ao receber evento de cancelamento do Stripe via Webhook
  - Criação de novo campo para alimentar a data do ultimo pagamento aprovado no Stripe
 
+ ##[1.2.2] - 2026-06-22
+  - Criação do visual da tela de Login
+
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*
