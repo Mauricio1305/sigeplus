@@ -348,7 +348,7 @@ export const Layout = () => {
           
           {(isSidebarOpen || isMobileMenuOpen) ? (
             <div className="px-4 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-              <span>v1.3.0</span>
+              <span>v1.3.1</span>
               <span className="opacity-50">GM</span>
             </div>
           ) : (

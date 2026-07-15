@@ -1513,6 +1513,7 @@ export const Settings = () => {
                     <h4 className="font-bold text-slate-900 text-sm">Permissões Detalhadas</h4>
                     {[
                       { mod: 'dashboard', label: 'Dashboard', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'estatisticas', label: 'Ver Estatísticas'}] },
+                      { mod: 'agenda', label: 'Agenda', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'ver_outros', label: 'Ver Agenda de Outro Usuário'}, {key: 'criar', label: 'Criar Agendamento'}, {key: 'cancelar', label: 'Cancelar Agendamento'}] },
                       { mod: 'financeiro', label: 'Financeiro', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'lancar', label: 'Lançar/Baixar'}, {key: 'editar', label: 'Editar'}, {key: 'cancelar', label: 'Cancelar'}, {key: 'estornar', label: 'Estornar'}] },
                       { mod: 'vendas', label: 'Vendas', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'lancar', label: 'Nova Venda'}, {key: 'cancelar', label: 'Cancelar Venda'}, {key: 'relatorios', label: 'Ver Relatórios'}] },
                       { mod: 'os', label: 'Ordem de Serviço', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'lancar', label: 'Nova OS'}, {key: 'editar', label: 'Editar OS'}, {key: 'excluir', label: 'Cancelar/Excluir'}] },

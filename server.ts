@@ -1,4 +1,5 @@
 import express from "express";
+import "express-async-errors";
 import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import jwt from "jsonwebtoken";
@@ -39,7 +40,7 @@ const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME', 'DB_PORT'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
-  throw new Error(`Critical: Missing database environment variables: ${missingEnvVars.join(', ')}`);
+  console.warn(`Warning: Missing database environment variables: ${missingEnvVars.join(', ')}. The server will start but database queries will fail until they are provided.`);
 }
 
 // Middlewares and DB utilities imported from ./server/db and ./server/middleware
@@ -954,6 +955,12 @@ app.use("/api/suporte", suporteRouter);
 // --- API 404 HANDLER ---
 app.use("/api", (req, res) => {
   res.status(404).json({ error: `Rota API não encontrada: ${req.method} ${req.originalUrl}` });
+});
+
+// --- API ERROR HANDLER ---
+app.use("/api", (err: any, req: any, res: any, next: any) => {
+  console.error("API Error:", err);
+  res.status(500).json({ error: err.message || "Erro interno do servidor" });
 });
 
 // Vite Integration

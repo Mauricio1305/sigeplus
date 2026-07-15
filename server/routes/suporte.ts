@@ -43,7 +43,7 @@ router.post('/:id/confirm', async (req: any, res) => {
 router.use(authMiddleware);
 
 // Get unread notification counts
-router.get('/unread_count', async (req: any, res) => {
+router.get('/unread_count', authMiddleware, async (req: any, res) => {
   const { tenant_id, email, perfil } = req.user;
   try {
     let result: any = [{ count: 0 }];

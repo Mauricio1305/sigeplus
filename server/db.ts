@@ -7,24 +7,24 @@ dotenv.config();
 pg.types.setTypeParser(1114, (stringValue) => stringValue);
 
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME', 'DB_PORT'];
-const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
-
-if (missingEnvVars.length > 0) {
-  throw new Error(`Critical: Missing database environment variables: ${missingEnvVars.join(', ')}`);
-}
 
 export const pgPool = new pg.Pool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "postgres",
+  password: process.env.DB_PASS || "",
+  database: process.env.DB_NAME || "postgres",
   port: parseInt(process.env.DB_PORT || "5432"),
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
 
-console.log("PostgreSQL pool initialized.");
+function checkDatabaseConfig() {
+  const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  if (missingEnvVars.length > 0) {
+    throw new Error(`Critical: Missing database environment variables: ${missingEnvVars.join(', ')}. Please configure them in your settings/environment.`);
+  }
+}
 
 export const processQuery = (sql: string) => {
   let processed = sql;
@@ -78,6 +78,7 @@ export const processQuery = (sql: string) => {
 
 export const pool = {
   async query(sql: string, params?: any[]) {
+    checkDatabaseConfig();
     const processedSql = processQuery(sql);
     let idx = 1;
     const finalSqlWithParams = processedSql.replace(/\?/g, () => `$${idx++}`);
@@ -104,6 +105,7 @@ export const pool = {
     }
   },
   async getConnection() {
+    checkDatabaseConfig();
     const client = await pgPool.connect();
     return {
       async query(sql: string, params?: any[]) {

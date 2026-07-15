@@ -20,7 +20,7 @@ router.post("/products", authMiddleware, planMiddleware('estoque'), async (req: 
   try {
     const { nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo, grupo_id, foto, marca, perc_comissao } = req.body;
     await pool.query(
-      "INSERT INTO produtos (tenant_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo, grupo_id, foto, marca, perc_comissao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO produtos (tenant_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo, grupo_id, foto, marca, perc_comissao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       [req.user.tenant_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo || 0, categoria, codigo_barras || null, ativo === undefined ? 1 : (ativo ? 1 : 0), grupo_id || null, foto || null, marca || null, perc_comissao || 0]
     );
     res.json({ success: true });
@@ -38,9 +38,9 @@ router.put("/products/:id", authMiddleware, planMiddleware('estoque'), async (re
     
     const [result] = await pool.query(`
       UPDATE produtos 
-      SET nome = ?, tipo = ?, unidade = ?, custo = ?, preco_venda = ?, estoque_atual = ?, estoque_minimo = ?, categoria = ?, codigo_barras = ?, ativo = ?, grupo_id = ?, foto = ?, marca = ?, updated_at = CURRENT_TIMESTAMP
+      SET nome = ?, tipo = ?, unidade = ?, custo = ?, preco_venda = ?, estoque_atual = ?, estoque_minimo = ?, categoria = ?, codigo_barras = ?, ativo = ?, grupo_id = ?, foto = ?, marca = ?, perc_comissao = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND tenant_id = ?
-    `, [nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo || 0, categoria, codigo_barras || null, ativo ? 1 : 0, grupo_id || null, foto || null, marca || null, productId, req.user.tenant_id]) as any;
+    `, [nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo || 0, categoria, codigo_barras || null, ativo ? 1 : 0, grupo_id || null, foto || null, marca || null, perc_comissao || 0, productId, req.user.tenant_id]) as any;
     
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Produto não encontrado ou sem permissão." });

@@ -14,6 +14,8 @@ router.get("/", authMiddleware, planMiddleware('agenda'), async (req: any, res) 
   const { start, end, userId, includeCanceled } = req.query;
 
   try {
+    const canViewOthers = req.user.perfil === 'admin' || (req.user.permissoes?.agenda?.ver_outros === true);
+
     let sql = `
       SELECT 
         a.*, 
@@ -30,7 +32,11 @@ router.get("/", authMiddleware, planMiddleware('agenda'), async (req: any, res) 
       sql += " AND a.data_inicio >= ? AND a.data_inicio <= ?";
       params.push(start, end);
     }
-    if (userId) {
+
+    if (!canViewOthers) {
+      sql += " AND a.usuario_id = ?";
+      params.push(req.user.id);
+    } else if (userId) {
       sql += " AND a.usuario_id = ?";
       params.push(userId);
     }
@@ -50,7 +56,9 @@ router.get("/:id", authMiddleware, planMiddleware('agenda'), async (req: any, re
   const { tenant_id } = req.user;
 
   try {
-    const [rows] = await pool.query(`
+    const canViewOthers = req.user.perfil === 'admin' || (req.user.permissoes?.agenda?.ver_outros === true);
+
+    let sql = `
       SELECT 
         a.*, 
         p.nome as cliente_nome,
@@ -61,9 +69,17 @@ router.get("/:id", authMiddleware, planMiddleware('agenda'), async (req: any, re
       LEFT JOIN pessoas p ON a.pessoa_id = p.id
       JOIN usuarios u ON a.usuario_id = u.id
       WHERE a.id = ? AND a.tenant_id = ?
-    `, [id, tenant_id]) as any[];
+    `;
+    const params: any[] = [id, tenant_id];
 
-    if (rows.length === 0) return res.status(404).json({ error: "Agendamento não encontrado" });
+    if (!canViewOthers) {
+      sql += " AND a.usuario_id = ?";
+      params.push(req.user.id);
+    }
+
+    const [rows] = await pool.query(sql, params) as any[];
+
+    if (rows.length === 0) return res.status(404).json({ error: "Agendamento não encontrado ou acesso não autorizado" });
 
     const [items] = await pool.query(`
       SELECT ai.*, pr.nome, pr.tipo, pr.tempo_execucao
@@ -81,6 +97,15 @@ router.get("/:id", authMiddleware, planMiddleware('agenda'), async (req: any, re
 router.post("/", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
   const { tenant_id } = req.user;
   const { usuario_id, pessoa_id, data_inicio, data_fim, valor_total, status, observacao, items } = req.body;
+
+  if (req.user.perfil !== 'admin' && !req.user.permissoes?.agenda?.criar) {
+    return res.status(403).json({ error: "Seu usuário não possui permissão para criar agendamentos." });
+  }
+
+  const canViewOthers = req.user.perfil === 'admin' || (req.user.permissoes?.agenda?.ver_outros === true);
+  if (!canViewOthers && Number(usuario_id) !== Number(req.user.id)) {
+    return res.status(403).json({ error: "Seu usuário não possui permissão para criar agendamentos para outros profissionais." });
+  }
 
   const connection = await pool.getConnection();
   try {
@@ -157,13 +182,36 @@ router.put("/:id", authMiddleware, planMiddleware('agenda'), async (req: any, re
   const { tenant_id } = req.user;
   const { usuario_id, pessoa_id, data_inicio, data_fim, valor_total, status, observacao, items } = req.body;
 
+  const isCancelling = status === 'Cancelado';
+  if (req.user.perfil !== 'admin') {
+    if (isCancelling) {
+      if (!req.user.permissoes?.agenda?.cancelar) {
+        return res.status(403).json({ error: "Seu usuário não possui permissão para cancelar agendamentos." });
+      }
+    } else {
+      if (!req.user.permissoes?.agenda?.criar) {
+        return res.status(403).json({ error: "Seu usuário não possui permissão para editar/criar agendamentos." });
+      }
+    }
+  }
+
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
 
     const [existing] = await connection.query("SELECT * FROM agendamentos WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
     const appointment = existing?.[0];
-    
+
+    const canViewOthers = req.user.perfil === 'admin' || (req.user.permissoes?.agenda?.ver_outros === true);
+    if (!canViewOthers) {
+      if (appointment && Number(appointment.usuario_id) !== Number(req.user.id)) {
+        throw new Error("Seu usuário não possui permissão para alterar agendamentos de outros profissionais.");
+      }
+      if (usuario_id !== undefined && Number(usuario_id) !== Number(req.user.id)) {
+        throw new Error("Seu usuário não possui permissão para delegar agendamentos para outros profissionais.");
+      }
+    }
+
     if (appointment && status === 'Cancelado' && appointment.status !== 'Cancelado') {
       // If there's an associated sale, check its status
       if (appointment.venda_id) {
@@ -250,6 +298,18 @@ router.delete("/:id", authMiddleware, planMiddleware('agenda'), async (req: any,
   const { id } = req.params;
   const { tenant_id } = req.user;
 
+  if (req.user.perfil !== 'admin' && !req.user.permissoes?.agenda?.cancelar) {
+    return res.status(403).json({ error: "Seu usuário não possui permissão para cancelar/excluir agendamentos." });
+  }
+
+  const canViewOthers = req.user.perfil === 'admin' || (req.user.permissoes?.agenda?.ver_outros === true);
+  if (!canViewOthers) {
+    const [existing] = await pool.query("SELECT usuario_id FROM agendamentos WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    if (existing[0] && Number(existing[0].usuario_id) !== Number(req.user.id)) {
+      return res.status(403).json({ error: "Seu usuário não possui permissão para excluir agendamentos de outros profissionais." });
+    }
+  }
+
   try {
     await pool.query("DELETE FROM agendamentos WHERE id = ? AND tenant_id = ?", [id, tenant_id]);
     res.json({ success: true });
@@ -261,6 +321,14 @@ router.delete("/:id", authMiddleware, planMiddleware('agenda'), async (req: any,
 router.post("/:id/concluir", authMiddleware, planMiddleware('agenda'), async (req: any, res) => {
   const { id } = req.params;
   const { tenant_id, id: authUserId } = req.user;
+
+  const canViewOthers = req.user.perfil === 'admin' || (req.user.permissoes?.agenda?.ver_outros === true);
+  if (!canViewOthers) {
+    const [existing] = await pool.query("SELECT usuario_id FROM agendamentos WHERE id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    if (existing[0] && Number(existing[0].usuario_id) !== Number(req.user.id)) {
+      return res.status(403).json({ error: "Seu usuário não possui permissão para concluir agendamentos de outros profissionais." });
+    }
+  }
 
   const connection = await pool.getConnection();
   try {
