@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { pool } from "../db";
 import { authMiddleware, planMiddleware } from "../middleware";
+import { processCommissions } from "../services/comissaoService";
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.get("/", authMiddleware, planMiddleware('vendas'), async (req: any, res) 
 
 // Create Sale
 router.post("/", authMiddleware, planMiddleware('vendas'), async (req: any, res) => {
-  const { pessoa_id, items, valor_total, desconto, frete, status = 'finalizada', tipo = 'venda', origem = 'Balcao', solicitacao, laudo_tecnico, pagamentos, identificacao, taxa_servico } = req.body;
+  const { pessoa_id, items, valor_total, desconto, frete, status = 'finalizada', tipo = 'venda', origem = 'Balcao', solicitacao, laudo_tecnico, pagamentos, identificacao, taxa_servico, atendente_id } = req.body;
   const { tenant_id, id: usuario_id } = req.user;
   
   const pessoaIdToInsert = pessoa_id === '' ? null : pessoa_id;
@@ -42,8 +43,8 @@ router.post("/", authMiddleware, planMiddleware('vendas'), async (req: any, res)
 
     // 1. Create Sale
     const [saleResult] = await connection.query(
-      "INSERT INTO vendas (tenant_id, pessoa_id, usuario_id, valor_total, desconto, frete, status, tipo, origem, solicitacao, laudo_tecnico, sequencial_id, identificacao, taxa_servico) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [tenant_id, pessoaIdToInsert, usuario_id, valor_total, desconto || 0, frete || 0, status, tipo, origem, solicitacao || null, laudo_tecnico || null, sequencial_id, identificacao || null, taxa_servico || 0]
+      "INSERT INTO vendas (tenant_id, pessoa_id, usuario_id, valor_total, desconto, frete, status, tipo, origem, solicitacao, laudo_tecnico, sequencial_id, identificacao, taxa_servico, atendente_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [tenant_id, pessoaIdToInsert, usuario_id, valor_total, desconto || 0, frete || 0, status, tipo, origem, solicitacao || null, laudo_tecnico || null, sequencial_id, identificacao || null, taxa_servico || 0, atendente_id || null]
     ) as any;
     
     const venda_id = saleResult.insertId;
@@ -53,8 +54,8 @@ router.post("/", authMiddleware, planMiddleware('vendas'), async (req: any, res)
     // 2. Insert items
     for (const item of items) {
       await connection.query(
-        "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        [tenant_id, venda_id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal]
+        "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal, profissional_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [tenant_id, venda_id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal, item.profissional_id || null]
       );
     }
 
@@ -159,6 +160,9 @@ router.post("/", authMiddleware, planMiddleware('vendas'), async (req: any, res)
       }
     }
 
+    // Process commissions
+    await processCommissions(connection, tenant_id, venda_id, atendente_id, valor_total, items, status, usuario_id, 'Pedido');
+
     await connection.commit();
     res.json({ success: true, id: venda_id, sequencial_id: sequencial_id });
   } catch (err: any) {
@@ -243,7 +247,8 @@ router.get("/:id", authMiddleware, async (req: any, res) => {
         nome: i.nome,
         quantidade: i.quantidade,
         preco_unitario: i.preco_unitario,
-        subtotal: i.subtotal
+        subtotal: i.subtotal,
+        profissional_id: i.profissional_id
       })), 
       pagamentos 
     });
@@ -256,7 +261,7 @@ router.get("/:id", authMiddleware, async (req: any, res) => {
 // Update Sale
 router.put("/:id", authMiddleware, async (req: any, res) => {
   const { id } = req.params; // This is now sequencial_id
-  const { pessoa_id, items, valor_total, desconto, frete, status, solicitacao, laudo_tecnico, pagamentos, identificacao, taxa_servico, origem, tipo } = req.body;
+  const { pessoa_id, items, valor_total, desconto, frete, status, solicitacao, laudo_tecnico, pagamentos, identificacao, taxa_servico, origem, tipo, atendente_id } = req.body;
   const { tenant_id } = req.user;
   
   const pessoaIdToInsert = pessoa_id === '' ? null : pessoa_id;
@@ -277,8 +282,8 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
 
     // Update Sale
     await connection.query(
-      "UPDATE vendas SET pessoa_id = ?, valor_total = ?, desconto = ?, frete = ?, status = ?, solicitacao = ?, laudo_tecnico = ?, identificacao = ?, taxa_servico = ?, origem = ?, tipo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?",
-      [pessoaIdToInsert, valor_total, desconto || 0, frete || 0, status, solicitacao || null, laudo_tecnico || null, identificacao || existingSale.identificacao, taxa_servico || existingSale.taxa_servico, origem || existingSale.origem, tipo || existingSale.tipo, existingSale.id, tenant_id]
+      "UPDATE vendas SET pessoa_id = ?, valor_total = ?, desconto = ?, frete = ?, status = ?, solicitacao = ?, laudo_tecnico = ?, identificacao = ?, taxa_servico = ?, origem = ?, tipo = ?, atendente_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?",
+      [pessoaIdToInsert, valor_total, desconto || 0, frete || 0, status, solicitacao || null, laudo_tecnico || null, identificacao || existingSale.identificacao, taxa_servico || existingSale.taxa_servico, origem || existingSale.origem, tipo || existingSale.tipo, atendente_id || null, existingSale.id, tenant_id]
     );
     
     // Delete old items
@@ -287,8 +292,8 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
     // Insert new items
     for (const item of items) {
       await connection.query(
-        "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        [tenant_id, existingSale.id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal]
+        "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal, profissional_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [tenant_id, existingSale.id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal, item.profissional_id || null]
       );
     }
 
@@ -396,6 +401,9 @@ router.put("/:id", authMiddleware, async (req: any, res) => {
       }
     }
 
+    // Process commissions
+    await processCommissions(connection, tenant_id, existingSale.id, atendente_id, valor_total, items, status, req.user.id, 'Pedido');
+
     await connection.commit();
     res.json({ success: true });
   } catch (err: any) {
@@ -451,6 +459,9 @@ router.post("/:id/cancel", authMiddleware, async (req: any, res) => {
 
     // 3. Update Sale Status
     await connection.query("UPDATE vendas SET status = 'cancelada' WHERE id = ?", [saleId]);
+
+    // Revert commissions for canceled sale
+    await processCommissions(connection, tenant_id, saleId, null, 0, [], 'cancelada', null, 'Pedido');
 
     await connection.commit();
     res.json({ success: true });

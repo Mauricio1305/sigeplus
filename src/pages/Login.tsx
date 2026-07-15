@@ -29,7 +29,7 @@ export const Login = () => {
         .then(res => res.json())
         .then(data => {
           const uniquePlans = data.filter((plan: any, index: number, self: any[]) =>
-            index === self.findIndex((p: any) => p.nome === plan.nome)
+            index === self.findIndex((p: any) => p.nome === plan.nome) && plan.visivel !== 0
           ).sort((a: any, b: any) => a.id - b.id);
           setPlans(uniquePlans);
           if (uniquePlans.length > 0 && !selectedPlan) {

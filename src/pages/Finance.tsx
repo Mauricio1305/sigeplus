@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, X, Search, Edit2, AlertCircle, TrendingUp, DollarSign, FileText, Package, MoreVertical } from 'lucide-react';
+import { Plus, X, Search, Edit2, AlertCircle, TrendingUp, DollarSign, FileText,
+  LineChart, Package, MoreVertical } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney, formatDate } from '../utils/format';
@@ -708,6 +709,14 @@ export const Finance = () => {
             </div>
             <h3 className="font-bold text-slate-900 mb-1">Relatório de Estoque</h3>
             <p className="text-sm text-slate-500">Níveis de estoque e reposição necessária.</p>
+          </Link>
+
+          <Link to="/reports/comissoes" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+            <div className="bg-purple-50 w-12 h-12 rounded-xl flex items-center justify-center text-purple-600 mb-4 group-hover:scale-110 transition-transform">
+              <LineChart className="w-6 h-6" />
+            </div>
+            <h3 className="font-bold text-slate-900 mb-1">Relatório de Comissões</h3>
+            <p className="text-sm text-slate-500">Comissões de vendedores e profissionais.</p>
           </Link>
         </div>
       )}

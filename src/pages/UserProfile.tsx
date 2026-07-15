@@ -71,7 +71,8 @@ export const UserProfile = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        setPlans(data);
+        const visiblePlans = data.filter((p: any) => p.visivel !== 0 || p.id === company?.plano_id);
+        setPlans(visiblePlans);
       }
     } catch (err) {
       console.error("Error fetching plans:", err);

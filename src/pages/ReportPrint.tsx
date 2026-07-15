@@ -53,6 +53,7 @@ export const ReportPrint = () => {
       case 'finance': url = '/api/finance/accounts'; break;
       case 'people': url = '/api/pessoas'; break;
       case 'agenda': url = '/api/agenda?includeCanceled=true'; break;
+      case 'comissoes': url = '/api/reports/comissoes'; break;
       default: return;
     }
 
@@ -204,6 +205,18 @@ export const ReportPrint = () => {
       const matchesPerson = personFilter === "todos" || a.pessoa_id?.toString() === personFilter;
       return matchesDate && matchesStatus && matchesProfessional && matchesPerson;
     });
+  } else if (type === 'comissoes') {
+    filteredData = data.filter((c) => {
+      if (!c.data) return false;
+      const dateStr = c.data.includes("T") ? c.data : c.data.replace(" ", "T");
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return false;
+      const comDate = d.toISOString().split("T")[0];
+      const matchesDate = comDate >= startDate && comDate <= endDate;
+      const matchesStatus = statusFilter === "todos" || c.status === statusFilter;
+      const matchesProfessional = professionalFilter === "todos" || c.usuario_id?.toString() === professionalFilter;
+      return matchesDate && matchesStatus && matchesProfessional;
+    });
   }
 
   const getTitle = () => {
@@ -213,6 +226,7 @@ export const ReportPrint = () => {
       case 'finance': return 'Relatório Financeiro';
       case 'people': return 'Relatório de Pessoas';
       case 'agenda': return 'Relatório de Agendamentos';
+      case 'comissoes': return 'Relatório de Comissões';
       default: return 'Relatório';
     }
   };
@@ -493,6 +507,54 @@ export const ReportPrint = () => {
                     <td className="py-2 text-center text-[10px] font-bold uppercase">{a.status || 'Agendado'}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          )}
+
+          {type === 'comissoes' && (
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200">
+                <tr>
+                  <th className="py-2 font-bold text-slate-900">Data</th>
+                  <th className="py-2 font-bold text-slate-900">Profissional</th>
+                  <th className="py-2 font-bold text-slate-900">Origem</th>
+                  <th className="py-2 font-bold text-slate-900">Status</th>
+                  <th className="py-2 font-bold text-slate-900 text-right">Valor Base</th>
+                  <th className="py-2 font-bold text-slate-900 text-right">Comissão %</th>
+                  <th className="py-2 font-bold text-slate-900 text-right">Comissão Devida</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredData.map((c, idx) => (
+                  <tr key={`print-comissao-${c.id_lancamento || idx}`}>
+                    <td className="py-2 text-slate-700">{formatDate(c.data)}</td>
+                    <td className="py-2 text-slate-700 font-medium">{c.usuario || '-'}</td>
+                    <td className="py-2 text-slate-700">{c.origem || 'Venda'}</td>
+                    <td className="py-2 text-slate-700 uppercase text-xs">{(c.status === "Lançado" || !c.status) ? "Liberado" : c.status}</td>
+                    <td className="py-2 text-slate-700 text-right">R$ {formatMoney(c.valor_base)}</td>
+                    <td className="py-2 text-slate-700 text-right">{parseFloat(c.perc_comissao || 0).toFixed(1)}%</td>
+                    <td className="py-2 text-slate-900 text-right font-bold">R$ {formatMoney(c.valor_comissao)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tbody className="border-t-2 border-slate-900 font-bold">
+                <tr>
+                  <td colSpan={4} className="py-4 text-right text-slate-600 uppercase text-xs tracking-wider">Totais:</td>
+                  <td colSpan={3} className="py-4 text-right space-y-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500">Qtd. Registros:</span>
+                      <span className="text-slate-900">{filteredData.length}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-500">Total Valor Base:</span>
+                      <span className="text-slate-900">R$ {formatMoney(filteredData.reduce((sum, c) => sum + (parseFloat(c.valor_base) || 0), 0))}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-500">Total Comissões:</span>
+                      <span className="text-emerald-700">R$ {formatMoney(filteredData.reduce((sum, c) => sum + (parseFloat(c.valor_comissao) || 0), 0))}</span>
+                    </div>
+                  </td>
+                </tr>
               </tbody>
             </table>
           )}

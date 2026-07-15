@@ -22,7 +22,8 @@ export const Subscription = () => {
         return res.json();
       })
       .then(data => {
-        setPlans(data.sort((a: any, b: any) => a.id - b.id));
+        const visiblePlans = data.filter((p: any) => p.visivel !== 0);
+        setPlans(visiblePlans.sort((a: any, b: any) => a.id - b.id));
         if (user?.plano_id) {
           const userPlan = data.find((p: any) => p.id === user.plano_id);
           if (userPlan && !userPlan.is_trial) {

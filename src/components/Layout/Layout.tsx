@@ -319,6 +319,7 @@ export const Layout = () => {
                 hasModule('vendas') && { label: 'Vendas', to: '/reports/sales' },
                 hasModule('estoque') && { label: 'Estoque', to: '/reports/inventory' },
                 hasModule('financeiro') && { label: 'Financeiro', to: '/reports/finance' },
+                hasModule('vendas') && { label: 'Comissões', to: '/reports/comissoes' },
                 hasModule('financeiro') && { label: 'DRE', to: '/dre' },
                 hasModule('cadastros') && { label: 'Pessoas', to: '/reports/people' },
                 hasModule('agenda') && { label: 'Agendamentos', to: '/reports/agenda' },
@@ -347,11 +348,11 @@ export const Layout = () => {
           
           {(isSidebarOpen || isMobileMenuOpen) ? (
             <div className="px-4 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-              <span>v1.2.2</span>
+              <span>v1.3.0</span>
               <span className="opacity-50">GM</span>
             </div>
           ) : (
-            <div className="text-[10px] text-slate-300 font-mono text-center">v1.0</div>
+            <div className="text-[10px] text-slate-300 font-mono text-center">v1.3</div>
           )}
         </div>
       </aside>

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { pool } from "../db";
 import { authMiddleware, planMiddleware } from "../middleware";
+import { processCommissions } from "../services/comissaoService";
 
 const router = Router();
 
@@ -21,8 +22,8 @@ router.post("/", authMiddleware, planMiddleware('pdv'), async (req: any, res) =>
 
     // 1. Create Sale
     const [saleResult] = await connection.query(
-      "INSERT INTO vendas (tenant_id, pessoa_id, usuario_id, valor_total, desconto, frete, status, tipo, origem, solicitacao, laudo_tecnico, sequencial_id, identificacao, taxa_servico) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [tenant_id, pessoaIdToInsert, usuario_id, valor_total, desconto || 0, frete || 0, status, tipo, origem, solicitacao || null, laudo_tecnico || null, sequencial_id, identificacao || null, taxa_servico || 0]
+      "INSERT INTO vendas (tenant_id, pessoa_id, usuario_id, valor_total, desconto, frete, status, tipo, origem, solicitacao, laudo_tecnico, sequencial_id, identificacao, taxa_servico, atendente_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [tenant_id, pessoaIdToInsert, usuario_id, valor_total, desconto || 0, frete || 0, status, tipo, origem, solicitacao || null, laudo_tecnico || null, sequencial_id, identificacao || null, taxa_servico || 0, usuario_id]
     ) as any;
     
     const venda_id = saleResult.insertId;
@@ -30,8 +31,8 @@ router.post("/", authMiddleware, planMiddleware('pdv'), async (req: any, res) =>
     // 2. Insert items
     for (const item of items) {
       await connection.query(
-        "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal) VALUES (?, ?, ?, ?, ?, ?)",
-        [tenant_id, venda_id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal]
+        "INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal, profissional_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [tenant_id, venda_id, item.id, item.quantidade, item.preco_unitario || item.preco_venda, item.subtotal, usuario_id]
       );
     }
 
@@ -112,6 +113,9 @@ router.post("/", authMiddleware, planMiddleware('pdv'), async (req: any, res) =>
         }
       }
     }
+
+    // Process commissions
+    await processCommissions(connection, tenant_id, venda_id, usuario_id, valor_total, items, status, usuario_id, 'PDV');
 
     await connection.commit();
     res.json({ success: true, id: venda_id, sequencial_id: sequencial_id });

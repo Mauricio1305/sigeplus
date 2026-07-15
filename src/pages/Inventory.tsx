@@ -951,6 +951,21 @@ export const Inventory = () => {
                   onChange={e => setNewProduct({...newProduct, preco_venda: e.target.value === '' ? '' : parseFloat(e.target.value)})}
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">% de Comissão</label>
+                <input 
+                  type="number" 
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  className="w-full px-4 py-2 rounded-xl border border-slate-200"
+                  value={newProduct.perc_comissao || ''}
+                  onChange={e => setNewProduct({...newProduct, perc_comissao: e.target.value === '' ? 0 : parseFloat(e.target.value)})}
+                  placeholder="0 a 100"
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Qtd Atual</label>
                 <input 

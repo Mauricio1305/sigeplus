@@ -17,6 +17,8 @@ export const Settings = () => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [financeFieldErrors, setFinanceFieldErrors] = useState<Record<string, string>>({});
   const [company, setCompany] = useState<any>({
+    comissao_automatica: false,
+    comissao_tipo: 'pedido',
     nome_fantasia: '',
     razao_social: '',
     cnpj: '',
@@ -787,8 +789,75 @@ export const Settings = () => {
         </div>
       )}
 
+      
       {activeTab === 'finance' && (
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div className="space-y-8">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <h3 className="text-lg font-bold text-slate-900 mb-4">Controle de Comissões</h3>
+            <div className="space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div className="relative">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={company.comissao_automatica}
+                    onChange={e => {
+                        setCompany({...company, comissao_automatica: e.target.checked});
+                    }}
+                  />
+                  <div className="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:bg-indigo-600 transition-all"></div>
+                  <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-all peer-checked:translate-x-5"></div>
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-slate-800">Gerar comissão automaticamente</span>
+                  <p className="text-xs text-slate-500">Gera lançamento de comissão ao finalizar um pedido/venda</p>
+                </div>
+              </label>
+
+              {company.comissao_automatica && (
+                <div className="pl-14">
+                  <h4 className="text-sm font-bold text-slate-700 mb-2">Tipo de Controle de Comissão:</h4>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="radio" 
+                        name="comissao_tipo" 
+                        value="pedido"
+                        className="text-indigo-600 focus:ring-indigo-600"
+                        checked={company.comissao_tipo === 'pedido' || !company.comissao_tipo}
+                        onChange={e => setCompany({...company, comissao_tipo: e.target.value})}
+                      />
+                      <span className="text-sm text-slate-700 font-medium">Por Pedido (Atendente)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input 
+                        type="radio" 
+                        name="comissao_tipo" 
+                        value="item"
+                        className="text-indigo-600 focus:ring-indigo-600"
+                        checked={company.comissao_tipo === 'item'}
+                        onChange={e => setCompany({...company, comissao_tipo: e.target.value})}
+                      />
+                      <span className="text-sm text-slate-700 font-medium">Por Item (Profissional)</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+              
+              <div className="pt-4 flex justify-end">
+                <button 
+                  onClick={handleSaveCompany}
+                  disabled={loading}
+                  className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 disabled:opacity-50"
+                >
+                  {loading ? 'Salvando...' : 'Salvar Comissões'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-slate-900">Tipos de Pagamento</h3>
@@ -902,6 +971,7 @@ export const Settings = () => {
               </table>
             </div>
           </div>
+        </div>
         </div>
       )}
 
@@ -1522,7 +1592,31 @@ export const Settings = () => {
                     </select>
                   </FormField>
 
+                  
+                  <div className="flex items-center gap-2 mt-4">
+                    <input 
+                      type="checkbox" 
+                      id="user_is_profissional"
+                      checked={formData.is_profissional || false} 
+                      onChange={e => setFormData({...formData, is_profissional: e.target.checked})} 
+                      className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                    />
+                    <label htmlFor="user_is_profissional" className="text-sm font-semibold text-slate-700">Este usuário é um Profissional / Vendedor (Recebe comissão)</label>
+                  </div>
+                  
+                  {formData.is_profissional && (
+                     <FormField label="% de Comissão" helpText="Percentual padrão de comissão para este profissional (0 a 100)">
+                        <input 
+                          type="number" 
+                          min="0" max="100" step="0.01"
+                          className="w-full px-4 py-2 rounded-xl border outline-none transition-all border-slate-200 focus:ring-indigo-500"
+                          value={formData.perc_comissao || ''} 
+                          onChange={e => setFormData({...formData, perc_comissao: parseFloat(e.target.value) || 0})} 
+                        />
+                     </FormField>
+                  )}
                   {selectedItem && (
+
                     <div className="flex items-center gap-2">
                       <input 
                         type="checkbox" 

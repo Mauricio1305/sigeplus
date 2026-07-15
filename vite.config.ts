@@ -12,7 +12,13 @@ export default defineConfig(({mode}) => {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.NODE_ENV': JSON.stringify(mode),
     },
+    build: {
+      target: 'es2022',
+    },
     optimizeDeps: {
+      esbuildOptions: {
+        target: 'es2022',
+      },
       exclude: []
     },
     resolve: {

@@ -44,3 +44,52 @@ router.get("/notifications", authMiddleware, async (req: any, res) => {
 // For now, it handles the notification logs and potentially others in the future
 
 export default router;
+
+router.get("/comissoes", authMiddleware, async (req: any, res) => {
+  const { tenant_id } = req.user;
+  const { data_inicio, data_fim, usuario_id, status } = req.query;
+
+  let query = `
+    SELECT 
+      c.id as id_lancamento,
+      c.venda_id as id_pedido,
+      c.produto_id,
+      c.usuario_id,
+      u.nome as usuario,
+      p.nome as desc_produto,
+      c.data_lancamento as data,
+      c.origem,
+      c.status,
+      c.valor_base,
+      c.perc_comissao,
+      c.valor_comissao
+    FROM comissoes c
+    JOIN usuarios u ON c.usuario_id = u.id
+    LEFT JOIN produtos p ON c.produto_id = p.id
+    WHERE c.tenant_id = ?
+  `;
+  const params: any[] = [tenant_id];
+
+  if (data_inicio && data_fim) {
+    query += " AND DATE(c.data_lancamento) >= ? AND DATE(c.data_lancamento) <= ?";
+    params.push(data_inicio, data_fim);
+  }
+  if (usuario_id) {
+    query += " AND c.usuario_id = ?";
+    params.push(usuario_id);
+  }
+  if (status) {
+    query += " AND c.status = ?";
+    params.push(status);
+  }
+
+  query += " ORDER BY c.data_lancamento DESC";
+
+  try {
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
+  } catch (err: any) {
+    console.error("Error fetching comissoes:", err);
+    res.status(500).json({ error: err.message });
+  }
+});

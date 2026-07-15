@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingCart, Wrench, Search, Plus, Edit2, MoreVertical, Printer, MessageCircle, Trash2, Ban, AlertCircle, X, FileText, CheckCircle } from 'lucide-react';
+import { ShoppingCart, Wrench, Search, Plus, Edit2, MoreVertical, Printer, MessageCircle, Trash2, Ban, AlertCircle, X, FileText, CheckCircle, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
 import { formatMoney, formatDate } from '../utils/format';
@@ -25,6 +25,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
   const [pessoas, setPessoas] = useState<any[]>([]);
   const [produtos, setProdutos] = useState<any[]>([]);
   const [paymentTypes, setPaymentTypes] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [newSale, setNewSale] = useState<any>({
     pessoa_id: '',
     items: [],
@@ -42,6 +43,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
     parcelas: 1
   });
   const [selectedProduct, setSelectedProduct] = useState<any>('');
+  const [itemProfessionalId, setItemProfessionalId] = useState<string>('');
   const [productSearchTerm, setProductSearchTerm] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
@@ -106,6 +108,10 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
       .then(res => res.json()).then(setPaymentTypes);
     fetch('/api/finance/cashier/current', { headers: { 'Authorization': `Bearer ${token}` } })
       .then(res => res.json()).then(setCurrentCashier);
+    fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.json())
+      .then(data => setUsers(Array.isArray(data) ? data : []))
+      .catch(err => console.error("Error fetching users:", err));
   };
 
   useEffect(() => {
@@ -284,7 +290,8 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
       nome: product.nome,
       preco_unitario: product.preco_venda,
       quantidade: quantity,
-      subtotal: (parseFloat(product.preco_venda) || 0) * quantity
+      subtotal: (parseFloat(product.preco_venda) || 0) * quantity,
+      profissional_id: itemProfessionalId || null
     };
 
     const updatedItems = [...newSale.items, newItem];
@@ -299,6 +306,7 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
     setSelectedProduct('');
     setProductSearchTerm('');
     setQuantity(1);
+    setItemProfessionalId('');
   };
 
   const handleAddPayment = () => {
@@ -487,7 +495,8 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
               pagamentos: [],
               status: 'finalizada',
               tipo: mode,
-              origem: mode === 'venda' ? 'Balcao' : 'Ordem de Serviço'
+              origem: mode === 'venda' ? 'Balcao' : 'Ordem de Serviço',
+              atendente_id: ''
             });
             setIsModalOpen(true);
           }}
@@ -731,6 +740,21 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
             <div className="p-8 overflow-y-auto">
               <form onSubmit={handleSubmit} className="space-y-8">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+
+                  <div className="relative">
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Atendente / Vendedor</label>
+                    <select 
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold bg-white"
+                      value={newSale.atendente_id || ''}
+                      onChange={e => setNewSale({...newSale, atendente_id: e.target.value})}
+                    >
+                      <option value="">Selecione...</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>{u.nome}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="relative">
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-1">Cliente</label>
                     <div className="relative">
@@ -808,12 +832,13 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                     <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Produtos e Serviços</h3>
                   </div>
                   <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-6 shadow-sm">
-                    <div className="flex flex-col lg:flex-row gap-4 relative">
-                      <div className="relative flex-1">
+                    <div className="flex flex-col md:flex-row gap-4 relative items-end">
+                      <div className="relative flex-1 w-full">
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Buscar item pelo nome...</label>
                         <input 
                           type="text" 
-                          className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all" 
-                          placeholder="Buscar item pelo nome..." 
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-sm" 
+                          placeholder="Pesquisar produto ou serviço..." 
                           value={productSearchTerm} 
                           onChange={e => { setProductSearchTerm(e.target.value); setShowProductDropdown(e.target.value.length >= 2); }} 
                         />
@@ -835,12 +860,30 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-2 shrink-0">
-                        <div className="w-24">
+
+                      <div className="w-full md:w-52 bg-indigo-50/10 p-2.5 rounded-xl border border-indigo-100/50 shadow-sm transition-all hover:border-indigo-200">
+                        <label className="block text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1 flex items-center gap-1.5 px-0.5">
+                          <User className="w-3.5 h-3.5" /> Profissional
+                        </label>
+                        <select 
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 focus:border-indigo-500 outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-bold bg-white text-slate-700 text-xs"
+                          value={itemProfessionalId}
+                          onChange={e => setItemProfessionalId(e.target.value)}
+                        >
+                          <option value="">Selecione...</option>
+                          {users.filter(u => u.is_profissional == true || u.is_profissional == 1).map(u => (
+                            <option key={u.id} value={u.id}>{u.nome}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="flex gap-2 w-full md:w-auto shrink-0 items-end">
+                        <div className="w-16">
+                          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 text-center">Qtd</label>
                           <input 
                             type="number" 
                             min="1" 
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-center font-bold" 
+                            className="w-full px-2 py-2 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 text-center font-bold text-sm" 
                             value={quantity} 
                             onChange={e => { let val = parseInt(e.target.value); if (isNaN(val) || val < 1) val = 1; setQuantity(val); }} 
                           />
@@ -848,9 +891,9 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                         <button 
                           type="button" 
                           onClick={handleAddItem} 
-                          className="px-6 py-3 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all active:scale-[0.98] flex items-center gap-2 shadow-lg shadow-emerald-100"
+                          className="px-4 py-2.5 bg-emerald-500 text-white rounded-xl font-bold hover:bg-emerald-600 transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-lg shadow-emerald-100 flex-1 md:flex-none text-sm self-end h-[38px]"
                         >
-                          <Plus className="w-5 h-5" /> Adicionar
+                          <Plus className="w-4 h-4" /> Adicionar
                         </button>
                       </div>
                     </div>
@@ -860,19 +903,41 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Itens Adicionados</label>
                         <div className="grid grid-cols-1 gap-2">
                           {newSale.items.map((item: any, idx: number) => (
-                            <div key={idx} className="flex justify-between items-center p-4 bg-slate-50/50 rounded-2xl border border-slate-100 group hover:border-indigo-200 transition-all">
-                              <div className="flex-1 min-w-0 pr-4">
-                                <span className="font-bold text-slate-800 truncate block">{item.nome}</span>
-                                <span className="text-xs text-slate-400 font-medium">Qtd: <span className="text-slate-900 font-bold">{item.quantidade}</span> × R$ {formatMoney(item.preco_unitario)}</span>
+                            <div key={idx} className="flex flex-col gap-2 p-4 bg-slate-50/50 rounded-2xl border border-slate-100 group hover:border-indigo-200 transition-all">
+                              <div className="flex justify-between items-center">
+                                <div className="flex-1 min-w-0 pr-4">
+                                  <span className="font-bold text-slate-800 truncate block">{item.nome}</span>
+                                  <span className="text-xs text-slate-400 font-medium">Qtd: <span className="text-slate-900 font-bold">{item.quantidade}</span> × R$ {formatMoney(item.preco_unitario)}</span>
+                                </div>
+                                <div className="flex items-center gap-4 shrink-0">
+                                  <span className="font-black text-slate-900">R$ {formatMoney(item.subtotal)}</span>
+                                  <button 
+                                    type="button"
+                                    onClick={() => handleRemoveItem(idx)}
+                                    className="p-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-4 shrink-0">
-                                <span className="font-black text-slate-900">R$ {formatMoney(item.subtotal)}</span>
-                                <button 
-                                  onClick={() => handleRemoveItem(idx)}
-                                  className="p-2 text-rose-300 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"
+                              <div className="mt-3 pt-3 border-t border-slate-100 bg-slate-50/50 p-3 rounded-xl border border-slate-100 transition-all hover:border-indigo-100">
+                                <label className="block text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1.5 px-0.5 flex items-center gap-1.5">
+                                  <User className="w-3.5 h-3.5" /> Profissional
+                                </label>
+                                <select 
+                                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:border-indigo-500 outline-none focus:ring-2 focus:ring-indigo-500/20 text-sm font-semibold bg-white text-slate-700"
+                                  value={item.profissional_id || ''}
+                                  onChange={(e) => {
+                                    const updatedItems = [...newSale.items];
+                                    updatedItems[idx].profissional_id = e.target.value;
+                                    setNewSale({...newSale, items: updatedItems});
+                                  }}
                                 >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                  <option value="">Selecione...</option>
+                                  {users.filter(u => u.is_profissional == true || u.is_profissional == 1).map(u => (
+                                    <option key={u.id} value={u.id}>{u.nome}</option>
+                                  ))}
+                                </select>
                               </div>
                             </div>
                           ))}

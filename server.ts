@@ -94,11 +94,24 @@ async function initDB() {
       if (!vendasColNames.includes('sequencial_id')) {
         await pool.query("ALTER TABLE vendas ADD COLUMN sequencial_id INTEGER");
       }
+      
+      if (!vendasColNames.includes('atendente_id')) {
+        await pool.query("ALTER TABLE vendas ADD COLUMN atendente_id INTEGER");
+      }
+
       if (!vendasColNames.includes('origem')) {
         await pool.query(`ALTER TABLE vendas ADD COLUMN origem VARCHAR(50) DEFAULT 'Balcao'`);
       }
 
       const empresasColNames = await getColumns('empresas');
+
+      if (!empresasColNames.includes('comissao_automatica')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN comissao_automatica BOOLEAN DEFAULT false");
+      }
+      if (!empresasColNames.includes('comissao_tipo')) {
+        await pool.query("ALTER TABLE empresas ADD COLUMN comissao_tipo VARCHAR(20) DEFAULT 'pedido'");
+      }
+
       if (!empresasColNames.includes('whatsapp')) {
         await pool.query("ALTER TABLE empresas ADD COLUMN whatsapp VARCHAR(20)");
       }
@@ -236,6 +249,27 @@ async function initDB() {
       }
       console.log("Verified stripe_logs table existence and columns");
 
+      
+      const produtosColNames = await getColumns('produtos');
+      if (!produtosColNames.includes('perc_comissao')) {
+        await pool.query("ALTER TABLE produtos ADD COLUMN perc_comissao DECIMAL(5, 2) DEFAULT 0");
+      }
+
+      
+      const usuariosColNames = await getColumns('usuarios');
+      if (!usuariosColNames.includes('is_profissional')) {
+        await pool.query("ALTER TABLE usuarios ADD COLUMN is_profissional BOOLEAN DEFAULT false");
+      }
+      if (!usuariosColNames.includes('perc_comissao')) {
+        await pool.query("ALTER TABLE usuarios ADD COLUMN perc_comissao DECIMAL(5, 2) DEFAULT 0");
+      }
+
+      
+      const vendasItensColNames = await getColumns('vendas_itens');
+      if (!vendasItensColNames.includes('profissional_id')) {
+        await pool.query("ALTER TABLE vendas_itens ADD COLUMN profissional_id INTEGER");
+      }
+
       const osColNames = await getColumns('ordens_servico');
       if (!osColNames.includes('sequencial_id')) {
         await pool.query(`ALTER TABLE ordens_servico ADD COLUMN sequencial_id INTEGER`);
@@ -290,6 +324,11 @@ async function initDB() {
           FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
         )
       `);
+
+      
+      if (!osColNames.includes('atendente_id')) {
+        await pool.query("ALTER TABLE ordens_servico ADD COLUMN atendente_id INTEGER");
+      }
 
       const tableList = ['planos', 'empresas', 'pessoas', 'tipos_pagamento', 'lancamentos', 'vendas', 'vendas_itens', 'ordens_servico', 'produtos', 'movimentacoes_caixa', 'categorias_contas', 'usuarios'];
       for (const table of tableList) {
@@ -491,6 +530,30 @@ async function initDB() {
         )
       `);
       
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS comissoes (
+          id SERIAL PRIMARY KEY,
+          tenant_id VARCHAR(255) NOT NULL,
+          venda_id INTEGER,
+          os_id INTEGER,
+          agendamento_id INTEGER,
+          produto_id INTEGER,
+          usuario_id INTEGER NOT NULL,
+          valor_base DECIMAL(10, 2) NOT NULL,
+          perc_comissao DECIMAL(5, 2) NOT NULL,
+          valor_comissao DECIMAL(10, 2) NOT NULL,
+          origem VARCHAR(50) DEFAULT 'Venda',
+          status VARCHAR(50) DEFAULT 'Lançado',
+          data_lancamento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE,
+          FOREIGN KEY (venda_id) REFERENCES vendas(id) ON DELETE CASCADE,
+          FOREIGN KEY (os_id) REFERENCES ordens_servico(id) ON DELETE CASCADE,
+          FOREIGN KEY (agendamento_id) REFERENCES agendamentos(id) ON DELETE CASCADE,
+          FOREIGN KEY (produto_id) REFERENCES produtos(id) ON DELETE SET NULL,
+          FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE RESTRICT
+        )
+      `);
+
       await pool.query(`
         CREATE TABLE IF NOT EXISTS chamados_mensagens (
           id SERIAL PRIMARY KEY,

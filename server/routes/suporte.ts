@@ -12,7 +12,7 @@ router.post('/start', async (req: any, res) => {
       "INSERT INTO chamados (tenant_id, email, usuario_id, status) VALUES (?, ?, ?, 'Rascunho')",
       [tenant_id || null, email || null, usuario_id || null]
     );
-    res.json({ id: result.insertId });
+    res.json({ id: (result as any).insertId });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -46,7 +46,7 @@ router.use(authMiddleware);
 router.get('/unread_count', async (req: any, res) => {
   const { tenant_id, email, perfil } = req.user;
   try {
-    let result = [{ count: 0 }];
+    let result: any = [{ count: 0 }];
     if (perfil === 'superadmin' || tenant_id === 'system') {
       [result] = await pool.query("SELECT COUNT(*) as count FROM chamados WHERE unread_admin = TRUE");
     } else {

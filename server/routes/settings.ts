@@ -80,7 +80,7 @@ router.get("/settings/users", authMiddleware, planMiddleware('configuracoes'), a
   const { tenant_id } = req.user;
   try {
     const [users] = await pool.query(`
-      SELECT u.id, u.nome, u.email, u.ativo, u.perfil, u.grupo_id, g.nome as grupo_nome 
+      SELECT u.id, u.nome, u.email, u.ativo, u.perfil, u.grupo_id, u.is_profissional, u.perc_comissao, g.nome as grupo_nome 
       FROM usuarios u 
       LEFT JOIN grupos_usuarios g ON u.grupo_id = g.id 
       WHERE u.tenant_id = ?
@@ -94,7 +94,7 @@ router.get("/settings/users", authMiddleware, planMiddleware('configuracoes'), a
 router.get("/users", authMiddleware, async (req: any, res) => {
   const { tenant_id } = req.user;
   try {
-    const [users] = await pool.query("SELECT id, nome, email, perfil, avatar, ativo FROM usuarios WHERE tenant_id = ? AND ativo = 1", [tenant_id]) as any[];
+    const [users] = await pool.query("SELECT id, nome, email, perfil, avatar, ativo, is_profissional, perc_comissao FROM usuarios WHERE tenant_id = ? AND ativo = 1", [tenant_id]) as any[];
     res.json(users);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -103,7 +103,7 @@ router.get("/users", authMiddleware, async (req: any, res) => {
 
 router.post("/settings/users", authMiddleware, async (req: any, res) => {
   const { tenant_id } = req.user;
-  const { nome, email, grupo_id } = req.body;
+  const { nome, email, grupo_id, ativo, is_profissional, perc_comissao } = req.body;
   
   try {
     const [empresa] = await pool.query(`
@@ -128,8 +128,8 @@ router.post("/settings/users", authMiddleware, async (req: any, res) => {
 
     const hashedPassword = await bcrypt.hash("TempPassword123!", 10);
     const [result] = await pool.query(
-      "INSERT INTO usuarios (tenant_id, nome, email, senha, grupo_id, perfil) VALUES (?, ?, ?, ?, ?, 'usuario')",
-      [tenant_id, nome, email, hashedPassword, grupo_id]
+      "INSERT INTO usuarios (tenant_id, nome, email, senha, grupo_id, perfil, ativo, is_profissional, perc_comissao) VALUES (?, ?, ?, ?, ?, 'usuario', ?, ?, ?)",
+      [tenant_id, nome, email, hashedPassword, grupo_id || null, (ativo !== undefined ? (ativo ? 1 : 0) : 1), is_profissional ? true : false, perc_comissao || 0]
     ) as any[];
 
     if (transporter) {
@@ -153,7 +153,7 @@ router.post("/settings/users", authMiddleware, async (req: any, res) => {
 router.put("/settings/users/:id", authMiddleware, async (req: any, res) => {
   const { tenant_id } = req.user;
   const userId = req.params.id;
-  const { nome, grupo_id, ativo } = req.body;
+  const { nome, grupo_id, ativo, is_profissional, perc_comissao } = req.body;
 
   try {
     const [userRow] = await pool.query("SELECT perfil FROM usuarios WHERE id = ? AND tenant_id = ?", [userId, tenant_id]) as any[];
@@ -161,8 +161,8 @@ router.put("/settings/users/:id", authMiddleware, async (req: any, res) => {
     if (userRow[0].perfil === 'superadmin') return res.status(400).json({ error: "Não é permitido alterar este usuário." });
 
     await pool.query(
-      "UPDATE usuarios SET nome = ?, grupo_id = ?, ativo = ? WHERE id = ? AND tenant_id = ?",
-      [nome, grupo_id, ativo, userId, tenant_id]
+      "UPDATE usuarios SET nome = ?, grupo_id = ?, ativo = ?, is_profissional = ?, perc_comissao = ? WHERE id = ? AND tenant_id = ?",
+      [nome, grupo_id || null, ativo ? 1 : 0, is_profissional ? true : false, perc_comissao || 0, userId, tenant_id]
     );
 
     res.json({ success: true });
@@ -223,7 +223,7 @@ router.put("/company/settings", authMiddleware, async (req: any, res) => {
     numero, cep, cidade, estado, logo,
     whatsapp_api_url, whatsapp_api_key, whatsapp_instance, whatsapp_msg_agendamento,
     email_host, email_port, email_user, email_pass, email_from, email_msg_agendamento,
-    whatsapp_automatico, email_automatico, max_desconto_venda
+    whatsapp_automatico, email_automatico, max_desconto_venda, comissao_automatica, comissao_tipo
   } = req.body;
 
   try {
@@ -234,7 +234,7 @@ router.put("/company/settings", authMiddleware, async (req: any, res) => {
           numero = ?, cep = ?, cidade = ?, estado = ?, logo = ?,
           whatsapp_api_url = ?, whatsapp_api_key = ?, whatsapp_instance = ?, whatsapp_msg_agendamento = ?,
           email_host = ?, email_port = ?, email_user = ?, email_pass = ?, email_from = ?, email_msg_agendamento = ?,
-          whatsapp_automatico = ?, email_automatico = ?, max_desconto_venda = ?,
+          whatsapp_automatico = ?, email_automatico = ?, max_desconto_venda = ?, comissao_automatica = ?, comissao_tipo = ?,
           updated_at = CURRENT_TIMESTAMP 
       WHERE tenant_id = ?
     `, [
@@ -245,6 +245,7 @@ router.put("/company/settings", authMiddleware, async (req: any, res) => {
       email_host, email_port, email_user, email_pass, email_from, email_msg_agendamento,
       whatsapp_automatico ? true : false, email_automatico ? true : false,
       max_desconto_venda || 0,
+      comissao_automatica ? true : false, comissao_tipo || 'pedido',
       tenant_id
     ]);
     res.json({ success: true });
@@ -432,10 +433,10 @@ router.put("/admin/companies/:id", authMiddleware, async (req: any, res) => {
 
 router.post("/admin/plans", authMiddleware, async (req: any, res) => {
   if (req.user.perfil !== 'superadmin') return res.status(403).json({ error: "Forbidden" });
-  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos, is_trial, trial_days } = req.body;
+  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos, is_trial, trial_days, visivel } = req.body;
   try {
-    await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, stripe_price_id, modulos, is_trial, trial_days) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-      [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || []), is_trial ? 1 : 0, trial_days || null]);
+    await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, stripe_price_id, modulos, is_trial, trial_days, visivel) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
+      [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || []), is_trial ? 1 : 0, trial_days || null, visivel !== undefined ? (visivel ? 1 : 0) : 1]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -445,9 +446,9 @@ router.post("/admin/plans", authMiddleware, async (req: any, res) => {
 router.put("/admin/plans/:id", authMiddleware, async (req: any, res) => {
   if (req.user.perfil !== 'superadmin') return res.status(403).json({ error: "Forbidden" });
   const { id } = req.params;
-  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos, is_trial, trial_days } = req.body;
-  await pool.query("UPDATE planos SET nome = ?, valor_mensal = ?, limite_usuarios = ?, stripe_price_id = ?, modulos = ?, is_trial = ?, trial_days = ? WHERE id = ?", 
-    [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || []), is_trial ? 1 : 0, trial_days || null, id]);
+  const { nome, valor_mensal, limite_usuarios, stripe_price_id, modulos, is_trial, trial_days, visivel } = req.body;
+  await pool.query("UPDATE planos SET nome = ?, valor_mensal = ?, limite_usuarios = ?, stripe_price_id = ?, modulos = ?, is_trial = ?, trial_days = ?, visivel = ? WHERE id = ?", 
+    [nome, valor_mensal, limite_usuarios, stripe_price_id, JSON.stringify(modulos || []), is_trial ? 1 : 0, trial_days || null, visivel !== undefined ? (visivel ? 1 : 0) : 1, id]);
   res.json({ success: true });
 });
 

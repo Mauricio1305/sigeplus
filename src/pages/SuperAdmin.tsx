@@ -34,7 +34,8 @@ export const SuperAdmin = () => {
     stripe_price_id: '',
     modulos: [] as string[],
     is_trial: false,
-    trial_days: 7
+    trial_days: 7,
+    visivel: true
   });
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -236,7 +237,7 @@ export const SuperAdmin = () => {
       });
       if (res.ok) {
         setIsNewPlanModalOpen(false);
-        setNewPlan({ nome: '', valor_mensal: 0, limite_usuarios: 1, stripe_price_id: '' });
+        setNewPlan({ nome: '', valor_mensal: 0, limite_usuarios: 1, stripe_price_id: '', modulos: [] as string[], is_trial: false, trial_days: 7, visivel: true });
         fetchData();
         setToast({ message: 'Plano criado com sucesso!', type: 'success' });
       } else {
@@ -536,6 +537,13 @@ export const SuperAdmin = () => {
                   ) : (
                     <p className="text-slate-400 text-[10px] mt-1 font-mono">ID Stripe: {p.stripe_price_id || 'Não configurado'}</p>
                   )}
+                  <div className="mt-2">
+                    {p.visivel !== 0 ? (
+                      <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded inline-block text-[10px] font-bold">VISÍVEL PARA CLIENTES</span>
+                    ) : (
+                      <span className="text-rose-500 bg-rose-50 px-2 py-1 rounded inline-block text-[10px] font-bold">OCULTO PARA CLIENTES</span>
+                    )}
+                  </div>
                   <div className="mt-4 flex flex-wrap gap-1">
                     {(p.modulos || []).map((m: string) => (
                       <span key={m} className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded uppercase font-bold">
@@ -634,7 +642,7 @@ export const SuperAdmin = () => {
                     />
                   </FormField>
                   
-                  <div className="flex flex-col justify-center pt-2">
+                  <div className="flex flex-col justify-center pt-2 space-y-3">
                     <div className="flex items-center gap-2 ml-1">
                       <input 
                         type="checkbox" 
@@ -645,6 +653,19 @@ export const SuperAdmin = () => {
                       />
                       <label htmlFor="new-is-trial" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
                         Plano de Teste Grátis (Trial)
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-1">
+                      <input 
+                        type="checkbox" 
+                        id="new-visivel"
+                        className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        checked={newPlan.visivel}
+                        onChange={e => setNewPlan({...newPlan, visivel: e.target.checked})}
+                      />
+                      <label htmlFor="new-visivel" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+                        Visível para contratação de clientes
                       </label>
                     </div>
                   </div>
@@ -770,7 +791,7 @@ export const SuperAdmin = () => {
                     <p className="text-[10px] text-slate-400 mt-1">* Use 9999 para ilimitado</p>
                   </FormField>
                   
-                  <div className="flex flex-col justify-start pt-2">
+                  <div className="flex flex-col justify-start pt-2 space-y-3">
                     <div className="flex items-center gap-2 ml-1">
                       <input 
                         type="checkbox" 
@@ -781,6 +802,19 @@ export const SuperAdmin = () => {
                       />
                       <label htmlFor="edit-is-trial" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
                         Plano de Teste Grátis (Trial)
+                      </label>
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-1">
+                      <input 
+                        type="checkbox" 
+                        id="edit-visivel"
+                        className="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        checked={editingPlan.visivel !== 0}
+                        onChange={e => setEditingPlan({...editingPlan, visivel: e.target.checked ? 1 : 0})}
+                      />
+                      <label htmlFor="edit-visivel" className="text-sm font-bold text-slate-700 cursor-pointer select-none">
+                        Visível para contratação de clientes
                       </label>
                     </div>
                   </div>

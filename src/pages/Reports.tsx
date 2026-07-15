@@ -97,6 +97,9 @@ export const Reports = () => {
       case "notifications":
         url = `/api/reports/notifications?date=${notificationDate}&time=${notificationTimeFilter}`;
         break;
+      case "comissoes":
+        url = "/api/reports/comissoes";
+        break;
       default:
         return;
     }
@@ -129,6 +132,8 @@ export const Reports = () => {
         return "Relatório de Agendamentos";
       case "notifications":
         return "Logs de Notificações";
+      case "comissoes":
+        return "Relatório de Comissões";
       default:
         return "Relatório";
     }
@@ -332,6 +337,23 @@ export const Reports = () => {
       });
     }
 
+    if (type === "comissoes") {
+      filteredData = data.filter((c) => {
+        if (!c.data) return false;
+        const dateStr = c.data.includes("T") ? c.data : c.data.replace(" ", "T");
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return false;
+        const comDate = d.toISOString().split("T")[0];
+        const matchesDate = comDate >= startDate && comDate <= endDate;
+        const matchesStatus =
+          statusFilter === "todos" ||
+          c.status === statusFilter ||
+          (statusFilter === "Liberado" && (!c.status || c.status === "Lançado" || c.status === "Liberado"));
+        const matchesProfessional = professionalFilter === "todos" || c.usuario_id?.toString() === professionalFilter;
+        return matchesDate && matchesStatus && matchesProfessional;
+      });
+    }
+
     return filteredData;
   };
 
@@ -412,6 +434,16 @@ export const Reports = () => {
           Status: a.status || "Agendado",
         };
       });
+    } else if (type === "comissoes") {
+      exportData = filteredData.map((c) => ({
+        Data: formatDate(c.data),
+        Profissional: c.usuario || "-",
+        Origem: c.origem || "-",
+        Status: c.status || "-",
+        "Valor Base": parseFloat(c.valor_base || 0),
+        "Percentual Comissão (%)": parseFloat(c.perc_comissao || 0),
+        "Valor Comissão": parseFloat(c.valor_comissao || 0),
+      }));
     }
 
     const ExcelJS = await import('exceljs');
@@ -949,6 +981,77 @@ export const Reports = () => {
             </table>
           </div>
         );
+      case "comissoes":
+        const totalBase = filteredData.reduce((sum, c) => sum + parseFloat(c.valor_base || 0), 0);
+        const totalComissao = filteredData.reduce((sum, c) => sum + parseFloat(c.valor_comissao || 0), 0);
+
+        return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex justify-between items-center">
+                <span className="text-slate-500 font-medium">Total de Valor Base</span>
+                <span className="font-bold text-slate-800 text-lg">R$ {formatMoney(totalBase)}</span>
+              </div>
+              <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex justify-between items-center">
+                <span className="text-emerald-700 font-medium">Total de Comissões</span>
+                <span className="font-bold text-emerald-800 text-lg">R$ {formatMoney(totalComissao)}</span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 text-slate-500 text-[10px] sm:text-xs md:text-sm uppercase tracking-wider">
+                  <tr>
+                    <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Data</th>
+                    <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Profissional</th>
+                    <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Origem</th>
+                    <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden md:table-cell">Status</th>
+                    <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Valor Base</th>
+                    <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right hidden sm:table-cell">Comissão</th>
+                    <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right">Comissão Devida</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-[10px] sm:text-xs md:text-sm">
+                  {filteredData.map((c, index) => (
+                    <tr key={`comissao-${c.id_lancamento || index}`}>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 whitespace-nowrap">
+                        {formatDate(c.data)}
+                      </td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-900">
+                        {c.usuario || "-"}
+                      </td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden sm:table-cell">
+                        {c.origem || "Venda"}
+                      </td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 hidden md:table-cell">
+                        <span
+                          className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-[8px] sm:text-[10px] font-bold rounded uppercase ${
+                            c.status === "Pago"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : c.status === "Estorno"
+                              ? "bg-rose-100 text-rose-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {(c.status === "Lançado" || !c.status) ? "Liberado" : c.status}
+                        </span>
+                      </td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-semibold text-slate-700">
+                        R$ {formatMoney(c.valor_base)}
+                      </td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right text-slate-500 hidden sm:table-cell">
+                        {parseFloat(c.perc_comissao || 0).toFixed(1)}%
+                      </td>
+                      <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-right font-bold text-emerald-600">
+                        R$ {formatMoney(c.valor_comissao)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
       default:
         return <div>Relatório não encontrado.</div>;
     }
@@ -1194,6 +1297,38 @@ export const Reports = () => {
             </>
           )}
 
+
+          {type === "comissoes" && (
+            <>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-slate-700">Profissional</label>
+                <select
+                  value={professionalFilter}
+                  onChange={(e) => setProfessionalFilter(e.target.value)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="todos">Todos</option>
+                  {professionals.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-slate-700">Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="px-4 py-2 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="Liberado">Liberado</option>
+                  <option value="Pago">Pago</option>
+                  <option value="Estorno">Estorno</option>
+                </select>
+              </div>
+            </>
+          )}
+
           {type === "notifications" && (
             <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-500 uppercase">
@@ -1230,7 +1365,7 @@ export const Reports = () => {
             </div>
           )}
 
-          {(type === "sales" || type === "finance" || type === "agenda") && (
+          {(type === "sales" || type === "finance" || type === "agenda" || type === "comissoes") && (
             <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-500 uppercase">
                 Pessoa
