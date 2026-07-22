@@ -28,8 +28,8 @@ export const Inventory = () => {
   const token = useAuthStore(state => state.token);
   const user = useAuthStore(state => state.user);
   const { modulos } = user || {};
-  const canImport = user?.perfil === 'superadmin' || user?.modulos?.includes('import_produtos');
-  const canUseEtiquetas = user?.tenant_id === 'System' || user?.modulos?.includes('etiquetas');
+  const canImport = user?.perfil === 'superadmin' || user?.tenant_id === 'system' || user?.tenant_id === 'System' || (!user?.modulos || user.modulos.length === 0 || user?.modulos?.includes('import_produtos'));
+  const canUseEtiquetas = user?.perfil === 'superadmin' || user?.tenant_id === 'system' || user?.tenant_id === 'System' || (!user?.modulos || user.modulos.length === 0 || user?.modulos?.includes('etiquetas'));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadTemplate = async () => {
@@ -253,7 +253,10 @@ export const Inventory = () => {
     .then(res => {
       if (res.status === 401) {
         useAuthStore.getState().logout();
-        throw new Error("Unauthorized");
+        return [];
+      }
+      if (!res.ok) {
+        return [];
       }
       return res.json();
     })
@@ -261,12 +264,10 @@ export const Inventory = () => {
       if (Array.isArray(data)) {
         setProducts(data);
       } else {
-        console.error("products API returned non-array:", data);
         setProducts([]);
       }
     })
-    .catch(err => {
-      console.error("Error fetching products:", err);
+    .catch(() => {
       setProducts([]);
     });
   };

@@ -446,8 +446,8 @@ export const Settings = () => {
     }
   };
 
-  const canUseWhatsApp = user?.modulos?.includes('lembrete_whatsapp');
-  const canUseEmail = user?.modulos?.includes('lembrete_email');
+  const canUseWhatsApp = user?.perfil === 'superadmin' || user?.perfil === 'admin' || !user?.modulos || user.modulos.length === 0 || user.modulos.includes('lembrete_whatsapp');
+  const canUseEmail = user?.perfil === 'superadmin' || user?.perfil === 'admin' || !user?.modulos || user.modulos.length === 0 || user.modulos.includes('lembrete_email');
 
   return (
     <div className="space-y-6 max-w-6xl relative">
@@ -1149,8 +1149,7 @@ export const Settings = () => {
                             setFormData(g);
                             setIsModalOpen(true);
                           }}
-                          className={`text-indigo-600 hover:text-indigo-900 ${g.is_master ? 'opacity-50 pointer-events-none' : ''}`}
-                          disabled={g.is_master}
+                          className="text-indigo-600 hover:text-indigo-900"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
@@ -1561,7 +1560,7 @@ export const Settings = () => {
                       { mod: 'mesas', label: 'Mesas & Comandas', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'lancar', label: 'Lançar Itens'}, {key: 'fechar', label: 'Fechar Mesa/Comanda'}, {key: 'cancelar', label: 'Cancelar'}] },
                       { mod: 'pdv', label: 'PDV', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'vender', label: 'Realizar Venda'}, {key: 'cancelar', label: 'Cancelar'}] },
                       { mod: 'estoque', label: 'Estoque', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'editar', label: 'Lançar Movimentação'}, {key: 'excluir', label: 'Excluir'}] },
-                      { mod: 'cadastros', label: 'Cadastros', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'editar', label: 'Criar/Editar'}, {key: 'excluir', label: 'Excluir'}] },
+                      { mod: 'cadastros', label: 'Pessoas', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'editar', label: 'Criar/Editar'}, {key: 'excluir', label: 'Excluir'}] },
                       { mod: 'relatorios', label: 'Relatórios', actions: [
                         {key: 'acessar', label: 'Acessar Módulo'},
                         {key: 'sales', label: 'Relatório de Vendas'},
@@ -1574,7 +1573,7 @@ export const Settings = () => {
                         {key: 'notifications', label: 'Logs de Notificações'}
                       ] },
                       { mod: 'configuracoes', label: 'Configurações', actions: [{key: 'acessar', label: 'Acessar Módulo'}, {key: 'editar', label: 'Alterar Configurações'}] }
-                    ].filter(({ mod }) => mod === 'home' || mod === 'dashboard' || mod === 'relatorios' || user?.perfil === 'superadmin' || (user?.modulos || []).includes(mod)).map(({ mod, label, actions }) => (
+                    ].filter(({ mod }) => mod === 'home' || mod === 'dashboard' || mod === 'relatorios' || user?.perfil === 'superadmin' || !user?.modulos || user.modulos.length === 0 || user.modulos.includes(mod)).map(({ mod, label, actions }) => (
                       <div key={mod} className="border-b border-slate-200 pb-3 last:border-0 last:pb-0">
                         <h5 className="font-bold text-slate-800 text-xs uppercase mb-2">{label}</h5>
                         <div className="grid grid-cols-2 gap-2">

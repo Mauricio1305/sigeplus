@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
+import { apiRequest } from '../services/api';
 import { formatMoney, formatDate, formatTime } from '../utils/format';
 
 interface Agendamento {
@@ -73,6 +74,7 @@ const Agenda = () => {
   const [notifying, setNotifying] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const calendarRef = useRef<any>(null);
 
@@ -121,18 +123,13 @@ const Agenda = () => {
 
   const fetchProfessionals = async () => {
     try {
-      const response = await fetch('/api/users', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await apiRequest('/api/users');
       if (Array.isArray(data)) {
         setProfessionals(data);
-        // Default to "Todos" (null) or current professional if preferred. 
-        // Request says "Todos" by default.
         setSelectedProfessional(null); 
       }
     } catch (err) {
-      console.error('Error fetching professionals:', err);
+      setProfessionals([]);
     }
   };
 
@@ -164,15 +161,12 @@ const Agenda = () => {
       const queryString = params.toString();
       if (queryString) url += `?${queryString}`;
 
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await apiRequest(url);
       if (Array.isArray(data)) {
         setAgendamentos(data);
       }
     } catch (err) {
-      console.error('Error fetching agendamentos:', err);
+      setAgendamentos([]);
     } finally {
       setLoading(false);
     }
@@ -180,29 +174,29 @@ const Agenda = () => {
 
   const fetchPessoas = async () => {
     try {
-      const response = await fetch('/api/pessoas?tipo=cliente_or_ambos&ativo=1', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await apiRequest('/api/pessoas?tipo=cliente_or_ambos&ativo=1');
       if (Array.isArray(data)) {
         setPessoas(data);
       }
-    } catch (err) {
-      console.error('Error fetching pessoas:', err);
+    } catch (err: any) {
+      if (!err?.message?.includes('permissão') && !err?.message?.includes('Acesso')) {
+        console.error('Error fetching pessoas:', err);
+      }
+      setPessoas([]);
     }
   };
 
   const fetchProdutos = async () => {
     try {
-      const response = await fetch('/api/products', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await apiRequest('/api/products');
       if (Array.isArray(data)) {
         setProdutos(data.filter((p: any) => p.ativo));
       }
-    } catch (err) {
-      console.error('Error fetching produtos:', err);
+    } catch (err: any) {
+      if (!err?.message?.includes('permissão') && !err?.message?.includes('Acesso')) {
+        console.error('Error fetching produtos:', err);
+      }
+      setProdutos([]);
     }
   };
 
@@ -226,20 +220,18 @@ const Agenda = () => {
       items: []
     });
     setSelectedEvent(null);
+    setFormError(null);
     setIsModalOpen(true);
   };
 
   const handleEventClick = async (clickInfo: any) => {
     const eventId = clickInfo.event.id;
     try {
-      const response = await fetch(`/api/agenda/${eventId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
+      const data = await apiRequest(`/api/agenda/${eventId}`);
       setSelectedEvent(data);
       setIsDetailsOpen(true);
     } catch (err) {
-      console.error('Error fetching event details:', err);
+      // Handled silently or via toast
     }
   };
 
@@ -251,26 +243,18 @@ const Agenda = () => {
       return;
     }
 
+    setFormError(null);
     try {
       const url = selectedEvent ? `/api/agenda/${selectedEvent.id}` : '/api/agenda';
       const method = selectedEvent ? 'PUT' : 'POST';
       
-      const response = await fetch(url, {
+      const data = await apiRequest(url, {
         method,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify({
           ...formData,
           valor_total: formData.items.reduce((acc, item) => acc + item.subtotal, 0)
         })
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error);
-      }
 
       setIsModalOpen(false);
       fetchAgendamentos();
@@ -282,39 +266,30 @@ const Agenda = () => {
         setToast({ message: 'Agendamento salvo com sucesso!', type: 'success' });
       }
     } catch (err: any) {
-      setToast({ message: err.message, type: 'error' });
+      const errorMsg = typeof err === 'string' ? err : (err?.error || err?.message || 'Erro ao salvar agendamento');
+      setFormError(errorMsg);
+      setToast({ message: errorMsg, type: 'error' });
     }
   };
 
   const handleDelete = async (id: number) => {
     if (!confirm('Deseja realmente excluir este agendamento?')) return;
     try {
-      await fetch(`/api/agenda/${id}`, { 
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await apiRequest(`/api/agenda/${id}`, { method: 'DELETE' });
       setIsDetailsOpen(false);
       fetchAgendamentos();
-    } catch (err) {
-      console.error('Error deleting:', err);
+    } catch (err: any) {
+      const errorMsg = typeof err === 'string' ? err : (err?.error || err?.message || 'Erro ao excluir agendamento');
+      setToast({ message: errorMsg, type: 'error' });
     }
   };
 
   const handleUpdateStatus = async (id: number, status: string) => {
     try {
-      const response = await fetch(`/api/agenda/${id}`, {
+      await apiRequest(`/api/agenda/${id}`, {
         method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify({ status })
       });
-      
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Erro ao atualizar status');
-      }
       
       fetchAgendamentos();
       if (isDetailsOpen) {
@@ -322,40 +297,31 @@ const Agenda = () => {
       }
       setToast({ message: 'Status atualizado com sucesso!', type: 'success' });
     } catch (err: any) {
-      setToast({ message: err.message, type: 'error' });
-      console.error('Error updating status:', err);
+      const errorMsg = typeof err === 'string' ? err : (err?.error || err?.message || 'Erro ao atualizar status');
+      setToast({ message: errorMsg, type: 'error' });
     }
   };
 
   const handleConcluir = async (id: number) => {
     try {
-      const response = await fetch(`/api/agenda/${id}/concluir`, { 
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      const data = await apiRequest(`/api/agenda/${id}/concluir`, { method: 'POST' });
       
       alert('Venda gerada com sucesso! Redirecionando para pagamento...');
-      // In a real app we might redirect to /vendas/:sequencial_id or open the POS
       window.location.href = `/vendas?id=${data.sequencial_id}&pay=true`;
     } catch (err: any) {
-      alert(err.message);
+      const errorMsg = typeof err === 'string' ? err : (err?.error || err?.message || 'Erro ao concluir agendamento');
+      alert(errorMsg);
     }
   };
 
   const handleNotify = async (id: number, type: 'whatsapp' | 'email') => {
     setNotifying(type);
     try {
-      const response = await fetch(`/api/agenda/${id}/notify/${type}`, { 
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      alert('Notificação enviada com sucesso!');
+      const data = await apiRequest(`/api/agenda/${id}/notify/${type}`, { method: 'POST' });
+      setToast({ message: data.message || 'Notificação enviada com sucesso!', type: 'success' });
     } catch (err: any) {
-      alert(err.message);
+      const errorMsg = typeof err === 'string' ? err : (err?.error || err?.message || 'Erro ao enviar notificação');
+      setToast({ message: errorMsg, type: 'error' });
     } finally {
       setNotifying(null);
     }
@@ -489,6 +455,7 @@ const Agenda = () => {
             onClick={() => {
               setFormData({ ...formData, usuario_id: selectedProfessional?.id || user?.id || professionals[0]?.id || '' });
               setSelectedEvent(null);
+              setFormError(null);
               setIsModalOpen(true);
             }}
             className="w-full md:w-auto bg-indigo-600 text-white px-6 py-2.5 rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 flex items-center justify-center gap-2"
@@ -540,10 +507,14 @@ const Agenda = () => {
             extendedProps: { ...ag, colorCategory: getStatusColor(ag.status) }
           }))}
           eventContent={(info) => {
+            const profName = info.event.extendedProps.profissional_nome?.trim() || 'Profissional Não Informado';
             return (
               <div className={`w-full h-full p-2 rounded-xl border-l-4 shadow-sm flex flex-col justify-start overflow-hidden ${info.event.extendedProps.colorCategory || 'bg-indigo-50 text-indigo-700 border-indigo-200'} `} style={{ borderLeftColor: 'currentColor' }}>
-                <p className="text-[10px] font-black opacity-70 uppercase tracking-wider mb-1 leading-none whitespace-nowrap overflow-hidden text-ellipsis">{info.timeText}</p>
-                <p className="text-xs font-bold leading-tight line-clamp-2">{info.event.title}</p>
+                <p className="text-[10px] font-black opacity-70 uppercase tracking-wider mb-0.5 leading-none whitespace-nowrap overflow-hidden text-ellipsis">{info.timeText}</p>
+                <p className="text-xs font-bold leading-tight line-clamp-1">{info.event.title}</p>
+                <p className="text-[11px] font-medium opacity-90 leading-tight line-clamp-1 mt-0.5">
+                  Profissional: {profName}
+                </p>
               </div>
             );
           }}
@@ -557,12 +528,8 @@ const Agenda = () => {
               return;
             }
             try {
-              await fetch(`/api/agenda/${event.id}`, {
+              await apiRequest(`/api/agenda/${event.id}`, {
                 method: 'PUT',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
                 body: JSON.stringify({
                   data_inicio: event.startStr.split('.')[0],
                   data_fim: event.endStr?.split('.')[0]
@@ -581,12 +548,8 @@ const Agenda = () => {
               return;
             }
             try {
-              await fetch(`/api/agenda/${event.id}`, {
+              await apiRequest(`/api/agenda/${event.id}`, {
                 method: 'PUT',
-                headers: { 
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                },
                 body: JSON.stringify({
                   data_inicio: event.startStr.split('.')[0],
                   data_fim: event.endStr?.split('.')[0]
@@ -641,6 +604,12 @@ const Agenda = () => {
               </div>
 
               <form onSubmit={handleSave} className="p-5 md:p-8 overflow-y-auto space-y-5 md:space-y-6 flex-1">
+                {formError && (
+                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-700 font-bold text-sm shadow-sm">
+                    <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
+                    <span>{formError}</span>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Status do Agendamento</label>
@@ -1050,12 +1019,12 @@ const Agenda = () => {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100]"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[9999]"
           >
-            <div className={`px-6 py-3 rounded-2xl shadow-xl border flex items-center gap-3 ${
-              toast.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'
+            <div className={`px-6 py-4 rounded-2xl shadow-2xl border flex items-center gap-3 ${
+              toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'
             }`}>
-              {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+              {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" /> : <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />}
               <p className="text-sm font-bold">{toast.message}</p>
             </div>
           </motion.div>

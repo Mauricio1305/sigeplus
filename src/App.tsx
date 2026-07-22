@@ -35,38 +35,29 @@ const ModuleGuard = ({ module, children }: { module: string, children: React.Rea
   if (!user) return <Navigate to="/login" replace />;
   if (user.perfil === 'superadmin') return <>{children}</>;
   
+  // Base modules always accessible
+  if (module === 'home' || module === 'inicio' || module === 'meuplano') {
+    return <>{children}</>;
+  }
+
+  // Tier 1: Check Company Plan Modules
   let planHasModule = false;
-  if (module === 'home' || module === 'inicio') {
-    if (!user.modulos || user.modulos.length === 0) {
-      planHasModule = true;
-    } else {
-      planHasModule = user.modulos.includes('home') || user.modulos.includes('inicio');
-    }
-  } else if (module === 'dashboard') {
-    planHasModule = true;
+  if (user.tenant_id === 'system' || user.tenant_id === 'System' || !user.modulos || user.modulos.length === 0) {
+    planHasModule = true; // system tenant or fallback if no plan modules array specified
   } else {
-    planHasModule = !!user.modulos?.includes(module);
+    planHasModule = user.modulos.includes(module);
   }
   
-  let hasGroupAccess = false;
-  if (user.perfil === 'admin' || module === 'home' || module === 'inicio') {
-    hasGroupAccess = true;
-  } else if (user.permissoes && user.permissoes[module]) {
-    hasGroupAccess = !!user.permissoes[module].acessar;
-  }
-
-  const hasAccess = planHasModule && hasGroupAccess;
-
-  if (!hasAccess) {
+  if (!planHasModule) {
     return (
       <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-slate-100 shadow-sm text-center">
         <div className="bg-rose-50 p-4 rounded-full mb-6">
           <Package className="w-12 h-12 text-rose-500" />
         </div>
-        <h2 className="text-2xl font-black text-slate-900 mb-2">Acesso Restrito</h2>
+        <h2 className="text-2xl font-black text-slate-900 mb-2">Módulo Não Contratado</h2>
         <p className="text-slate-500 max-w-md mx-auto mb-8">
-          O seu usuário ou plano atual não possui acesso ao módulo <strong>{module}</strong>. 
-          Entre em contato com o administrador.
+          O plano da sua empresa não inclui o módulo <strong>{module}</strong>. 
+          Altere ou atualize a assinatura para liberar este recurso.
         </p>
         <button 
           onClick={() => window.history.back()}
@@ -77,6 +68,36 @@ const ModuleGuard = ({ module, children }: { module: string, children: React.Rea
       </div>
     );
   }
+
+  // Tier 2: Check User Group Permissions
+  let hasGroupAccess = false;
+  if (user.perfil === 'admin') {
+    hasGroupAccess = true; // Admin/Master group has access to all contracted modules
+  } else if (user.permissoes && typeof user.permissoes[module] === 'object') {
+    hasGroupAccess = user.permissoes[module].acessar === true;
+  }
+
+  if (!hasGroupAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-slate-100 shadow-sm text-center">
+        <div className="bg-rose-50 p-4 rounded-full mb-6">
+          <Package className="w-12 h-12 text-rose-500" />
+        </div>
+        <h2 className="text-2xl font-black text-slate-900 mb-2">Acesso Negado</h2>
+        <p className="text-slate-500 max-w-md mx-auto mb-8">
+          Seu grupo de usuário não possui permissão para acessar o módulo <strong>{module}</strong>. 
+          Entre em contato com o administrador do sistema.
+        </p>
+        <button 
+          onClick={() => window.history.back()}
+          className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-bold hover:bg-slate-800 transition-all"
+        >
+          Voltar
+        </button>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 };
 

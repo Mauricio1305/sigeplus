@@ -35,18 +35,19 @@ export const Pessoas = () => {
           useAuthStore.getState().logout();
           return;
         }
+        if (!res.ok) {
+          return [];
+        }
         return res.json();
       })
       .then(data => {
         if (Array.isArray(data)) {
           setPessoas(data);
         } else {
-          console.error("pessoas API returned non-array:", data);
           setPessoas([]);
         }
       })
       .catch(err => {
-        console.error("Error fetching pessoas:", err);
         setPessoas([]);
       });
   };

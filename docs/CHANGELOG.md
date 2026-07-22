@@ -88,5 +88,24 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  ##[1.2.2] - 2026-06-22
   - Criação do visual da tela de Login
 
+  ##[1.3.0] - 2026-07-16
+   - Criacao da funcionalidade de controle de comissão
+   - criaçao de relatório de comissão
+
+  ##[1.3.1] - 2026-07-17
+   - Correçao arredondamento de comissões
+  
+  ##[1.3.2] - 2026-07-21
+   - Correção sistema habilitava indevidamente módulos a empresas que nao tinha contratado
+   - Criacao de novo sequence_id para cadatro de produtos
+   - Criaçao de novo sequence_id para cadastro de pessoas
+
+  ##[1.3.3] - 2026-07-22
+   - Correção de regra que forçava a exibiçao de módulos iginorando os que estava habilitado nos planos e exibindo indevidamente módulos que nao estava contratado.
+   - Adicionado nome do proofissional na label de Agendamento.
+   - Inclusão de funcionalidade de carregar profissional associado ao produto/servico no pedido gerado pela agenda.
+   - Melhorias nas regras de permissões  de acesso 
+
+
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*

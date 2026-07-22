@@ -9,7 +9,7 @@ export const Reports = () => {
   const { type } = useParams();
   const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
-  const canExportExcel = user?.perfil === 'superadmin' || user?.modulos?.includes("export_excel");
+  const canExportExcel = user?.perfil === 'superadmin' || user?.tenant_id === 'system' || user?.tenant_id === 'System' || (!user?.modulos || user.modulos.length === 0 || user?.modulos?.includes("export_excel"));
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

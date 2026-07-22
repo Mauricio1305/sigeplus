@@ -9,6 +9,11 @@ export const safeFetchArray = async (url: string, token: string | null, setter: 
       useAuthStore.getState().logout();
       return;
     }
+    if (res.status === 403) {
+      // Permission restricted for user or plan
+      setter([]);
+      return;
+    }
     const contentType = res.headers.get('content-type') || '';
     if (!res.ok || !contentType.includes('application/json')) {
       console.error(`API ${url} returned status ${res.status} with content-type ${contentType}`);
@@ -19,7 +24,6 @@ export const safeFetchArray = async (url: string, token: string | null, setter: 
     if (Array.isArray(data)) {
       setter(data);
     } else {
-      console.error(`API ${url} returned non-array:`, data);
       setter([]);
     }
   } catch (err) {
@@ -53,11 +57,22 @@ export const apiRequest = async (url: string, options: RequestInit = {}) => {
     }
   } else {
     const text = await res.text();
-    data = { error: text || `Erro no servidor (${res.status})` };
+    if (text.includes('<html') || text.trim().startsWith('<')) {
+      if (res.status === 403) {
+        data = { error: 'Acesso Negado! Seu usuário nao possui essa permissao.' };
+      } else if (res.status === 404) {
+        data = { error: 'Recurso não encontrado no servidor (404).' };
+      } else {
+        data = { error: `Erro no servidor (${res.status} ${res.statusText || ''})` };
+      }
+    } else {
+      data = { error: text || `Erro no servidor (${res.status})` };
+    }
   }
 
   if (!res.ok) {
-    throw { status: res.status, ...(typeof data === 'object' && data !== null ? data : { error: data }) };
+    const errorMsg = typeof data === 'object' && data !== null && data.error ? data.error : `Erro na requisição (${res.status})`;
+    throw { status: res.status, error: errorMsg, message: errorMsg, ...(typeof data === 'object' ? data : {}) };
   }
   return data;
 };

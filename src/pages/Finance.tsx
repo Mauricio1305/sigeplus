@@ -47,7 +47,10 @@ export const Finance = () => {
   const user = useAuthStore(state => state.user);
 
   const hasReportAccess = (reportKey: string) => {
-    if (user?.perfil === 'superadmin' || user?.perfil === 'admin') return true;
+    if (user?.perfil === 'superadmin') return true;
+    const planHasRelatorios = user?.tenant_id === 'system' || user?.tenant_id === 'System' || !user?.modulos || user.modulos.length === 0 || user.modulos.includes('relatorios');
+    if (!planHasRelatorios) return false;
+    if (user?.perfil === 'admin') return true;
     if (!user?.permissoes?.relatorios?.acessar) return false;
     return !!user.permissoes.relatorios[reportKey];
   };

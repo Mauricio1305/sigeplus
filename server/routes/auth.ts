@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { pool } from "../db";
 import { authMiddleware } from "../middleware";
 import { getStripe, transporter } from "../utils";
+import { DEFAULT_MASTER_PERMISSOES, parseJSON } from "../permissions";
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "saas-secret-key-123";
@@ -111,6 +112,10 @@ router.post("/register", async (req, res) => {
       estoque: { acessar: true, editar: true, excluir: true },
       cadastros: { acessar: true, editar: true, excluir: true },
       configuracoes: { acessar: true, editar: true },
+      agenda: { acessar: true, criar: true, cancelar: true, ver_outros: true },
+      mesas: { acessar: true, comandas: true },
+      os: { acessar: true, criar: true, editar: true, cancelar: true },
+      etiquetas: { acessar: true, imprimir: true },
       relatorios: { acessar: true, sales: true, inventory: true, finance: true, comissoes: true, dre: true, people: true, agenda: true, notifications: true }
     });
 
@@ -248,21 +253,35 @@ router.post("/login", async (req, res) => {
       }
     }
 
-    let permissoes = {};
+    let permissoes: any = {};
     if (user.grupo_id) {
-      const [grupos] = await pool.query("SELECT permissoes FROM grupos_usuarios WHERE id = ?", [user.grupo_id]) as any[];
-      if (grupos.length > 0 && grupos[0].permissoes) {
-        permissoes = typeof grupos[0].permissoes === 'string' ? JSON.parse(grupos[0].permissoes) : grupos[0].permissoes;
+      const [grupos] = await pool.query("SELECT is_master, permissoes FROM grupos_usuarios WHERE id = ?", [user.grupo_id]) as any[];
+      if (grupos.length > 0) {
+        permissoes = parseJSON(grupos[0].permissoes, {});
+        if (grupos[0].is_master || user.perfil === 'admin' || user.perfil === 'superadmin') {
+          permissoes = { ...DEFAULT_MASTER_PERMISSOES, ...permissoes };
+        }
+      }
+    } else {
+      if (user.perfil === 'admin' || user.perfil === 'superadmin') {
+        permissoes = DEFAULT_MASTER_PERMISSOES;
+      } else if (user.tenant_id) {
+        const [masterGroup] = await pool.query("SELECT permissoes FROM grupos_usuarios WHERE tenant_id = ? AND (is_master = 1 OR nome = 'Master')", [user.tenant_id]) as any[];
+        if (masterGroup.length > 0) {
+          permissoes = parseJSON(masterGroup[0].permissoes, {});
+        }
       }
     }
 
+    const modulosParsed = parseJSON(company?.modulos, []);
+
     const token = jwt.sign(
-      { id: user.id, tenant_id: user.tenant_id, perfil: user.perfil, nome: user.nome, status_assinatura: company?.status_assinatura, vencimento_assinatura: company?.vencimento_assinatura, plano_id: company?.plano_id, modulos: typeof company?.modulos === "string" ? JSON.parse(company.modulos) : (company?.modulos || []), permissoes },
+      { id: user.id, tenant_id: user.tenant_id, perfil: user.perfil, nome: user.nome, status_assinatura: company?.status_assinatura, vencimento_assinatura: company?.vencimento_assinatura, plano_id: company?.plano_id, modulos: modulosParsed, permissoes },
       JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    res.json({ token, user: { ...user, status_assinatura: company?.status_assinatura, vencimento_assinatura: company?.vencimento_assinatura, plano_id: company?.plano_id, modulos: typeof company?.modulos === "string" ? JSON.parse(company.modulos) : (company?.modulos || []), permissoes } });
+    res.json({ token, user: { ...user, status_assinatura: company?.status_assinatura, vencimento_assinatura: company?.vencimento_assinatura, plano_id: company?.plano_id, modulos: modulosParsed, permissoes } });
   } catch (err: any) {
     res.status(500).json({ error: "Erro interno do servidor", details: err.message });
   }
@@ -283,15 +302,29 @@ router.get("/me", authMiddleware, async (req: any, res) => {
     `, [user.tenant_id]) as any[];
     let company = companies[0] || { status_assinatura: 'ativo', vencimento_assinatura: null, plano_id: 1, modulos: [] };
 
-    let permissoes = {};
+    let permissoes: any = {};
     if (user.grupo_id) {
-      const [grupos] = await pool.query("SELECT permissoes FROM grupos_usuarios WHERE id = ?", [user.grupo_id]) as any[];
-      if (grupos.length > 0 && grupos[0].permissoes) {
-        permissoes = typeof grupos[0].permissoes === 'string' ? JSON.parse(grupos[0].permissoes) : grupos[0].permissoes;
+      const [grupos] = await pool.query("SELECT is_master, permissoes FROM grupos_usuarios WHERE id = ?", [user.grupo_id]) as any[];
+      if (grupos.length > 0) {
+        permissoes = parseJSON(grupos[0].permissoes, {});
+        if (grupos[0].is_master || user.perfil === 'admin' || user.perfil === 'superadmin') {
+          permissoes = { ...DEFAULT_MASTER_PERMISSOES, ...permissoes };
+        }
+      }
+    } else {
+      if (user.perfil === 'admin' || user.perfil === 'superadmin') {
+        permissoes = DEFAULT_MASTER_PERMISSOES;
+      } else if (user.tenant_id) {
+        const [masterGroup] = await pool.query("SELECT permissoes FROM grupos_usuarios WHERE tenant_id = ? AND (is_master = 1 OR nome = 'Master')", [user.tenant_id]) as any[];
+        if (masterGroup.length > 0) {
+          permissoes = parseJSON(masterGroup[0].permissoes, {});
+        }
       }
     }
 
-    res.json({ user: { ...user, status_assinatura: company.status_assinatura, vencimento_assinatura: company.vencimento_assinatura, plano_id: company.plano_id, modulos: typeof company.modulos === "string" ? JSON.parse(company.modulos) : (company.modulos || []), permissoes } });
+    const modulosParsed = parseJSON(company.modulos, []);
+
+    res.json({ user: { ...user, status_assinatura: company.status_assinatura, vencimento_assinatura: company.vencimento_assinatura, plano_id: company.plano_id, modulos: modulosParsed, permissoes } });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

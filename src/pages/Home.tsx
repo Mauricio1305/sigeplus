@@ -19,18 +19,18 @@ export const Home = () => {
     if (!user) return false;
     if (user.perfil === 'superadmin') return true;
     
-    // Check if plan has the module
-    const planHasModule = user.modulos?.includes(module);
-    
-    // Check user group permissions
-    let hasGroupAccess = false;
-    if (user.perfil === 'admin') {
-      hasGroupAccess = true;
-    } else if (user.permissoes && user.permissoes[module]) {
-      hasGroupAccess = !!user.permissoes[module].acessar;
+    // Tier 1: Check if company plan includes the module
+    const planHasModule = user.tenant_id === 'system' || user.tenant_id === 'System' || !user.modulos || user.modulos.length === 0 || user.modulos.includes(module);
+    if (!planHasModule) return false;
+
+    // Tier 2: Check user group permissions
+    if (user.perfil === 'admin') return true;
+
+    if (user.permissoes && typeof user.permissoes[module] === 'object') {
+      return user.permissoes[module].acessar === true;
     }
     
-    return planHasModule && hasGroupAccess;
+    return false;
   };
 
   // Define the allowed modules list with their paths, icons, colors, and key descriptions

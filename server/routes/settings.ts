@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "../db";
 import { authMiddleware, planMiddleware } from "../middleware";
 import { transporter, getStripe } from "../utils";
+import { parseJSON, DEFAULT_MASTER_PERMISSOES } from "../permissions";
 import bcrypt from "bcryptjs";
 
 const router = Router();
@@ -12,10 +13,16 @@ router.get("/settings/groups", authMiddleware, async (req: any, res) => {
   const { tenant_id } = req.user;
   try {
     const [groups] = await pool.query("SELECT * FROM grupos_usuarios WHERE tenant_id = ?", [tenant_id]) as any[];
-    const parsedGroups = groups.map((g: any) => ({
-      ...g,
-      permissoes: typeof g.permissoes === 'string' ? JSON.parse(g.permissoes) : (g.permissoes || {})
-    }));
+    const parsedGroups = groups.map((g: any) => {
+      let p = parseJSON(g.permissoes, {});
+      if (g.is_master || g.nome === 'Master') {
+        p = { ...DEFAULT_MASTER_PERMISSOES, ...p };
+      }
+      return {
+        ...g,
+        permissoes: p
+      };
+    });
     res.json(parsedGroups);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -44,7 +51,6 @@ router.put("/settings/groups/:id", authMiddleware, async (req: any, res) => {
   try {
     const [group] = await pool.query("SELECT is_master FROM grupos_usuarios WHERE id = ? AND tenant_id = ?", [groupId, tenant_id]) as any[];
     if (!group[0]) return res.status(404).json({ error: "Grupo não encontrado" });
-    if (group[0].is_master) return res.status(400).json({ error: "Grupo Master não pode ser alterado" });
 
     await pool.query(
       "UPDATE grupos_usuarios SET nome = ?, permissoes = ? WHERE id = ? AND tenant_id = ?",

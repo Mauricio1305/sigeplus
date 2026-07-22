@@ -24,7 +24,10 @@ export const DRE = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasAccess = user?.perfil === 'superadmin' || user?.perfil === 'admin' || (user?.permissoes?.relatorios?.acessar && user?.permissoes?.relatorios?.dre);
+  const hasAccess = user?.perfil === 'superadmin' || user?.tenant_id === 'system' || user?.tenant_id === 'System' || (
+    (!user?.modulos || user.modulos.length === 0 || user.modulos.includes('relatorios')) &&
+    (user?.perfil === 'admin' || (user?.permissoes?.relatorios?.acessar && user?.permissoes?.relatorios?.dre))
+  );
 
   const fetchDRE = useCallback(() => {
     if (!token) return;

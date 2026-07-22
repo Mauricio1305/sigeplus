@@ -75,8 +75,16 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
         fetchData();
         setConfirmCancelId(null);
       } else {
-        const errorData = await response.json();
-        alert("Erro no servidor: " + (errorData.error || 'Não foi possível cancelar o pedido.'));
+        const contentType = response.headers.get('content-type') || '';
+        let errorMsg = 'Não foi possível cancelar o pedido.';
+        if (contentType.includes('application/json')) {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } else {
+          const text = await response.text();
+          errorMsg = text || errorMsg;
+        }
+        alert("Erro no servidor: " + errorMsg);
       }
     } catch (error) {
       console.error("Erro na requisição de cancelamento:", error);

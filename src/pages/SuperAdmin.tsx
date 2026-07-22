@@ -43,6 +43,7 @@ export const SuperAdmin = () => {
 
   const availableModules = [
     { id: 'home', label: 'Início (Tela Inicial)' },
+    { id: 'dashboard', label: 'Dashboard (Indicadores e Gráficos)' },
     { id: 'financeiro', label: 'Financeiro' },
     { id: 'estoque', label: 'Estoque' },
     { id: 'cadastros', label: 'Cadastros (Pessoas)' },

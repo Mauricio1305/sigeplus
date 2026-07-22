@@ -227,28 +227,24 @@ export const Layout = () => {
     if (!user) return false;
     if (user.perfil === 'superadmin') return true;
 
+    // Base modules always accessible
+    if (module === 'home' || module === 'inicio' || module === 'meuplano') return true;
+
+    // Tier 1: Plan Level Check
     let planHasModule = false;
-    if (module === 'home' || module === 'inicio') {
-      if (!user.modulos || user.modulos.length === 0) {
-        planHasModule = true;
-      } else {
-        planHasModule = user.modulos.includes('home') || user.modulos.includes('inicio');
-      }
-    } else if (module === 'dashboard') {
+    if (user.tenant_id === 'system' || user.tenant_id === 'System' || !user.modulos || user.modulos.length === 0) {
       planHasModule = true;
     } else {
-      planHasModule = !!user.modulos?.includes(module);
+      planHasModule = user.modulos.includes(module);
     }
 
     if (!planHasModule) return false;
 
-    // Admin passes group check automatically
+    // Tier 2: Group Permission Level Check
     if (user.perfil === 'admin') return true;
-    if (module === 'home' || module === 'inicio') return true;
 
-    // Finally check user's group permissions
-    if (user.permissoes && user.permissoes[module]) {
-      return !!user.permissoes[module].acessar;
+    if (user.permissoes && typeof user.permissoes[module] === 'object') {
+      return user.permissoes[module].acessar === true;
     }
 
     return false;
@@ -256,17 +252,23 @@ export const Layout = () => {
 
   const hasReportAccess = (reportKey: string) => {
     if (!user) return false;
-    if (user.perfil === 'superadmin' || user.perfil === 'admin') return true;
-    if (!user.permissoes?.relatorios?.acessar) return false;
-    return !!user.permissoes.relatorios[reportKey];
+    if (user.perfil === 'superadmin') return true;
+    if (!hasModule('relatorios')) return false;
+    if (user.perfil === 'admin') return true;
+    if (user.permissoes?.relatorios?.acessar === false) return false;
+    if (user.permissoes?.relatorios && typeof user.permissoes.relatorios[reportKey] === 'boolean') {
+      return user.permissoes.relatorios[reportKey];
+    }
+    return true;
   };
 
   const showReportsMenu = () => {
     if (!user) return false;
-    const hasAtLeastOneModule = hasModule('financeiro') || hasModule('vendas') || hasModule('estoque') || hasModule('cadastros') || hasModule('agenda') || hasModule('configuracoes');
-    if (!hasAtLeastOneModule) return false;
-    if (user.perfil === 'superadmin' || user.perfil === 'admin') return true;
-    return !!user.permissoes?.relatorios?.acessar;
+    if (user.perfil === 'superadmin') return true;
+    if (!hasModule('relatorios')) return false;
+    if (user.perfil === 'admin') return true;
+    if (user.permissoes?.relatorios?.acessar === false) return false;
+    return true;
   };
 
   return (
@@ -381,7 +383,7 @@ export const Layout = () => {
           
           {(isSidebarOpen || isMobileMenuOpen) ? (
             <div className="px-4 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-              <span>v1.3.2</span>
+              <span>v1.3.3</span>
               <span className="opacity-50">GM</span>
             </div>
           ) : (

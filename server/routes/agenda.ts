@@ -23,7 +23,7 @@ router.get("/", authMiddleware, planMiddleware('agenda'), async (req: any, res) 
         u.nome as profissional_nome
       FROM agendamentos a
       LEFT JOIN pessoas p ON a.pessoa_id = p.id
-      JOIN usuarios u ON a.usuario_id = u.id
+      LEFT JOIN usuarios u ON a.usuario_id = u.id
       WHERE a.tenant_id = ? ${includeCanceled ? '' : "AND (a.status IS NULL OR a.status != 'Cancelado')"}
     `;
     const params: any[] = [tenant_id];
@@ -67,7 +67,7 @@ router.get("/:id", authMiddleware, planMiddleware('agenda'), async (req: any, re
         u.nome as profissional_nome
       FROM agendamentos a
       LEFT JOIN pessoas p ON a.pessoa_id = p.id
-      JOIN usuarios u ON a.usuario_id = u.id
+      LEFT JOIN usuarios u ON a.usuario_id = u.id
       WHERE a.id = ? AND a.tenant_id = ?
     `;
     const params: any[] = [id, tenant_id];
@@ -346,17 +346,17 @@ router.post("/:id/concluir", authMiddleware, planMiddleware('agenda'), async (re
     const nextSequencial = (maxSequencialRow[0]?.max_id || 0) + 1;
 
     const [resVenda] = await connection.query(`
-      INSERT INTO vendas (tenant_id, sequencial_id, pessoa_id, usuario_id, valor_total, status, origem, tipo)
-      VALUES (?, ?, ?, ?, ?, 'orcamento', 'Agenda', 'venda')
-    `, [tenant_id, nextSequencial, agenda.pessoa_id, authUserId, agenda.valor_total]) as any[];
+      INSERT INTO vendas (tenant_id, sequencial_id, pessoa_id, usuario_id, atendente_id, valor_total, status, origem, tipo)
+      VALUES (?, ?, ?, ?, ?, ?, 'orcamento', 'Agenda', 'venda')
+    `, [tenant_id, nextSequencial, agenda.pessoa_id, authUserId, agenda.usuario_id || null, agenda.valor_total]) as any[];
 
     const vendaId = resVenda.insertId;
 
     for (const item of items) {
       await connection.query(`
-        INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `, [tenant_id, vendaId, item.produto_id, item.quantidade, item.preco_unitario, item.subtotal]);
+        INSERT INTO vendas_itens (tenant_id, venda_id, produto_id, quantidade, preco_unitario, subtotal, profissional_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `, [tenant_id, vendaId, item.produto_id, item.quantidade, item.preco_unitario, item.subtotal, agenda.usuario_id || null]);
     }
 
     // Update appointment
