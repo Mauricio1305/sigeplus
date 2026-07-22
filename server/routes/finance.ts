@@ -88,6 +88,13 @@ router.get("/sales-movements", authMiddleware, async (req: any, res) => {
 
 // Finance - DRE
 router.get("/dre", authMiddleware, planMiddleware('financeiro'), async (req: any, res) => {
+  if (req.user.perfil !== 'admin' && req.user.perfil !== 'superadmin') {
+    const perm = req.user.permissoes;
+    if (!perm?.relatorios?.acessar || !perm?.relatorios?.dre) {
+      return res.status(403).json({ error: "Acesso negado. Você não tem permissão para acessar o DRE." });
+    }
+  }
+
   const { tenant_id } = req.user;
   const { start, end } = req.query as any;
 

@@ -131,6 +131,7 @@ export const Pessoas = () => {
             {pessoas.filter(p => {
               const term = searchTerm.toLowerCase();
               return (
+                (p.sequencial_id && p.sequencial_id.toString().includes(term)) ||
                 p.id.toString().includes(term) ||
                 (p.razao_social && p.razao_social.toLowerCase().includes(term)) ||
                 (p.nome && p.nome.toLowerCase().includes(term)) ||
@@ -139,7 +140,7 @@ export const Pessoas = () => {
               );
             }).map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-500 hidden md:table-cell">#{p.id}</td>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-500 hidden md:table-cell">#{p.sequencial_id || p.id}</td>
                 <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
                   <div className="font-medium text-slate-900 leading-tight">
                     <div className="line-clamp-2 md:line-clamp-none whitespace-normal min-w-[80px]">{p.razao_social || p.nome}</div>

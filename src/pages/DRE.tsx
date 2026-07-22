@@ -11,6 +11,7 @@ const formatMoney = (v: number | string | undefined | null) => {
 
 export const DRE = () => {
   const token = useAuthStore(state => state.token);
+  const user = useAuthStore(state => state.user);
   const [startDate, setStartDate] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
@@ -23,13 +24,22 @@ export const DRE = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const hasAccess = user?.perfil === 'superadmin' || user?.perfil === 'admin' || (user?.permissoes?.relatorios?.acessar && user?.permissoes?.relatorios?.dre);
+
   const fetchDRE = useCallback(() => {
     if (!token) return;
+    if (!hasAccess) return;
     setLoading(true);
     fetch(`/api/finance/dre?start=${startDate}&end=${endDate}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    .then(res => res.json())
+    .then(res => {
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || !contentType.includes('application/json')) {
+        throw new Error('Erro ao carregar DRE');
+      }
+      return res.json();
+    })
     .then(d => {
       if (d.error) throw new Error(d.error);
       setData(d);
@@ -39,11 +49,22 @@ export const DRE = () => {
       setError(err.message);
       setLoading(false);
     });
-  }, [token, startDate, endDate]);
+  }, [token, startDate, endDate, hasAccess]);
 
   useEffect(() => {
     fetchDRE();
   }, [fetchDRE]);
+
+  if (!hasAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-slate-100 shadow-sm text-center">
+        <h2 className="text-2xl font-black text-slate-900 mb-2">Acesso Restrito</h2>
+        <p className="text-slate-500 max-w-md mx-auto mb-8">
+          Você não tem permissão para visualizar o DRE.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

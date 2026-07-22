@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { safeFetchArray } from '../services/api';
 import { 
   X, 
   Search, 
@@ -52,28 +53,23 @@ export default function PDV() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('/api/products', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => {
-        setProdutos(data);
-        setFilteredProdutos(data);
-      });
+    safeFetchArray('/api/products', token, data => {
+      setProdutos(data);
+      setFilteredProdutos(data);
+    });
 
-    fetch('/api/pessoas', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(setPessoas);
-
-    fetch('/api/finance/payment-types', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(setPaymentTypes);
+    safeFetchArray('/api/pessoas', token, setPessoas);
+    safeFetchArray('/api/finance/payment-types', token, setPaymentTypes);
 
     fetch('/api/finance/cashier/current', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(setCurrentCashier);
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
+      .then(setCurrentCashier)
+      .catch(() => setCurrentCashier(null));
 
     fetch('/api/company/settings', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(setCompany);
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
+      .then(setCompany)
+      .catch(() => setCompany(null));
   }, [token]);
 
   useEffect(() => {
@@ -84,7 +80,9 @@ export default function PDV() {
       const lower = searchTerm.toLowerCase();
       setFilteredProdutos(activeProducts.filter(p => 
         p.nome.toLowerCase().includes(lower) || 
-        (p.codigo_barras && p.codigo_barras.includes(searchTerm))
+        (p.codigo_barras && p.codigo_barras.includes(searchTerm)) ||
+        (p.sequencial_id && p.sequencial_id.toString().includes(searchTerm)) ||
+        p.id.toString().includes(searchTerm)
       ));
     }
   }, [searchTerm, produtos]);
@@ -395,7 +393,7 @@ export default function PDV() {
             <h1 className="text-xl font-bold text-slate-900">Ponto de Venda</h1>
           </div>
           <button 
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate('/home')}
             className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors font-medium text-sm"
           >
             <X className="w-4 h-4" />

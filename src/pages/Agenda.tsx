@@ -677,7 +677,11 @@ const Agenda = () => {
                             .filter(p => 
                               p.ativo === 1 && 
                               (p.tipo_pessoa === 'cliente' || p.tipo_pessoa === 'ambos') &&
-                              p.nome.toLowerCase().includes(searchPessoa.toLowerCase())
+                              (
+                                p.nome.toLowerCase().includes(searchPessoa.toLowerCase()) ||
+                                (p.sequencial_id && p.sequencial_id.toString().includes(searchPessoa)) ||
+                                p.id.toString().includes(searchPessoa)
+                              )
                             )
                             .map(p => (
                             <button
@@ -738,7 +742,12 @@ const Agenda = () => {
                     />
                     {searchProduto && (
                       <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-100 shadow-xl z-20 max-h-48 overflow-y-auto">
-                        {produtos.filter(p => p.nome.toLowerCase().includes(searchProduto.toLowerCase())).map(p => (
+                        {produtos.filter(p => (
+                          p.nome.toLowerCase().includes(searchProduto.toLowerCase()) ||
+                          (p.sequencial_id && p.sequencial_id.toString().includes(searchProduto)) ||
+                          p.id.toString().includes(searchProduto) ||
+                          (p.codigo_barras && p.codigo_barras.includes(searchProduto))
+                        )).map(p => (
                           <button
                             key={p.id}
                             type="button"

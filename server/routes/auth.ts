@@ -110,7 +110,8 @@ router.post("/register", async (req, res) => {
       pdv: { acessar: true, vender: true, cancelar: true },
       estoque: { acessar: true, editar: true, excluir: true },
       cadastros: { acessar: true, editar: true, excluir: true },
-      configuracoes: { acessar: true, editar: true }
+      configuracoes: { acessar: true, editar: true },
+      relatorios: { acessar: true, sales: true, inventory: true, finance: true, comissoes: true, dre: true, people: true, agenda: true, notifications: true }
     });
 
     const [groupRes] = await pool.query(
@@ -194,7 +195,8 @@ router.post("/login", async (req, res) => {
     if (!passwordMatch) return res.status(401).json({ error: "Credenciais inválidas" });
 
     const [companies] = await pool.query(`
-      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, e.stripe_subscription_id, p.modulos 
+      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, e.stripe_subscription_id, 
+             COALESCE(p.modulos, (SELECT modulos FROM planos ORDER BY id ASC LIMIT 1)) as modulos 
       FROM empresas e 
       LEFT JOIN planos p ON e.plano_id = p.id 
       WHERE e.tenant_id = ?
@@ -232,6 +234,17 @@ router.post("/login", async (req, res) => {
         }
       } catch (stripeErr: any) {
         console.warn(`Stripe verification failed for ${user.tenant_id}:`, stripeErr.message);
+        if (stripeErr.message?.includes("No such subscription") || stripeErr.code === "resource_missing") {
+          try {
+            await pool.query("UPDATE empresas SET stripe_subscription_id = NULL, status_assinatura = 'cancelado' WHERE tenant_id = ?", [user.tenant_id]);
+            if (company) {
+              company.stripe_subscription_id = null;
+              company.status_assinatura = 'cancelado';
+            }
+          } catch (dbErr) {
+            console.error("Failed to clear invalid Stripe subscription ID from DB:", dbErr);
+          }
+        }
       }
     }
 
@@ -244,12 +257,12 @@ router.post("/login", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, tenant_id: user.tenant_id, perfil: user.perfil, nome: user.nome, status_assinatura: company?.status_assinatura, vencimento_assinatura: company?.vencimento_assinatura, plano_id: company?.plano_id, modulos: company?.modulos || [], permissoes },
+      { id: user.id, tenant_id: user.tenant_id, perfil: user.perfil, nome: user.nome, status_assinatura: company?.status_assinatura, vencimento_assinatura: company?.vencimento_assinatura, plano_id: company?.plano_id, modulos: typeof company?.modulos === "string" ? JSON.parse(company.modulos) : (company?.modulos || []), permissoes },
       JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    res.json({ token, user: { ...user, status_assinatura: company?.status_assinatura, vencimento_assinatura: company?.vencimento_assinatura, plano_id: company?.plano_id, modulos: company?.modulos || [], permissoes } });
+    res.json({ token, user: { ...user, status_assinatura: company?.status_assinatura, vencimento_assinatura: company?.vencimento_assinatura, plano_id: company?.plano_id, modulos: typeof company?.modulos === "string" ? JSON.parse(company.modulos) : (company?.modulos || []), permissoes } });
   } catch (err: any) {
     res.status(500).json({ error: "Erro interno do servidor", details: err.message });
   }
@@ -262,7 +275,8 @@ router.get("/me", authMiddleware, async (req: any, res) => {
     if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
 
     const [companies] = await pool.query(`
-      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, e.stripe_subscription_id, p.modulos 
+      SELECT e.status_assinatura, e.vencimento_assinatura, e.plano_id, e.stripe_subscription_id, 
+             COALESCE(p.modulos, (SELECT modulos FROM planos ORDER BY id ASC LIMIT 1)) as modulos 
       FROM empresas e 
       LEFT JOIN planos p ON e.plano_id = p.id 
       WHERE e.tenant_id = ?
@@ -277,7 +291,7 @@ router.get("/me", authMiddleware, async (req: any, res) => {
       }
     }
 
-    res.json({ user: { ...user, status_assinatura: company.status_assinatura, vencimento_assinatura: company.vencimento_assinatura, plano_id: company.plano_id, modulos: company.modulos || [], permissoes } });
+    res.json({ user: { ...user, status_assinatura: company.status_assinatura, vencimento_assinatura: company.vencimento_assinatura, plano_id: company.plano_id, modulos: typeof company.modulos === "string" ? JSON.parse(company.modulos) : (company.modulos || []), permissoes } });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

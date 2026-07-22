@@ -28,6 +28,10 @@ export const VendaPrint = () => {
           setError('Acesso expirado ou inválido. Por favor, faça login novamente no sistema e tente abrir a impressão de novo.');
           return;
         }
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          throw new Error('Erro ao carregar dados da venda');
+        }
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error || 'Erro ao carregar dados da venda');
@@ -41,8 +45,8 @@ export const VendaPrint = () => {
 
     // Fetch Company Settings
     fetch('/api/company/settings', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(setCompany)
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
+      .then(data => { if (data) setCompany(data); })
       .catch(err => console.error("Error fetching company settings:", err));
   }, [id, token, logout]);
 

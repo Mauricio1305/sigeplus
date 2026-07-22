@@ -17,7 +17,8 @@ import {
   FileText,
   Settings as SettingsIcon,
   AlertCircle,
-  Calendar
+  Calendar,
+  Home as HomeIcon
 } from 'lucide-react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -226,11 +227,24 @@ export const Layout = () => {
     if (!user) return false;
     if (user.perfil === 'superadmin') return true;
 
-    const planHasModule = module === 'dashboard' ? true : user.modulos?.includes(module);
+    let planHasModule = false;
+    if (module === 'home' || module === 'inicio') {
+      if (!user.modulos || user.modulos.length === 0) {
+        planHasModule = true;
+      } else {
+        planHasModule = user.modulos.includes('home') || user.modulos.includes('inicio');
+      }
+    } else if (module === 'dashboard') {
+      planHasModule = true;
+    } else {
+      planHasModule = !!user.modulos?.includes(module);
+    }
+
     if (!planHasModule) return false;
 
     // Admin passes group check automatically
     if (user.perfil === 'admin') return true;
+    if (module === 'home' || module === 'inicio') return true;
 
     // Finally check user's group permissions
     if (user.permissoes && user.permissoes[module]) {
@@ -238,6 +252,21 @@ export const Layout = () => {
     }
 
     return false;
+  };
+
+  const hasReportAccess = (reportKey: string) => {
+    if (!user) return false;
+    if (user.perfil === 'superadmin' || user.perfil === 'admin') return true;
+    if (!user.permissoes?.relatorios?.acessar) return false;
+    return !!user.permissoes.relatorios[reportKey];
+  };
+
+  const showReportsMenu = () => {
+    if (!user) return false;
+    const hasAtLeastOneModule = hasModule('financeiro') || hasModule('vendas') || hasModule('estoque') || hasModule('cadastros') || hasModule('agenda') || hasModule('configuracoes');
+    if (!hasAtLeastOneModule) return false;
+    if (user.perfil === 'superadmin' || user.perfil === 'admin') return true;
+    return !!user.permissoes?.relatorios?.acessar;
   };
 
   return (
@@ -262,18 +291,22 @@ export const Layout = () => {
         ${isSidebarOpen ? 'lg:w-64' : 'lg:w-20'}
       `}>
         <div className="p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <Link to="/home" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <div className="bg-indigo-600 p-2 rounded-lg shrink-0">
               <TrendingUp className="text-white w-6 h-6" />
             </div>
             {(isSidebarOpen || isMobileMenuOpen) && <span className="font-bold text-xl text-slate-900 truncate">Sige Plus</span>}
-          </div>
+          </Link>
           <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden text-slate-400">
             <X className="w-6 h-6" />
           </button>
         </div>
 
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
+          {hasModule('home') && (
+            <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={HomeIcon} label="Início" to="/home" active={location.pathname === '/home'} />
+          )}
+
           {hasModule('dashboard') && (
             <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={LayoutDashboard} label="Dashboard" to="/dashboard" active={location.pathname === '/dashboard'} />
           )}
@@ -310,21 +343,21 @@ export const Layout = () => {
             <SidebarItem collapsed={!isSidebarOpen && !isMobileMenuOpen} icon={MonitorPlay} label="PDV" to="/pdv" active={location.pathname === '/pdv'} />
           )}
 
-          {(hasModule('financeiro') || hasModule('vendas') || hasModule('estoque')) && (
+          {showReportsMenu() && (
             <SidebarDropdown 
               collapsed={!isSidebarOpen && !isMobileMenuOpen} 
               icon={FileText} 
               label="Relatórios" 
               items={[
-                hasModule('vendas') && { label: 'Vendas', to: '/reports/sales' },
-                hasModule('estoque') && { label: 'Estoque', to: '/reports/inventory' },
-                hasModule('financeiro') && { label: 'Financeiro', to: '/reports/finance' },
-                hasModule('vendas') && { label: 'Comissões', to: '/reports/comissoes' },
-                hasModule('financeiro') && { label: 'DRE', to: '/dre' },
-                hasModule('cadastros') && { label: 'Pessoas', to: '/reports/people' },
-                hasModule('agenda') && { label: 'Agendamentos', to: '/reports/agenda' },
-                hasModule('configuracoes') && { label: 'Logs de Notificações', to: '/reports/notifications' },
-              ].filter(Boolean)} 
+                hasModule('vendas') && hasReportAccess('sales') && { label: 'Vendas', to: '/reports/sales' },
+                hasModule('estoque') && hasReportAccess('inventory') && { label: 'Estoque', to: '/reports/inventory' },
+                hasModule('financeiro') && hasReportAccess('finance') && { label: 'Financeiro', to: '/reports/finance' },
+                hasModule('vendas') && hasReportAccess('comissoes') && { label: 'Comissões', to: '/reports/comissoes' },
+                hasModule('financeiro') && hasReportAccess('dre') && { label: 'DRE', to: '/dre' },
+                hasModule('cadastros') && hasReportAccess('people') && { label: 'Pessoas', to: '/reports/people' },
+                hasModule('agenda') && hasReportAccess('agenda') && { label: 'Agendamentos', to: '/reports/agenda' },
+                hasModule('configuracoes') && hasReportAccess('notifications') && { label: 'Logs de Notificações', to: '/reports/notifications' },
+              ].filter((item): item is { label: string; to: string } => !!item)} 
             />
           )}
 
@@ -348,7 +381,7 @@ export const Layout = () => {
           
           {(isSidebarOpen || isMobileMenuOpen) ? (
             <div className="px-4 py-1 text-[10px] text-slate-400 font-mono flex items-center justify-between">
-              <span>v1.3.1</span>
+              <span>v1.3.2</span>
               <span className="opacity-50">GM</span>
             </div>
           ) : (

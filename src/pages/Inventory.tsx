@@ -273,7 +273,7 @@ export const Inventory = () => {
 
   const fetchLabelLayouts = () => {
     fetch('/api/inventory/layouts', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : [])
       .then(data => {
         if (Array.isArray(data)) {
           setLayouts(data);
@@ -288,7 +288,7 @@ export const Inventory = () => {
   useEffect(() => {
     fetchProducts();
     fetch('/api/inventory/groups', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : [])
       .then(data => setGroups(Array.isArray(data) ? data : []))
       .catch(console.error);
     fetchLabelLayouts();
@@ -377,7 +377,7 @@ export const Inventory = () => {
             </div>
 
             <div style="display: flex; justify-content: space-between; width: 100%; align-items: flex-end; padding: 0; margin-top: auto;">
-              ${fields.showId ? `<span style="font-size: ${fontSizeNome * 0.7}mm; color: #444; font-weight: bold;">ID: ${item.product.id}</span>` : '<span></span>'}
+              ${fields.showId ? `<span style="font-size: ${fontSizeNome * 0.7}mm; color: #444; font-weight: bold;">Cód: ${item.product.sequencial_id || item.product.id}</span>` : '<span></span>'}
               ${fields.showPreco ? `<span style="font-weight: 900; font-size: ${fontSizePreco}mm; color: #000; line-height: 0.9;">R$ ${formatMoney(item.product.preco_venda)}</span>` : ''}
             </div>
           </div>
@@ -589,12 +589,13 @@ export const Inventory = () => {
               const term = searchTerm.toLowerCase();
               return (
                 p.nome.toLowerCase().includes(term) ||
+                (p.sequencial_id && p.sequencial_id.toString().includes(term)) ||
                 p.id.toString().includes(term) ||
                 (p.codigo_barras && p.codigo_barras.toLowerCase().includes(term))
               );
             }).map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-500 hidden md:table-cell">#{p.id}</td>
+                <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-medium text-slate-500 hidden md:table-cell">#{p.sequencial_id || p.id}</td>
                 <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4">
                   {p.foto ? (
                     <img 
@@ -639,7 +640,8 @@ export const Inventory = () => {
                         ativo: !!p.ativo,
                         grupo_id: p.grupo_id || '',
                         foto: p.foto || '',
-                        marca: p.marca || ''
+                        marca: p.marca || '',
+                        tempo_execucao: p.tempo_execucao || 0
                       });
                       setIsModalOpen(true);
                     }}
@@ -736,7 +738,7 @@ export const Inventory = () => {
                     <tr key={idx} className="border-t border-slate-100 hover:bg-slate-50">
                       <td className="p-3">
                         <div className="font-bold text-slate-900 leading-tight break-words max-w-[200px] sm:max-w-md" title={item.product.nome}>{item.product.nome}</div>
-                        <div className="text-[10px] text-slate-400 mt-1">ID: #{item.product.id} | Código: {item.product.codigo_barras || '-'}</div>
+                        <div className="text-[10px] text-slate-400 mt-1">Cód: #{item.product.sequencial_id || item.product.id} | Código Barras: {item.product.codigo_barras || '-'}</div>
                       </td>
                       <td className="p-3">
                         <div className="flex items-center justify-center gap-2">
@@ -875,7 +877,7 @@ export const Inventory = () => {
                   onChange={e => setNewProduct({...newProduct, grupo_id: e.target.value})}
                 >
                   <option value="">Nenhum</option>
-                  {groups.map(g => (
+                  {groups.filter(g => (g.ativo !== false && g.ativo !== 0 && g.ativo !== '0') || g.id == newProduct.grupo_id).map(g => (
                     <option key={g.id} value={g.id}>{g.nome}</option>
                   ))}
                 </select>
@@ -970,22 +972,20 @@ export const Inventory = () => {
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Qtd Atual</label>
                 <input 
                   type="number" 
-                  min="0"
                   step="any"
                   className="w-full px-4 py-2 rounded-xl border border-slate-200"
                   value={newProduct.estoque_atual}
-                  onChange={e => setNewProduct({...newProduct, estoque_atual: e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value))})}
+                  onChange={e => setNewProduct({...newProduct, estoque_atual: e.target.value === '' ? '' : parseFloat(e.target.value)})}
                 />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Estoque Mínimo</label>
                 <input 
                   type="number" 
-                  min="0"
                   step="any"
                   className="w-full px-4 py-2 rounded-xl border border-slate-200"
                   value={newProduct.estoque_minimo}
-                  onChange={e => setNewProduct({...newProduct, estoque_minimo: e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value))})}
+                  onChange={e => setNewProduct({...newProduct, estoque_minimo: e.target.value === '' ? '' : parseFloat(e.target.value)})}
                 />
               </div>
               <div className="col-span-2 flex items-center gap-2 py-2">

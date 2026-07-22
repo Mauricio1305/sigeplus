@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Wrench, Search, Plus, Edit2, MoreVertical, Printer, MessageCircle, Trash2, Ban, AlertCircle, X, FileText, CheckCircle, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
+import { safeFetchArray } from '../services/api';
 import { formatMoney, formatDate } from '../utils/format';
 import { validatePayment } from '../utils/paymentValidation';
 
@@ -86,38 +87,21 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
   };
 
   const fetchData = () => {
-    fetch(baseApi, { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setSales(data);
-        } else {
-          console.error("Sales API returned non-array:", data);
-          setSales([]);
-        }
-      })
-      .catch(err => {
-        console.error("Error fetching sales:", err);
-        setSales([]);
-      });
-    fetch('/api/pessoas', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json()).then(setPessoas);
-    fetch('/api/products', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json()).then(setProdutos);
-    fetch('/api/finance/payment-types', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json()).then(setPaymentTypes);
+    safeFetchArray(baseApi, token, setSales);
+    safeFetchArray('/api/pessoas', token, setPessoas);
+    safeFetchArray('/api/products', token, setProdutos);
+    safeFetchArray('/api/finance/payment-types', token, setPaymentTypes);
     fetch('/api/finance/cashier/current', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json()).then(setCurrentCashier);
-    fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => setUsers(Array.isArray(data) ? data : []))
-      .catch(err => console.error("Error fetching users:", err));
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
+      .then(setCurrentCashier)
+      .catch(() => setCurrentCashier(null));
+    safeFetchArray('/api/users', token, setUsers);
   };
 
   useEffect(() => {
     fetchData();
     fetch('/api/company/settings', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
       .then(setCompany)
       .catch(err => console.error("Error fetching company settings:", err));
   }, [token]);
@@ -778,7 +762,11 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                         >
                           Consumidor Final
                         </div>
-                        {pessoas.filter(p => (p.tipo_pessoa === 'cliente' || p.tipo_pessoa === 'ambos') && (p.nome || '').toLowerCase().includes(clientSearchTerm.toLowerCase())).map(p => (
+                        {pessoas.filter(p => (p.tipo_pessoa === 'cliente' || p.tipo_pessoa === 'ambos') && (
+                          (p.nome || '').toLowerCase().includes(clientSearchTerm.toLowerCase()) || 
+                          (p.sequencial_id && p.sequencial_id.toString().includes(clientSearchTerm)) || 
+                          p.id.toString().includes(clientSearchTerm)
+                        )).map(p => (
                           <div 
                             key={p.id} 
                             className="px-4 py-4 hover:bg-indigo-50 border-b border-slate-100 last:border-0 cursor-pointer font-bold text-slate-800 transition-colors" 
@@ -844,7 +832,12 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                         />
                         {showProductDropdown && (
                           <div className="absolute z-50 top-full left-0 mt-2 bg-white border border-slate-200 rounded-2xl w-full max-h-60 overflow-y-auto shadow-2xl">
-                            {produtos.filter(p => (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase())).map(p => (
+                            {produtos.filter(p => (
+                              (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+                              (p.sequencial_id && p.sequencial_id.toString().includes(productSearchTerm)) ||
+                              p.id.toString().includes(productSearchTerm) ||
+                              (p.codigo_barras && p.codigo_barras.includes(productSearchTerm))
+                            )).map(p => (
                               <div 
                                 key={p.id} 
                                 className="p-4 hover:bg-emerald-50 border-b border-slate-100 last:border-0 cursor-pointer transition-colors" 
@@ -854,7 +847,12 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
                                 <p className="text-xs font-black text-emerald-600 mt-1">R$ {formatMoney(p.preco_venda)}</p>
                               </div>
                             ))}
-                            {produtos.filter(p => (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase())).length === 0 && (
+                            {produtos.filter(p => (
+                              (p.nome || '').toLowerCase().includes(productSearchTerm.toLowerCase()) ||
+                              (p.sequencial_id && p.sequencial_id.toString().includes(productSearchTerm)) ||
+                              p.id.toString().includes(productSearchTerm) ||
+                              (p.codigo_barras && p.codigo_barras.includes(productSearchTerm))
+                            )).length === 0 && (
                               <div className="p-6 text-center text-slate-400 italic text-sm">Nenhum produto encontrado.</div>
                             )}
                           </div>

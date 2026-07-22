@@ -4,6 +4,7 @@ import { Plus, X, Search, Edit2, AlertCircle, TrendingUp, DollarSign, FileText,
   LineChart, Package, MoreVertical } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuthStore } from '../store/authStore';
+import { safeFetchArray } from '../services/api';
 import { formatMoney, formatDate } from '../utils/format';
 
 export const Finance = () => {
@@ -43,19 +44,31 @@ export const Finance = () => {
   const [actionTarget, setActionTarget] = useState<{ id: string, table: 'caixa' | 'lancamentos' } | null>(null);
 
   const token = useAuthStore(state => state.token);
+  const user = useAuthStore(state => state.user);
+
+  const hasReportAccess = (reportKey: string) => {
+    if (user?.perfil === 'superadmin' || user?.perfil === 'admin') return true;
+    if (!user?.permissoes?.relatorios?.acessar) return false;
+    return !!user.permissoes.relatorios[reportKey];
+  };
+
+  const hasAnyReportAccess = () => {
+    return hasReportAccess('sales') || hasReportAccess('finance') || hasReportAccess('inventory') || hasReportAccess('comissoes') || hasReportAccess('dre');
+  };
 
   const fetchData = () => {
-    fetch('/api/finance/receivable', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setReceivables);
-    fetch('/api/finance/payable', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setPayables);
-    fetch('/api/finance/categories', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setCategories);
-    fetch('/api/finance/payment-types', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setPaymentTypes);
-    fetch('/api/pessoas', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setPessoas);
+    safeFetchArray('/api/finance/receivable', token, setReceivables);
+    safeFetchArray('/api/finance/payable', token, setPayables);
+    safeFetchArray('/api/finance/categories', token, setCategories);
+    safeFetchArray('/api/finance/payment-types', token, setPaymentTypes);
+    safeFetchArray('/api/pessoas', token, setPessoas);
     fetch('/api/finance/cashier/current', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.ok ? res.json() : null)
-      .then(d => setCurrentCashier(d && !d.error ? d : null));
-    fetch('/api/finance/sales-movements', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setSalesMovements);
-    fetch('/api/finance/movements/banco', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setBankMovements);
-    fetch('/api/finance/movements/cartao', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setCardMovements);
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
+      .then(d => setCurrentCashier(d && !d.error ? d : null))
+      .catch(() => setCurrentCashier(null));
+    safeFetchArray('/api/finance/sales-movements', token, setSalesMovements);
+    safeFetchArray('/api/finance/movements/banco', token, setBankMovements);
+    safeFetchArray('/api/finance/movements/cartao', token, setCardMovements);
   };
 
   useEffect(fetchData, [token]);
@@ -338,9 +351,9 @@ export const Finance = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <h1 className="text-xl md:text-2xl font-bold text-slate-900">Financeiro</h1>
         <div className="flex flex-wrap bg-white p-1 rounded-xl border border-slate-100 shadow-sm w-full md:w-auto gap-1">
-          {['cashier', 'payables', 'receivables', 'card', 'bank', 'reports'].map((tab) => (
+          {['cashier', 'payables', 'receivables', 'card', 'bank', hasAnyReportAccess() && 'reports'].filter(Boolean).map((tab) => (
             <button
-              key={tab}
+              key={tab as string}
               onClick={() => setActiveTab(tab as any)}
               className={`px-3 md:px-4 py-2 rounded-lg font-bold text-xs md:text-sm transition-all whitespace-nowrap ${
                 activeTab === tab ? 'bg-indigo-600 text-white' : 'text-slate-500 hover:bg-slate-50'
@@ -682,42 +695,51 @@ export const Finance = () => {
 
       {activeTab === 'reports' && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Link to="/reports/sales" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-            <div className="bg-indigo-50 w-12 h-12 rounded-xl flex items-center justify-center text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-slate-900 mb-1">Relatório de Vendas</h3>
-            <p className="text-sm text-slate-500">Análise detalhada de vendas, produtos e clientes.</p>
-          </Link>
-          <Link to="/reports/finance" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-            <div className="bg-emerald-50 w-12 h-12 rounded-xl flex items-center justify-center text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
-              <DollarSign className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-slate-900 mb-1">Relatório Financeiro</h3>
-            <p className="text-sm text-slate-500">Contas a pagar, receber e fluxo de caixa.</p>
-          </Link>
-          <Link to="/dre" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-            <div className="bg-amber-50 w-12 h-12 rounded-xl flex items-center justify-center text-amber-600 mb-4 group-hover:scale-110 transition-transform">
-              <FileText className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-slate-900 mb-1">DRE</h3>
-            <p className="text-sm text-slate-500">Demonstrativo de Resultados do Exercício.</p>
-          </Link>
-          <Link to="/reports/inventory" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-            <div className="bg-rose-50 w-12 h-12 rounded-xl flex items-center justify-center text-rose-600 mb-4 group-hover:scale-110 transition-transform">
-              <Package className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-slate-900 mb-1">Relatório de Estoque</h3>
-            <p className="text-sm text-slate-500">Níveis de estoque e reposição necessária.</p>
-          </Link>
-
-          <Link to="/reports/comissoes" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-            <div className="bg-purple-50 w-12 h-12 rounded-xl flex items-center justify-center text-purple-600 mb-4 group-hover:scale-110 transition-transform">
-              <LineChart className="w-6 h-6" />
-            </div>
-            <h3 className="font-bold text-slate-900 mb-1">Relatório de Comissões</h3>
-            <p className="text-sm text-slate-500">Comissões de vendedores e profissionais.</p>
-          </Link>
+          {hasReportAccess('sales') && (
+            <Link to="/reports/sales" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+              <div className="bg-indigo-50 w-12 h-12 rounded-xl flex items-center justify-center text-indigo-600 mb-4 group-hover:scale-110 transition-transform">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-slate-900 mb-1">Relatório de Vendas</h3>
+              <p className="text-sm text-slate-500">Análise detalhada de vendas, produtos e clientes.</p>
+            </Link>
+          )}
+          {hasReportAccess('finance') && (
+            <Link to="/reports/finance" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+              <div className="bg-emerald-50 w-12 h-12 rounded-xl flex items-center justify-center text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
+                <DollarSign className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-slate-900 mb-1">Relatório Financeiro</h3>
+              <p className="text-sm text-slate-500">Contas a pagar, receber e fluxo de caixa.</p>
+            </Link>
+          )}
+          {hasReportAccess('dre') && (
+            <Link to="/dre" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+              <div className="bg-amber-50 w-12 h-12 rounded-xl flex items-center justify-center text-amber-600 mb-4 group-hover:scale-110 transition-transform">
+                <FileText className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-slate-900 mb-1">DRE</h3>
+              <p className="text-sm text-slate-500">Demonstrativo de Resultados do Exercício.</p>
+            </Link>
+          )}
+          {hasReportAccess('inventory') && (
+            <Link to="/reports/inventory" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+              <div className="bg-rose-50 w-12 h-12 rounded-xl flex items-center justify-center text-rose-600 mb-4 group-hover:scale-110 transition-transform">
+                <Package className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-slate-900 mb-1">Relatório de Estoque</h3>
+              <p className="text-sm text-slate-500">Níveis de estoque e reposição necessária.</p>
+            </Link>
+          )}
+          {hasReportAccess('comissoes') && (
+            <Link to="/reports/comissoes" className="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
+              <div className="bg-purple-50 w-12 h-12 rounded-xl flex items-center justify-center text-purple-600 mb-4 group-hover:scale-110 transition-transform">
+                <LineChart className="w-6 h-6" />
+              </div>
+              <h3 className="font-bold text-slate-900 mb-1">Relatório de Comissões</h3>
+              <p className="text-sm text-slate-500">Comissões de vendedores e profissionais.</p>
+            </Link>
+          )}
         </div>
       )}
 

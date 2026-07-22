@@ -88,10 +88,5 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  ##[1.2.2] - 2026-06-22
   - Criação do visual da tela de Login
 
-##[1.3.0] - 2026-07-15
- - Criacao rotina de comissao
- ##[1.3.1] - 2026-07-15
-  - Correcao Cadastro de produto
-  - Correcao Grupo de usuarios que nao aparecia as opcoes no modulo Agenda
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*

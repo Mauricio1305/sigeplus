@@ -349,30 +349,8 @@ async function initDB() {
             await pool.query("ALTER TABLE planos ADD COLUMN trial_days INTEGER DEFAULT NULL");
             console.log("Added trial_days column to planos table");
           }
-          // Always ensure NULL modulos are set to a default (helpful for existing data)
-          const defaultModules = JSON.stringify([
-            'financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes', 
-            'agenda', 'os', 'mesas', 'export_excel', 'import_produtos', 'lembrete_email', 'lembrete_whatsapp'
-          ]);
-          await pool.query("UPDATE planos SET modulos = ? WHERE modulos IS NULL", [defaultModules]);
-          // Also update existing plans that have modulos but are missing the new ones
-          const [currentPlans] = await pool.query("SELECT id, modulos FROM planos") as any[];
-          for (const p of currentPlans) {
-            let mods = [];
-            try { 
-              mods = typeof p.modulos === 'string' ? JSON.parse(p.modulos) : (p.modulos || []);
-            } catch (e) { mods = []; }
-            
-            let updated = false;
-            if (!mods.includes('lembrete_email')) { mods.push('lembrete_email'); updated = true; }
-            if (!mods.includes('lembrete_whatsapp')) { mods.push('lembrete_whatsapp'); updated = true; }
-            if (!mods.includes('os')) { mods.push('os'); updated = true; }
-            if (!mods.includes('mesas')) { mods.push('mesas'); updated = true; }
+          // Removed forced updates of modules so we don't overwrite user preferences.
 
-            if (updated) {
-              await pool.query("UPDATE planos SET modulos = ? WHERE id = ?", [JSON.stringify(mods), p.id]);
-            }
-          }
         }
         if (table === 'produtos') {
           if (!columns.includes('tempo_execucao')) {
@@ -572,7 +550,7 @@ async function initDB() {
       if (plans.length === 0) {
         console.log("Seeding default plans...");
         const defaultModules = JSON.stringify([
-          'financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes', 
+          'home', 'financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes', 
           'agenda', 'os', 'mesas', 'export_excel', 'import_produtos', 'lembrete_email', 'lembrete_whatsapp'
         ]);
         await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, modulos, is_trial, trial_days) VALUES (?, ?, ?, ?, ?, ?)", 

@@ -6,6 +6,13 @@ const router = Router();
 
 // Notification Logs (used in Reports page)
 router.get("/notifications", authMiddleware, async (req: any, res) => {
+  if (req.user.perfil !== 'admin' && req.user.perfil !== 'superadmin') {
+    const perm = req.user.permissoes;
+    if (!perm?.relatorios?.acessar || !perm?.relatorios?.notifications) {
+      return res.status(403).json({ error: "Acesso negado. Você não tem permissão para acessar o relatório de logs de notificações." });
+    }
+  }
+
   const { tenant_id } = req.user;
   const { date, time } = req.query;
 
@@ -46,6 +53,13 @@ router.get("/notifications", authMiddleware, async (req: any, res) => {
 export default router;
 
 router.get("/comissoes", authMiddleware, async (req: any, res) => {
+  if (req.user.perfil !== 'admin' && req.user.perfil !== 'superadmin') {
+    const perm = req.user.permissoes;
+    if (!perm?.relatorios?.acessar || !perm?.relatorios?.comissoes) {
+      return res.status(403).json({ error: "Acesso negado. Você não tem permissão para acessar o relatório de comissões." });
+    }
+  }
+
   const { tenant_id } = req.user;
   const { data_inicio, data_fim, usuario_id, status } = req.query;
 

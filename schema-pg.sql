@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 CREATE TABLE IF NOT EXISTS pessoas (
     id SERIAL PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
+    sequencial_id INTEGER,
     nome VARCHAR(255) NOT NULL,
     tipo_pessoa VARCHAR(50) DEFAULT 'cliente', -- cliente, fornecedor, ambos
     cpf_cnpj VARCHAR(20),
@@ -104,6 +105,7 @@ CREATE TABLE IF NOT EXISTS grupos_produtos (
 CREATE TABLE IF NOT EXISTS produtos (
     id SERIAL PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
+    sequencial_id INTEGER,
     nome VARCHAR(255) NOT NULL,
     tipo VARCHAR(50) NOT NULL, -- produto, servico
     unidade VARCHAR(20),

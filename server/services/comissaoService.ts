@@ -1,5 +1,9 @@
 import { pool } from "../db";
 
+function truncateToTwoDecimals(value: number): number {
+  return Math.floor(Number(value.toFixed(4)) * 100) / 100;
+}
+
 export async function processCommissions(
   connection: any,
   tenant_id: string,
@@ -49,10 +53,11 @@ export async function processCommissions(
     if (atendente && atendente[0] && (atendente[0].is_profissional === true || atendente[0].is_profissional == 1)) {
       const perc = parseFloat(atendente[0].perc_comissao) || 0;
       if (perc > 0) {
-        const valorComissao = (parseFloat(valor_total as any) * perc) / 100;
+        const valorBase = Number(parseFloat(valor_total as any).toFixed(2));
+        const valorComissao = truncateToTwoDecimals((valorBase * perc) / 100);
         await connection.query(
           "INSERT INTO comissoes (tenant_id, venda_id, usuario_id, valor_base, perc_comissao, valor_comissao, origem, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'Liberado')",
-          [tenant_id, sale_id, targetUserId, valor_total, perc, valorComissao, origem]
+          [tenant_id, sale_id, targetUserId, valorBase, perc, valorComissao, origem]
         );
       }
     }
@@ -80,8 +85,9 @@ export async function processCommissions(
         const finalPerc = prodPerc > 0 ? prodPerc : profPerc;
 
         if (finalPerc > 0) {
-          const subtotal = parseFloat(item.subtotal) || ((parseFloat(item.preco_unitario || item.preco_venda || 0) || 0) * (parseFloat(item.quantidade || 1) || 1));
-          const valorComissao = (subtotal * finalPerc) / 100;
+          const rawSubtotal = parseFloat(item.subtotal) || ((parseFloat(item.preco_unitario || item.preco_venda || 0) || 0) * (parseFloat(item.quantidade || 1) || 1));
+          const subtotal = Number(rawSubtotal.toFixed(2));
+          const valorComissao = truncateToTwoDecimals((subtotal * finalPerc) / 100);
           await connection.query(
             "INSERT INTO comissoes (tenant_id, venda_id, produto_id, usuario_id, valor_base, perc_comissao, valor_comissao, origem, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'Liberado')",
             [tenant_id, sale_id, item.produto_id || item.id, itemProfissionalId, subtotal, finalPerc, valorComissao, origem + '/Item']

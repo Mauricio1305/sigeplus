@@ -42,6 +42,7 @@ export const SuperAdmin = () => {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const availableModules = [
+    { id: 'home', label: 'Início (Tela Inicial)' },
     { id: 'financeiro', label: 'Financeiro' },
     { id: 'estoque', label: 'Estoque' },
     { id: 'cadastros', label: 'Cadastros (Pessoas)' },
@@ -97,19 +98,42 @@ export const SuperAdmin = () => {
 
   const fetchData = () => {
     fetch('/api/admin/companies', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => {
+      .then(async res => {
         if (res.status === 401) {
           useAuthStore.getState().logout();
-          return;
+          return null;
         }
-        return res.json();
+        if (!res.ok) return null;
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          return res.json().catch(() => null);
+        }
+        return null;
       })
-      .then(setCompanies);
-    fetch('/api/plans').then(res => res.json()).then(setPlans);
+      .then(data => { if (Array.isArray(data)) setCompanies(data); });
+
+    fetch('/api/plans')
+      .then(async res => {
+        if (!res.ok) return [];
+        const contentType = res.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          return res.json().catch(() => []);
+        }
+        return [];
+      })
+      .then(data => { if (Array.isArray(data)) setPlans(data); });
+
     if (activeTab === 'logs') {
       fetch(`/api/admin/cron/logs?date=${cronDate}&time=${cronTimeFilter}`, { headers: { 'Authorization': `Bearer ${token}` } })
-        .then(res => res.json())
-        .then(setCronLogs);
+        .then(async res => {
+          if (!res.ok) return [];
+          const contentType = res.headers.get('content-type') || '';
+          if (contentType.includes('application/json')) {
+            return res.json().catch(() => []);
+          }
+          return [];
+        })
+        .then(data => { if (Array.isArray(data)) setCronLogs(data); });
     }
   };
 
@@ -159,7 +183,8 @@ export const SuperAdmin = () => {
         body: JSON.stringify({
           status_assinatura: editingCompany.status_assinatura,
           vencimento_assinatura: editingCompany.vencimento_assinatura,
-          stripe_customer_id: editingCompany.stripe_customer_id
+          stripe_customer_id: editingCompany.stripe_customer_id,
+          plano_id: editingCompany.plano_id
         })
       });
       if (res.ok) {
@@ -912,6 +937,19 @@ export const SuperAdmin = () => {
               <button onClick={() => setEditingCompany(null)}><X className="text-slate-400" /></button>
             </div>
             <form onSubmit={handleUpdateCompany} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Plano da Empresa</label>
+                <select 
+                  className="w-full px-4 py-2 rounded-xl border border-slate-200 bg-white"
+                  value={editingCompany.plano_id || ''}
+                  onChange={e => setEditingCompany({...editingCompany, plano_id: e.target.value ? parseInt(e.target.value) : null})}
+                >
+                  <option value="">Plano Padrão (Primeiro Plano)</option>
+                  {plans.map(p => (
+                    <option key={p.id} value={p.id}>{p.nome}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Status da Assinatura</label>
                 <select 

@@ -36,17 +36,20 @@ router.post("/", authMiddleware, async (req: any, res) => {
     razao_social, nome_fantasia, telefone_fixo, telefone_celular, numero, cep, data_aniversario
   } = req.body;
   
+  const [maxSequencialRow] = await pool.query("SELECT MAX(sequencial_id) as max_id FROM pessoas WHERE tenant_id = ?", [req.user.tenant_id]) as any[];
+  const sequencial_id = (maxSequencialRow[0]?.max_id || 0) + 1;
+
   await pool.query(`
     INSERT INTO pessoas (
-      tenant_id, nome, tipo_pessoa, cpf_cnpj, telefone, email, endereco, cidade, uf, ativo,
+      tenant_id, sequencial_id, nome, tipo_pessoa, cpf_cnpj, telefone, email, endereco, cidade, uf, ativo,
       razao_social, nome_fantasia, telefone_fixo, telefone_celular, numero, cep, data_aniversario
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
-    req.user.tenant_id, nome, tipo_pessoa || 'cliente', cpf_cnpj, telefone, email, endereco, cidade, uf, 
+    req.user.tenant_id, sequencial_id, nome, tipo_pessoa || 'cliente', cpf_cnpj, telefone, email, endereco, cidade, uf, 
     ativo === undefined ? 1 : (ativo ? 1 : 0),
     razao_social, nome_fantasia, telefone_fixo, telefone_celular, numero, cep, data_aniversario || null
   ]);
-  res.json({ success: true });
+  res.json({ success: true, sequencial_id });
 });
 
 router.put("/:id", authMiddleware, async (req: any, res) => {

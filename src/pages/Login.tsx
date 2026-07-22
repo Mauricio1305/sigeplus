@@ -26,8 +26,9 @@ export const Login = () => {
   useEffect(() => {
     if (isRegistering) {
       fetch('/api/plans')
-        .then(res => res.json())
+        .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : [])
         .then(data => {
+          if (!Array.isArray(data)) return;
           const uniquePlans = data.filter((plan: any, index: number, self: any[]) =>
             index === self.findIndex((p: any) => p.nome === plan.nome) && plan.visivel !== 0
           ).sort((a: any, b: any) => a.id - b.id);
@@ -105,7 +106,7 @@ export const Login = () => {
             const vencimento = data.user.vencimento_assinatura ? new Date(data.user.vencimento_assinatura) : null;
             const isTrial = data.user.status_assinatura === 'ativo' && vencimento && !isNaN(vencimento.getTime()) && vencimento > new Date();
             if (isTrial) {
-               navigate('/dashboard');
+               navigate('/home');
             } else {
                navigate('/subscription');
             }
@@ -128,7 +129,7 @@ export const Login = () => {
             } else if (isExpired) {
               navigate('/subscription');
             } else {
-              navigate('/dashboard');
+              navigate('/home');
             }
           }
         }

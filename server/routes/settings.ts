@@ -419,11 +419,11 @@ router.get("/admin/companies/:id/stripe-status", authMiddleware, async (req: any
 router.put("/admin/companies/:id", authMiddleware, async (req: any, res) => {
   if (req.user.perfil !== 'superadmin') return res.status(403).json({ error: "Forbidden" });
   const { id } = req.params;
-  const { status_assinatura, vencimento_assinatura, stripe_customer_id } = req.body;
+  const { status_assinatura, vencimento_assinatura, stripe_customer_id, plano_id } = req.body;
   try {
     await pool.query(
-      "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ?, stripe_customer_id = ? WHERE id = ?", 
-      [status_assinatura, vencimento_assinatura, stripe_customer_id || null, id]
+      "UPDATE empresas SET status_assinatura = ?, vencimento_assinatura = ?, stripe_customer_id = ?, plano_id = ? WHERE id = ?", 
+      [status_assinatura, vencimento_assinatura, stripe_customer_id || null, plano_id || null, id]
     );
     res.json({ success: true });
   } catch (err: any) {

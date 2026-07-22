@@ -44,6 +44,26 @@ export const ReportPrint = () => {
       setLoading(false);
       return;
     }
+
+    const checkPrintAccess = () => {
+      if (user?.perfil === "superadmin" || user?.perfil === "admin") return true;
+      if (!user?.permissoes?.relatorios?.acessar) return false;
+      switch (type) {
+        case "sales": return !!user.permissoes.relatorios.sales;
+        case "inventory": return !!user.permissoes.relatorios.inventory;
+        case "finance": return !!user.permissoes.relatorios.finance;
+        case "people": return !!user.permissoes.relatorios.people;
+        case "agenda": return !!user.permissoes.relatorios.agenda;
+        case "comissoes": return !!user.permissoes.relatorios.comissoes;
+        default: return false;
+      }
+    };
+
+    if (!checkPrintAccess()) {
+      setError('Você não tem permissão para imprimir este relatório.');
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     let url = '';
@@ -76,8 +96,8 @@ export const ReportPrint = () => {
       });
 
     fetch('/api/company/settings', { headers: { 'Authorization': `Bearer ${activeToken}` } })
-      .then(res => res.json())
-      .then(setCompany)
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
+      .then(data => { if (data) setCompany(data); })
       .catch(err => console.error("Error fetching company settings:", err));
   }, [type, activeToken, logout]);
 

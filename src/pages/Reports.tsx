@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { AlertCircle, FileText, FileSpreadsheet, Eye, RefreshCw } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
+import { safeFetchArray } from "../services/api";
 import { formatMoney, formatDate, formatTime, formatDateTime } from "../utils/format";
 
 export const Reports = () => {
@@ -58,23 +59,43 @@ export const Reports = () => {
   const [professionals, setProfessionals] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch("/api/pessoas", { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => res.json())
-      .then(setPessoas)
-      .catch((err) => console.error("Error fetching pessoas for filter:", err));
-      
-    fetch("/api/inventory/groups", { headers: { Authorization: `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(setGrupos)
-      .catch(err => console.error("Error fetching groups:", err));
-
-    fetch("/api/users", { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => res.json())
-      .then((data) => setProfessionals(Array.isArray(data) ? data : []))
-      .catch((err) => console.error("Error fetching professionals for filter:", err));
+    safeFetchArray("/api/pessoas", token, setPessoas);
+    safeFetchArray("/api/inventory/groups", token, setGrupos);
+    safeFetchArray("/api/users", token, setProfessionals);
   }, [token]);
 
+  const hasReportAccess = () => {
+    if (user?.perfil === "superadmin" || user?.perfil === "admin") return true;
+    if (!user?.permissoes?.relatorios?.acessar) return false;
+    
+    switch (type) {
+      case "sales":
+        return !!user.permissoes.relatorios.sales;
+      case "inventory":
+        return !!user.permissoes.relatorios.inventory;
+      case "finance":
+        return !!user.permissoes.relatorios.finance;
+      case "people":
+        return !!user.permissoes.relatorios.people;
+      case "agenda":
+        return !!user.permissoes.relatorios.agenda;
+      case "notifications":
+        return !!user.permissoes.relatorios.notifications;
+      case "comissoes":
+        return !!user.permissoes.relatorios.comissoes;
+      default:
+        return false;
+    }
+  };
+
   useEffect(() => {
+    if (!token) return;
+    if (!hasReportAccess()) {
+      setLoading(false);
+      setError("Você não tem permissão para acessar este relatório.");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     let url = "";
@@ -1056,6 +1077,17 @@ export const Reports = () => {
         return <div>Relatório não encontrado.</div>;
     }
   };
+
+  if (!hasReportAccess()) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 bg-white rounded-3xl border border-slate-100 shadow-sm text-center">
+        <h2 className="text-2xl font-black text-slate-900 mb-2">Acesso Restrito</h2>
+        <p className="text-slate-500 max-w-md mx-auto mb-8">
+          Você não tem permissão para visualizar o {getTitle().toLowerCase()}.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

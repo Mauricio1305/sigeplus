@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { safeFetchArray } from '../services/api';
 import { getDirectImageUrl } from '../utils/image';
 import { 
   Coffee, Plus, X, Search, CheckCircle, CreditCard, ShoppingCart, Minus, Printer, Users, MessageCircle, Trash2, FileText
@@ -51,22 +52,25 @@ export default function Mesas() {
   const navigate = useNavigate();
 
   const fetchMesas = () => {
-    fetch('/api/mesas', { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(res => res.json())
-      .then(data => {
-        // filter mesas that are open
-        const openMesas = data.filter((s: any) => s.tipo === 'mesa' && s.status === 'aberta');
-        setMesas(openMesas);
-      });
+    safeFetchArray('/api/mesas', token, data => {
+      const openMesas = (data || []).filter((s: any) => s.tipo === 'mesa' && s.status === 'aberta');
+      setMesas(openMesas);
+    });
   };
 
   useEffect(() => {
     fetchMesas();
-    fetch('/api/products', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setProdutos);
-    fetch('/api/pessoas', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setPessoas);
-    fetch('/api/finance/payment-types', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setPaymentTypes);
-    fetch('/api/finance/cashier/current', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setCurrentCashier);
-    fetch('/api/company/settings', { headers: { 'Authorization': `Bearer ${token}` } }).then(res => res.json()).then(setCompany);
+    safeFetchArray('/api/products', token, setProdutos);
+    safeFetchArray('/api/pessoas', token, setPessoas);
+    safeFetchArray('/api/finance/payment-types', token, setPaymentTypes);
+    fetch('/api/finance/cashier/current', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
+      .then(setCurrentCashier)
+      .catch(() => setCurrentCashier(null));
+    fetch('/api/company/settings', { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
+      .then(setCompany)
+      .catch(() => setCompany(null));
   }, [token]);
 
   const loadMesaDetails = async (mesa: any) => {
@@ -552,7 +556,9 @@ export default function Mesas() {
   const activeProducts = produtos.filter(p => p.tipo !== 'servico');
   const filteredProdutos = productSearchTerm.trim() === '' ? activeProducts : activeProducts.filter(p => 
     p.nome.toLowerCase().includes(productSearchTerm.toLowerCase()) || 
-    (p.codigo_barras && p.codigo_barras.includes(productSearchTerm))
+    (p.codigo_barras && p.codigo_barras.includes(productSearchTerm)) ||
+    (p.sequencial_id && p.sequencial_id.toString().includes(productSearchTerm)) ||
+    p.id.toString().includes(productSearchTerm)
   );
 
   return (

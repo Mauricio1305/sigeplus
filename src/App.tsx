@@ -23,6 +23,7 @@ import ReportPrint from './pages/ReportPrint';
 import VendaPrint from './pages/VendaPrint';
 import Subscription from './pages/Subscription';
 import { StripeSuccess, StripePortalReturn } from './pages/StripeCallbacks';
+import Home from './pages/Home';
 
 // Components
 import Layout from './components/Layout/Layout';
@@ -34,10 +35,21 @@ const ModuleGuard = ({ module, children }: { module: string, children: React.Rea
   if (!user) return <Navigate to="/login" replace />;
   if (user.perfil === 'superadmin') return <>{children}</>;
   
-  const planHasModule = module === 'dashboard' ? true : user.modulos?.includes(module);
+  let planHasModule = false;
+  if (module === 'home' || module === 'inicio') {
+    if (!user.modulos || user.modulos.length === 0) {
+      planHasModule = true;
+    } else {
+      planHasModule = user.modulos.includes('home') || user.modulos.includes('inicio');
+    }
+  } else if (module === 'dashboard') {
+    planHasModule = true;
+  } else {
+    planHasModule = !!user.modulos?.includes(module);
+  }
   
   let hasGroupAccess = false;
-  if (user.perfil === 'admin') {
+  if (user.perfil === 'admin' || module === 'home' || module === 'inicio') {
     hasGroupAccess = true;
   } else if (user.permissoes && user.permissoes[module]) {
     hasGroupAccess = !!user.permissoes[module].acessar;
@@ -69,6 +81,22 @@ const ModuleGuard = ({ module, children }: { module: string, children: React.Rea
 };
 
 const App = () => {
+  React.useEffect(() => {
+    const token = useAuthStore.getState().token;
+    if (token) {
+      fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => (res.ok && res.headers.get('content-type')?.includes('application/json')) ? res.json() : null)
+        .then(data => {
+          if (data && data.user) {
+            useAuthStore.getState().setAuth(data.user, token);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
   return (
     <Router>
       <AnimatePresence mode="wait">
@@ -87,7 +115,8 @@ const App = () => {
               <Layout />
             </ProtectedRoute>
           }>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route index element={<Navigate to="/home" replace />} />
+            <Route path="home" element={<ModuleGuard module="home"><Home /></ModuleGuard>} />
             <Route path="dashboard" element={<ModuleGuard module="dashboard"><Dashboard /></ModuleGuard>} />
             <Route path="agenda" element={<ModuleGuard module="agenda"><Agenda /></ModuleGuard>} />
             <Route path="pessoas" element={<ModuleGuard module="cadastros"><Pessoas /></ModuleGuard>} />
@@ -120,7 +149,7 @@ const App = () => {
           <Route path="/print/venda/:id" element={<VendaPrint />} />
 
           {/* Fallback */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
       </AnimatePresence>
     </Router>

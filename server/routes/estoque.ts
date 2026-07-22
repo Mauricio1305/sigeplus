@@ -19,11 +19,15 @@ router.get("/products", authMiddleware, planMiddleware('estoque'), async (req: a
 router.post("/products", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
   try {
     const { nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo, grupo_id, foto, marca, perc_comissao } = req.body;
+    
+    const [maxSequencialRow] = await pool.query("SELECT MAX(sequencial_id) as max_id FROM produtos WHERE tenant_id = ?", [req.user.tenant_id]) as any[];
+    const sequencial_id = (maxSequencialRow[0]?.max_id || 0) + 1;
+
     await pool.query(
-      "INSERT INTO produtos (tenant_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo, grupo_id, foto, marca, perc_comissao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      [req.user.tenant_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo || 0, categoria, codigo_barras || null, ativo === undefined ? 1 : (ativo ? 1 : 0), grupo_id || null, foto || null, marca || null, perc_comissao || 0]
+      "INSERT INTO produtos (tenant_id, sequencial_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo, categoria, codigo_barras, ativo, grupo_id, foto, marca, perc_comissao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [req.user.tenant_id, sequencial_id, nome, tipo, unidade, custo, preco_venda, estoque_atual, estoque_minimo || 0, categoria, codigo_barras || null, ativo === undefined ? 1 : (ativo ? 1 : 0), grupo_id || null, foto || null, marca || null, perc_comissao || 0]
     );
-    res.json({ success: true });
+    res.json({ success: true, sequencial_id });
   } catch (error: any) {
     console.error("Error creating product:", error);
     res.status(500).json({ error: error.message });
@@ -68,8 +72,9 @@ router.get("/inventory/groups", authMiddleware, async (req: any, res) => {
 router.post("/inventory/groups", authMiddleware, async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
-    const { nome } = req.body;
-    const [result] = await pool.query("INSERT INTO grupos_produtos (tenant_id, nome) VALUES (?, ?)", [tenant_id, nome]) as any[];
+    const { nome, ativo } = req.body;
+    const isAtivo = ativo === undefined ? 1 : (ativo ? 1 : 0);
+    const [result] = await pool.query("INSERT INTO grupos_produtos (tenant_id, nome, ativo) VALUES (?, ?, ?)", [tenant_id, nome, isAtivo]) as any[];
     res.json({ id: result.insertId, nome });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -80,8 +85,9 @@ router.put("/inventory/groups/:id", authMiddleware, async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const { id } = req.params;
-    const { nome } = req.body;
-    await pool.query("UPDATE grupos_produtos SET nome = ? WHERE id = ? AND tenant_id = ?", [nome, id, tenant_id]);
+    const { nome, ativo } = req.body;
+    const isAtivo = ativo === undefined ? 1 : (ativo ? 1 : 0);
+    await pool.query("UPDATE grupos_produtos SET nome = ?, ativo = ? WHERE id = ? AND tenant_id = ?", [nome, isAtivo, id, tenant_id]);
     res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -92,6 +98,13 @@ router.delete("/inventory/groups/:id", authMiddleware, async (req: any, res) => 
   try {
     const { tenant_id } = req.user;
     const { id } = req.params;
+    
+    // Check if group is associated with any products
+    const [products] = await pool.query("SELECT COUNT(*) as count FROM produtos WHERE grupo_id = ? AND tenant_id = ?", [id, tenant_id]) as any[];
+    if (products && products[0] && Number(products[0].count) > 0) {
+      return res.status(400).json({ error: "Este grupo está associado a um ou mais produtos e não pode ser excluído." });
+    }
+
     await pool.query("DELETE FROM grupos_produtos WHERE id = ? AND tenant_id = ?", [id, tenant_id]);
     res.json({ success: true });
   } catch (err: any) {
@@ -101,7 +114,7 @@ router.delete("/inventory/groups/:id", authMiddleware, async (req: any, res) => 
 
 // --- LABEL LAYOUTS ---
 
-router.get("/inventory/layouts", authMiddleware, planMiddleware('etiquetas'), async (req: any, res) => {
+router.get("/inventory/layouts", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const [layouts] = await pool.query("SELECT * FROM layouts_etiquetas WHERE tenant_id = ?", [tenant_id]);
@@ -111,7 +124,7 @@ router.get("/inventory/layouts", authMiddleware, planMiddleware('etiquetas'), as
   }
 });
 
-router.post("/inventory/layouts", authMiddleware, planMiddleware('etiquetas'), async (req: any, res) => {
+router.post("/inventory/layouts", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const { nome, largura, altura, colunas, json_config } = req.body;
@@ -125,7 +138,7 @@ router.post("/inventory/layouts", authMiddleware, planMiddleware('etiquetas'), a
   }
 });
 
-router.put("/inventory/layouts/:id", authMiddleware, planMiddleware('etiquetas'), async (req: any, res) => {
+router.put("/inventory/layouts/:id", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const { id } = req.params;
@@ -140,7 +153,7 @@ router.put("/inventory/layouts/:id", authMiddleware, planMiddleware('etiquetas')
   }
 });
 
-router.delete("/inventory/layouts/:id", authMiddleware, planMiddleware('etiquetas'), async (req: any, res) => {
+router.delete("/inventory/layouts/:id", authMiddleware, planMiddleware('estoque'), async (req: any, res) => {
   try {
     const { tenant_id } = req.user;
     const { id } = req.params;
