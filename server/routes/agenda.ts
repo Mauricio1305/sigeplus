@@ -129,19 +129,23 @@ router.post("/", authMiddleware, planMiddleware('agenda'), async (req: any, res)
       }
     }
 
+    const totalCalc = parseFloat(valor_total) || 0;
     const [resAg] = await connection.query(`
       INSERT INTO agendamentos (tenant_id, usuario_id, pessoa_id, data_inicio, data_fim, valor_total, observacao, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [tenant_id, usuario_id, pessoa_id || null, data_inicio, data_fim, valor_total || 0, observacao || null, status || 'Agendado']) as any[];
+    `, [tenant_id, usuario_id, pessoa_id || null, data_inicio, data_fim, totalCalc, observacao || null, status || 'Agendado']) as any[];
 
     const agendaId = resAg.insertId;
 
     if (items && items.length > 0) {
       for (const item of items) {
+        const qtd = parseFloat(item.quantidade) || 1;
+        const price = parseFloat(item.preco_unitario) || 0;
+        const sub = parseFloat(item.subtotal) || (qtd * price);
         await connection.query(`
           INSERT INTO agendamentos_itens (tenant_id, agendamento_id, produto_id, quantidade, preco_unitario, subtotal)
           VALUES (?, ?, ?, ?, ?, ?)
-        `, [tenant_id, agendaId, item.produto_id, item.quantidade || 1, item.preco_unitario, item.subtotal]);
+        `, [tenant_id, agendaId, item.produto_id, qtd, price, sub]);
       }
     }
 
@@ -233,6 +237,7 @@ router.put("/:id", authMiddleware, planMiddleware('agenda'), async (req: any, re
       await connection.query("DELETE FROM notificacoes WHERE agenda_id = ? AND tenant_id = ? AND status = 'pendente'", [id, tenant_id]);
     }
 
+    const totalCalc = valor_total !== undefined ? parseFloat(valor_total) || 0 : (appointment?.valor_total);
     // Original update query
     await connection.query(`
       UPDATE agendamentos 
@@ -243,7 +248,7 @@ router.put("/:id", authMiddleware, planMiddleware('agenda'), async (req: any, re
       pessoa_id !== undefined ? (pessoa_id || null) : (appointment?.pessoa_id),
       data_inicio || (appointment?.data_inicio),
       data_fim || (appointment?.data_fim),
-      valor_total !== undefined ? valor_total : (appointment?.valor_total),
+      totalCalc,
       status || (appointment?.status),
       observacao !== undefined ? (observacao || null) : (appointment?.observacao),
       id, 
@@ -253,10 +258,13 @@ router.put("/:id", authMiddleware, planMiddleware('agenda'), async (req: any, re
     if (items) {
       await connection.query("DELETE FROM agendamentos_itens WHERE agendamento_id = ? AND tenant_id = ?", [id, tenant_id]);
       for (const item of items) {
+        const qtd = parseFloat(item.quantidade) || 1;
+        const price = parseFloat(item.preco_unitario) || 0;
+        const sub = parseFloat(item.subtotal) || (qtd * price);
         await connection.query(`
           INSERT INTO agendamentos_itens (tenant_id, agendamento_id, produto_id, quantidade, preco_unitario, subtotal)
           VALUES (?, ?, ?, ?, ?, ?)
-        `, [tenant_id, id, item.produto_id, item.quantidade || 1, item.preco_unitario, item.subtotal]);
+        `, [tenant_id, id, item.produto_id, qtd, price, sub]);
       }
     }
 

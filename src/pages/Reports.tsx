@@ -50,17 +50,21 @@ export const Reports = () => {
   const [stockSearchTerm, setStockSearchTerm] = useState("");
   const [stockBrandFilter, setStockBrandFilter] = useState("");
   const [peopleFilter, setPeopleFilter] = useState("todos"); // 'todos' ou 'aniversariantes'
+  const [peopleTypeFilter, setPeopleTypeFilter] = useState("todos"); // 'todos', 'cliente', 'fornecedor', 'ambos'
+  const [peopleGroupFilter, setPeopleGroupFilter] = useState("todos");
   const [professionalFilter, setProfessionalFilter] = useState("todos");
   const [agendaStatusFilter, setAgendaStatusFilter] = useState("todos");
   const [groupBy, setGroupBy] = useState("nenhum");
 
   const [pessoas, setPessoas] = useState<any[]>([]);
   const [grupos, setGrupos] = useState<any[]>([]);
+  const [peopleGroups, setPeopleGroups] = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<any[]>([]);
 
   useEffect(() => {
     safeFetchArray("/api/pessoas", token, setPessoas);
     safeFetchArray("/api/inventory/groups", token, setGrupos);
+    safeFetchArray("/api/pessoas/grupos", token, setPeopleGroups);
     safeFetchArray("/api/users", token, setProfessionals);
   }, [token]);
 
@@ -296,6 +300,23 @@ export const Reports = () => {
 
     if (type === "people") {
       filteredData = data.filter((p) => {
+        // Tipo Filter
+        if (peopleTypeFilter !== "todos") {
+          if (peopleTypeFilter === "cliente") {
+            if (p.tipo_pessoa !== "cliente" && p.tipo_pessoa !== "ambos") return false;
+          } else if (peopleTypeFilter === "fornecedor") {
+            if (p.tipo_pessoa !== "fornecedor" && p.tipo_pessoa !== "ambos") return false;
+          } else if (p.tipo_pessoa !== peopleTypeFilter) {
+            return false;
+          }
+        }
+
+        // Grupo Filter
+        if (peopleGroupFilter !== "todos") {
+          if (String(p.grupo_id || "") !== String(peopleGroupFilter)) return false;
+        }
+
+        // Special Birthday Filter
         if (peopleFilter === "aniversariantes") {
           if (!p.data_aniversario) return false;
           // check if birthday month is between startDate and endDate months
@@ -427,6 +448,7 @@ export const Reports = () => {
     } else if (type === "people") {
       exportData = filteredData.map((p) => ({
         Nome: p.razao_social || p.nome,
+        "Nome Fantasia": p.nome_fantasia || "",
         Tipo:
           p.tipo_pessoa === "cliente"
             ? "Cliente"
@@ -435,11 +457,12 @@ export const Reports = () => {
               : p.tipo_pessoa === "funcionario"
                 ? "Funcionário"
                 : p.tipo_pessoa,
-        "CPF/CNPJ": p.cpf_cnpj,
-        Telefone: p.telefone_celular || p.telefone_fixo || p.telefone,
-        Email: p.email,
-        Cidade: p.cidade,
-        UF: p.uf,
+        Grupo: p.grupo_nome || (peopleGroups.find(g => String(g.id) === String(p.grupo_id))?.nome) || "-",
+        "CPF/CNPJ": p.cpf_cnpj || "",
+        Telefone: p.telefone_celular || p.telefone_fixo || p.telefone || "",
+        Email: p.email || "",
+        Cidade: p.cidade || "",
+        UF: p.uf || "",
         Aniversário: p.data_aniversario ? formatDate(p.data_aniversario) : "",
       }));
     } else if (type === "agenda") {
@@ -912,6 +935,7 @@ export const Reports = () => {
                 <tr>
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Nome</th>
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden sm:table-cell">Tipo</th>
+                  <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden md:table-cell">Grupo</th>
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold hidden lg:table-cell">CPF/CNPJ</th>
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold">Contato</th>
                   <th className="px-2 sm:px-3 md:px-6 py-2 md:py-4 font-semibold text-right hidden sm:table-cell">
@@ -928,6 +952,15 @@ export const Reports = () => {
                     </td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 capitalize hidden sm:table-cell">
                       {p.tipo_pessoa}
+                    </td>
+                    <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 hidden md:table-cell">
+                      {p.grupo_nome || (peopleGroups.find(g => String(g.id) === String(p.grupo_id))?.nome) ? (
+                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-semibold rounded-md border border-indigo-100">
+                          {p.grupo_nome || peopleGroups.find(g => String(g.id) === String(p.grupo_id))?.nome}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">-</span>
+                      )}
                     </td>
                     <td className="px-2 sm:px-3 md:px-6 py-2 md:py-4 text-slate-600 font-mono text-[10px] md:text-xs hidden lg:table-cell">
                       {p.cpf_cnpj}
@@ -1380,21 +1413,57 @@ export const Reports = () => {
           )}
 
           {type === "people" && (
-            <div className="space-y-1">
-              <label className="block text-xs font-bold text-slate-500 uppercase">
-                Pessoas
-              </label>
-              <select
-                value={peopleFilter}
-                onChange={(e) => setPeopleFilter(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="todos">Todas as Pessoas</option>
-                <option value="aniversariantes">
-                  Aniversariantes do Período
-                </option>
-              </select>
-            </div>
+            <>
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">
+                  Tipo de Pessoa
+                </label>
+                <select
+                  value={peopleTypeFilter}
+                  onChange={(e) => setPeopleTypeFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="todos">Todos os Tipos</option>
+                  <option value="cliente">Cliente</option>
+                  <option value="fornecedor">Fornecedor</option>
+                  <option value="ambos">Ambos (Cliente/Fornecedor)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">
+                  Grupo
+                </label>
+                <select
+                  value={peopleGroupFilter}
+                  onChange={(e) => setPeopleGroupFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="todos">Todos os Grupos</option>
+                  {peopleGroups.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase">
+                  Filtro Especial
+                </label>
+                <select
+                  value={peopleFilter}
+                  onChange={(e) => setPeopleFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  <option value="todos">Todas as Pessoas</option>
+                  <option value="aniversariantes">
+                    Aniversariantes do Período
+                  </option>
+                </select>
+              </div>
+            </>
           )}
 
           {(type === "sales" || type === "finance" || type === "agenda" || type === "comissoes") && (

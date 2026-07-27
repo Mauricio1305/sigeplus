@@ -72,6 +72,16 @@ CREATE TABLE IF NOT EXISTS usuarios (
     FOREIGN KEY (grupo_id) REFERENCES grupos_usuarios(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS grupos_pessoas (
+    id SERIAL PRIMARY KEY,
+    tenant_id VARCHAR(255) NOT NULL,
+    sequencial_id INTEGER NOT NULL DEFAULT 1,
+    nome VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS pessoas (
     id SERIAL PRIMARY KEY,
     tenant_id VARCHAR(255) NOT NULL,
@@ -88,9 +98,12 @@ CREATE TABLE IF NOT EXISTS pessoas (
     uf VARCHAR(2),
     cep VARCHAR(20),
     ativo BOOLEAN DEFAULT true,
+    observacao TEXT,
+    grupo_id INTEGER,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
+    FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE,
+    FOREIGN KEY (grupo_id) REFERENCES grupos_pessoas(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS grupos_produtos (

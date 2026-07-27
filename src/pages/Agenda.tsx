@@ -179,7 +179,7 @@ const Agenda = () => {
         setPessoas(data);
       }
     } catch (err: any) {
-      if (!err?.message?.includes('permissão') && !err?.message?.includes('Acesso')) {
+      if (!err?.message?.includes('permissão') && !err?.message?.includes('Acesso') && !err?.message?.includes('expirada')) {
         console.error('Error fetching pessoas:', err);
       }
       setPessoas([]);
@@ -193,7 +193,7 @@ const Agenda = () => {
         setProdutos(data.filter((p: any) => p.ativo));
       }
     } catch (err: any) {
-      if (!err?.message?.includes('permissão') && !err?.message?.includes('Acesso')) {
+      if (!err?.message?.includes('permissão') && !err?.message?.includes('Acesso') && !err?.message?.includes('expirada')) {
         console.error('Error fetching produtos:', err);
       }
       setProdutos([]);
@@ -248,11 +248,25 @@ const Agenda = () => {
       const url = selectedEvent ? `/api/agenda/${selectedEvent.id}` : '/api/agenda';
       const method = selectedEvent ? 'PUT' : 'POST';
       
+      const cleanedItems = (formData.items || []).map((item: any) => {
+        const quantidade = parseFloat(item.quantidade) || 1;
+        const preco_unitario = parseFloat(item.preco_unitario) || 0;
+        const subtotal = parseFloat(item.subtotal) || (quantidade * preco_unitario);
+        return {
+          ...item,
+          quantidade,
+          preco_unitario,
+          subtotal
+        };
+      });
+      const calculatedValorTotal = cleanedItems.reduce((acc: number, item: any) => acc + item.subtotal, 0);
+
       const data = await apiRequest(url, {
         method,
         body: JSON.stringify({
           ...formData,
-          valor_total: formData.items.reduce((acc, item) => acc + item.subtotal, 0)
+          items: cleanedItems,
+          valor_total: calculatedValorTotal
         })
       });
 
@@ -724,14 +738,15 @@ const Agenda = () => {
                             onClick={() => {
                               const existing = formData.items.find(i => i.produto_id === p.id);
                               if (!existing) {
+                                const unitPrice = parseFloat(p.preco_venda as any) || 0;
                                 setFormData({
                                   ...formData,
                                   items: [...formData.items, {
                                     produto_id: p.id,
                                     nome: p.nome,
                                     quantidade: 1,
-                                    preco_unitario: p.preco_venda,
-                                    subtotal: p.preco_venda,
+                                    preco_unitario: unitPrice,
+                                    subtotal: unitPrice,
                                     tempo_execucao: p.tempo_execucao
                                   }]
                                 });
@@ -765,9 +780,11 @@ const Agenda = () => {
                               value={item.quantidade}
                               onChange={(e) => {
                                 const q = parseFloat(e.target.value) || 0;
+                                const unitPrice = parseFloat(item.preco_unitario as any) || 0;
                                 const newItems = [...formData.items];
                                 newItems[idx].quantidade = q;
-                                newItems[idx].subtotal = q * item.preco_unitario;
+                                newItems[idx].preco_unitario = unitPrice;
+                                newItems[idx].subtotal = q * unitPrice;
                                 setFormData({ ...formData, items: newItems });
                               }}
                             />
@@ -788,7 +805,7 @@ const Agenda = () => {
                   <div className="flex items-center justify-between pt-4 px-2">
                     <p className="text-sm font-bold text-slate-400">Total Previsto</p>
                     <p className="text-2xl font-black text-indigo-600">
-                      {formatMoney(formData.items.reduce((acc, i) => acc + i.subtotal, 0))}
+                      {formatMoney(formData.items.reduce((acc, i) => acc + (parseFloat(i.subtotal as any) || 0), 0))}
                     </p>
                   </div>
                 </div>
@@ -862,7 +879,12 @@ const Agenda = () => {
                           data_fim: formatForInput(selectedEvent.data_fim),
                           observacao: selectedEvent.observacao || '',
                           status: selectedEvent.status || 'Pendente',
-                          items: selectedEvent.items || []
+                          items: (selectedEvent.items || []).map((item: any) => ({
+                            ...item,
+                            quantidade: parseFloat(item.quantidade) || 1,
+                            preco_unitario: parseFloat(item.preco_unitario) || 0,
+                            subtotal: parseFloat(item.subtotal) || 0
+                          }))
                         });
                         setSearchPessoa(selectedEvent.cliente_nome || '');
                         setIsDetailsOpen(false);

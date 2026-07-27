@@ -377,8 +377,15 @@ export const Sales = ({ mode = 'venda' }: { mode?: 'venda' | 'os' }) => {
       });
       if (res.ok) {
         const data = await res.json();
+        const items = data.items || [];
+        const itemsTotal = items.reduce((acc: number, item: any) => acc + (parseFloat(item.subtotal) || 0), 0);
+        const frete = parseFloat(data.frete) || 0;
+        const desconto = parseFloat(data.desconto) || 0;
+        const recalculatedTotal = itemsTotal + frete - desconto;
+
         setNewSale({
           ...data,
+          valor_total: recalculatedTotal,
           pagamentos: data.pagamentos || []
         });
         const client = pessoas.find(p => p.id === data.pessoa_id);

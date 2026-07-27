@@ -312,6 +312,18 @@ async function initDB() {
       `);
 
       await pool.query(`
+        CREATE TABLE IF NOT EXISTS grupos_pessoas (
+          id SERIAL PRIMARY KEY,
+          tenant_id VARCHAR(255) NOT NULL,
+          sequencial_id INTEGER NOT NULL DEFAULT 1,
+          nome VARCHAR(255) NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (tenant_id) REFERENCES empresas(tenant_id) ON DELETE CASCADE
+        )
+      `);
+
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS layouts_etiquetas (
           id SERIAL PRIMARY KEY,
           tenant_id VARCHAR(255) NOT NULL,
@@ -334,7 +346,7 @@ async function initDB() {
       const tableList = ['planos', 'empresas', 'pessoas', 'tipos_pagamento', 'lancamentos', 'vendas', 'vendas_itens', 'ordens_servico', 'produtos', 'movimentacoes_caixa', 'categorias_contas', 'usuarios'];
       for (const table of tableList) {
         const [info] = await pool.query(`SHOW COLUMNS FROM ${table}`) as any[];
-        const columns = (info as any[]).map((c: any) => c.Field);
+        const columns = (info as any[]).map((c: any) => c.Field || c.field || c.column_name);
         
         if (table === 'planos') {
           if (!columns.includes('modulos')) {
@@ -369,31 +381,6 @@ async function initDB() {
               await pool.query('ALTER TABLE usuarios ADD COLUMN grupo_id INTEGER');
               await pool.query('ALTER TABLE usuarios ADD FOREIGN KEY (grupo_id) REFERENCES grupos_usuarios(id) ON DELETE SET NULL');
             } catch (e: any) { console.warn("Failed to add grupo_id:", e.message); }
-
-            const masterPermissoes = JSON.stringify({
-              financeiro: { acessar: true, lancar: true, editar: true, cancelar: true, estornar: true },
-              vendas: { acessar: true, lancar: true, cancelar: true, relatorios: true },
-              pdv: { acessar: true, vender: true, cancelar: true },
-              estoque: { acessar: true, editar: true, excluir: true },
-              cadastros: { acessar: true, editar: true, excluir: true },
-              configuracoes: { acessar: true, editar: true }
-            });
-
-            // Seed master groups
-            const [empresas] = await pool.query('SELECT tenant_id FROM empresas');
-            for (const emp of (empresas as any[])) {
-              try {
-                // Check if already exists to avoid unique constraint if any (id) or duplicates
-                const [existing] = await pool.query("SELECT id FROM grupos_usuarios WHERE tenant_id = ? AND is_master = 1", [emp.tenant_id]);
-                if ((existing as any[]).length === 0) {
-                  const [res] = await pool.query(
-                    "INSERT INTO grupos_usuarios (tenant_id, nome, is_master, permissoes) VALUES (?, 'Master', 1, ?)",
-                    [emp.tenant_id, masterPermissoes]
-                  ) as any[];
-                  await pool.query("UPDATE usuarios SET grupo_id = ? WHERE tenant_id = ? AND perfil IN ('admin', 'superadmin')", [res.insertId, emp.tenant_id]);
-                }
-              } catch (e: any) { console.warn(`Failed to seed master group for ${emp.tenant_id}:`, e.message); }
-            }
           }
         }
         if (table === 'vendas') {
@@ -434,6 +421,8 @@ async function initDB() {
           if (!columns.includes('numero')) await pool.query("ALTER TABLE pessoas ADD COLUMN numero VARCHAR(20)");
           if (!columns.includes('cep')) await pool.query("ALTER TABLE pessoas ADD COLUMN cep VARCHAR(20)");
           if (!columns.includes('data_aniversario')) await pool.query("ALTER TABLE pessoas ADD COLUMN data_aniversario DATE");
+          if (!columns.includes('observacao')) await pool.query("ALTER TABLE pessoas ADD COLUMN observacao TEXT");
+          if (!columns.includes('grupo_id')) await pool.query("ALTER TABLE pessoas ADD COLUMN grupo_id INTEGER");
         }
         if (table === 'tipos_pagamento') {
           if (!columns.includes('prazo_dias')) await pool.query("ALTER TABLE tipos_pagamento ADD COLUMN prazo_dias INTEGER DEFAULT 0");

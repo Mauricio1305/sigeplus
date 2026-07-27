@@ -106,6 +106,15 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
    - Inclusão de funcionalidade de carregar profissional associado ao produto/servico no pedido gerado pela agenda.
    - Melhorias nas regras de permissões  de acesso 
 
+ ##[1.4.0] - Em Desenvolvimento
+ - Remoção de trecho de código do arquivo server.ts que fazia insert na tabela grupo de usuários, habilitando todos os módulos indevidamente.
+ - Corregido Falha ao lançar multiplos produtos e serviços na agenda.
+ - Criar Grupo de pessoas
+ - Criar Novo campo de Observação no cadastro de pessoas
+ * Redesenhar o layout da agenda por profissional com espacamento de 15min.
+ * Incluir Filtro por cliente na tela de agenda
+ * Criar Rotina de Encaixe
+ - Criar Funcionalidade de Recalcular toda vez que clicar para editar um Pedido/ Orçamento
 
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*
