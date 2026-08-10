@@ -86,7 +86,7 @@ router.get("/settings/users", authMiddleware, planMiddleware('configuracoes'), a
   const { tenant_id } = req.user;
   try {
     const [users] = await pool.query(`
-      SELECT u.id, u.nome, u.email, u.ativo, u.perfil, u.grupo_id, u.is_profissional, u.perc_comissao, g.nome as grupo_nome 
+      SELECT u.id, u.nome, u.email, u.avatar, u.ativo, u.perfil, u.grupo_id, u.is_profissional, u.perc_comissao, g.nome as grupo_nome 
       FROM usuarios u 
       LEFT JOIN grupos_usuarios g ON u.grupo_id = g.id 
       WHERE u.tenant_id = ?
@@ -109,7 +109,7 @@ router.get("/users", authMiddleware, async (req: any, res) => {
 
 router.post("/settings/users", authMiddleware, async (req: any, res) => {
   const { tenant_id } = req.user;
-  const { nome, email, grupo_id, ativo, is_profissional, perc_comissao } = req.body;
+  const { nome, email, grupo_id, ativo, is_profissional, perc_comissao, avatar } = req.body;
   
   try {
     const [empresa] = await pool.query(`
@@ -134,8 +134,8 @@ router.post("/settings/users", authMiddleware, async (req: any, res) => {
 
     const hashedPassword = await bcrypt.hash("TempPassword123!", 10);
     const [result] = await pool.query(
-      "INSERT INTO usuarios (tenant_id, nome, email, senha, grupo_id, perfil, ativo, is_profissional, perc_comissao) VALUES (?, ?, ?, ?, ?, 'usuario', ?, ?, ?)",
-      [tenant_id, nome, email, hashedPassword, grupo_id || null, (ativo !== undefined ? (ativo ? 1 : 0) : 1), is_profissional ? true : false, perc_comissao || 0]
+      "INSERT INTO usuarios (tenant_id, nome, email, senha, grupo_id, perfil, ativo, is_profissional, perc_comissao, avatar) VALUES (?, ?, ?, ?, ?, 'usuario', ?, ?, ?, ?)",
+      [tenant_id, nome, email, hashedPassword, grupo_id || null, (ativo !== undefined ? (ativo ? 1 : 0) : 1), is_profissional ? true : false, perc_comissao || 0, avatar || null]
     ) as any[];
 
     if (transporter) {
@@ -159,7 +159,7 @@ router.post("/settings/users", authMiddleware, async (req: any, res) => {
 router.put("/settings/users/:id", authMiddleware, async (req: any, res) => {
   const { tenant_id } = req.user;
   const userId = req.params.id;
-  const { nome, grupo_id, ativo, is_profissional, perc_comissao } = req.body;
+  const { nome, grupo_id, ativo, is_profissional, perc_comissao, avatar } = req.body;
 
   try {
     const [userRow] = await pool.query("SELECT perfil FROM usuarios WHERE id = ? AND tenant_id = ?", [userId, tenant_id]) as any[];
@@ -167,8 +167,8 @@ router.put("/settings/users/:id", authMiddleware, async (req: any, res) => {
     if (userRow[0].perfil === 'superadmin') return res.status(400).json({ error: "Não é permitido alterar este usuário." });
 
     await pool.query(
-      "UPDATE usuarios SET nome = ?, grupo_id = ?, ativo = ?, is_profissional = ?, perc_comissao = ? WHERE id = ? AND tenant_id = ?",
-      [nome, grupo_id || null, ativo ? 1 : 0, is_profissional ? true : false, perc_comissao || 0, userId, tenant_id]
+      "UPDATE usuarios SET nome = ?, grupo_id = ?, ativo = ?, is_profissional = ?, perc_comissao = ?, avatar = ? WHERE id = ? AND tenant_id = ?",
+      [nome, grupo_id || null, ativo ? 1 : 0, is_profissional ? true : false, perc_comissao || 0, avatar || null, userId, tenant_id]
     );
 
     res.json({ success: true });

@@ -53,7 +53,8 @@ router.delete("/grupos/:id", authMiddleware, async (req: any, res) => {
 
 // Pessoas (Clients/Suppliers)
 router.get("/", authMiddleware, planMiddleware('cadastros'), async (req: any, res) => {
-  const { tipo, ativo, grupo_id } = req.query;
+  const { tipo, ativo, grupo_id, search, q } = req.query;
+  const searchTerm = search || q;
   let sql = `
     SELECT p.*, g.nome as grupo_nome 
     FROM pessoas p 
@@ -79,6 +80,12 @@ router.get("/", authMiddleware, planMiddleware('cadastros'), async (req: any, re
   if (ativo !== undefined) {
     sql += " AND p.ativo = ?";
     params.push(ativo === 'true' || ativo === '1' ? 1 : 0);
+  }
+
+  if (searchTerm) {
+    sql += " AND (p.nome LIKE ? OR p.cpf_cnpj LIKE ? OR p.telefone LIKE ? OR p.email LIKE ?)";
+    const term = `%${searchTerm}%`;
+    params.push(term, term, term, term);
   }
 
   sql += " ORDER BY p.nome ASC";

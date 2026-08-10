@@ -1190,7 +1190,16 @@ export const Settings = () => {
                 <tbody className="divide-y divide-slate-100">
                   {users.map(u => (
                     <tr key={u.id}>
-                      <td className="px-4 py-2 font-medium">{u.nome}</td>
+                      <td className="px-4 py-2 font-medium flex items-center gap-2">
+                        {u.avatar ? (
+                          <img src={u.avatar} alt={u.nome} className="w-6 h-6 rounded-full object-cover border border-slate-200 shrink-0" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 font-bold text-[10px] flex items-center justify-center shrink-0">
+                            {u.nome?.charAt(0)}
+                          </div>
+                        )}
+                        <span className="truncate max-w-[150px]">{u.nome}</span>
+                      </td>
                       <td className="px-4 py-2">{u.email}</td>
                       <td className="px-4 py-2">{u.grupo_nome || '-'}</td>
                       <td className="px-4 py-2">
@@ -1626,6 +1635,25 @@ export const Settings = () => {
                         if (financeFieldErrors.email) setFinanceFieldErrors({...financeFieldErrors, email: ''});
                       }} 
                     />
+                  </FormField>
+
+                  <FormField label="Foto do Perfil / Profissional (URL da imagem)" helpText="Link da imagem/foto para exibição no cabeçalho da agenda">
+                    <div className="flex items-center gap-3">
+                      {formData.avatar ? (
+                        <img src={formData.avatar} alt="Preview" className="w-10 h-10 rounded-full object-cover border border-slate-200 shrink-0" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 font-bold text-xs flex items-center justify-center shrink-0">
+                          Sem foto
+                        </div>
+                      )}
+                      <input 
+                        type="url" 
+                        placeholder="https://exemplo.com/foto.jpg"
+                        className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-indigo-500 outline-none text-xs"
+                        value={formData.avatar || ''} 
+                        onChange={e => setFormData({...formData, avatar: e.target.value})} 
+                      />
+                    </div>
                   </FormField>
 
                   <FormField label="Grupo" error={financeFieldErrors.grupo_id} required>

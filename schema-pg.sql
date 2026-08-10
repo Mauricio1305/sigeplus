@@ -319,6 +319,7 @@ CREATE TABLE IF NOT EXISTS agendamentos (
     valor_total DECIMAL(10, 2) DEFAULT 0,
     status VARCHAR(50) DEFAULT 'Pendente', -- Pendente, Confirmado, Check-in Realizado, Concluido, Cancelado
     observacao TEXT,
+    is_encaixe BOOLEAN DEFAULT false,
     venda_id INTEGER, -- Vinculo com a venda quando concluir
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

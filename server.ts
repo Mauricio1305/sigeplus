@@ -535,21 +535,38 @@ async function initDB() {
 
     // Seed Plans if not exists
     try {
-      const [plans] = await pool.query("SELECT id FROM planos") as any[];
+      const defaultModules = JSON.stringify([
+        'home', 'financeiro', 'relatorios', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes', 
+        'agenda', 'os', 'mesas', 'export_excel', 'import_produtos', 'lembrete_email', 'lembrete_whatsapp'
+      ]);
+
+      const [plans] = await pool.query("SELECT id, modulos FROM planos") as any[];
       if (plans.length === 0) {
         console.log("Seeding default plans...");
-        const defaultModules = JSON.stringify([
-          'home', 'financeiro', 'vendas', 'pdv', 'estoque', 'cadastros', 'configuracoes', 
-          'agenda', 'os', 'mesas', 'export_excel', 'import_produtos', 'lembrete_email', 'lembrete_whatsapp'
-        ]);
         await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, modulos, is_trial, trial_days) VALUES (?, ?, ?, ?, ?, ?)", 
           ['Plano Trial', 0, 1, defaultModules, 1, 7]);
         await pool.query("INSERT INTO planos (nome, valor_mensal, limite_usuarios, modulos, is_trial) VALUES (?, ?, ?, ?, ?)", 
           ['Plano Pro', 99.90, 10, defaultModules, 0]);
         console.log("Default plans seeded.");
+      } else {
+        // Ensure existing plans also include 'relatorios' if missing
+        for (const plan of plans) {
+          if (plan.modulos) {
+            let mods: string[] = [];
+            if (typeof plan.modulos === 'string') {
+              try { mods = JSON.parse(plan.modulos); } catch (e) { mods = []; }
+            } else if (Array.isArray(plan.modulos)) {
+              mods = plan.modulos;
+            }
+            if (Array.isArray(mods) && mods.length > 0 && !mods.includes('relatorios')) {
+              mods.push('relatorios');
+              await pool.query("UPDATE planos SET modulos = ? WHERE id = ?", [JSON.stringify(mods), plan.id]);
+            }
+          }
+        }
       }
     } catch (e: any) {
-      console.error("Error seeding plans:", e.message);
+      console.error("Error seeding or updating plans:", e.message);
     }
 
       // Ensure "Grupo Padrão" exists for all tenants

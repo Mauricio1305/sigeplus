@@ -20,6 +20,10 @@ export async function processNotification(tenant_id: any, agenda_id: number, typ
       LIMIT 1
     `, [tenant_id, agenda_id, type, contexto]) as any[];
 
+    if (pending.length > 0) {
+      logId = pending[0].id;
+    }
+
     // 1. Get company settings and appointment details
     const [companies] = await pool.query(`
       SELECT p.modulos, e.* 
@@ -47,11 +51,18 @@ export async function processNotification(tenant_id: any, agenda_id: number, typ
       SELECT a.*, p.nome as cliente_nome, p.telefone as cliente_telefone, p.email as cliente_email, u.nome as profissional_nome
       FROM agendamentos a
       LEFT JOIN pessoas p ON a.pessoa_id = p.id
-      JOIN usuarios u ON a.usuario_id = u.id
+      LEFT JOIN usuarios u ON a.usuario_id = u.id
       WHERE a.id = ? AND a.tenant_id = ?
     `, [agenda_id, tenant_id]) as any[];
     const agenda = ags[0];
-    if (!agenda) throw new Error("Agendamento não encontrado");
+    if (!agenda) {
+      if (logId) {
+        await pool.query("UPDATE notificacoes SET status = 'erro', erro_log = 'Agendamento não encontrado' WHERE id = ?", [logId]);
+      } else {
+        await pool.query("UPDATE notificacoes SET status = 'erro', erro_log = 'Agendamento não encontrado' WHERE tenant_id = ? AND agenda_id = ? AND status = 'pendente'", [tenant_id, agenda_id]);
+      }
+      throw new Error("Agendamento não encontrado");
+    }
 
     const dataFormatada = new Date(agenda.data_inicio).toLocaleString('pt-BR');
     let msg = "";

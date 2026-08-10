@@ -106,15 +106,32 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
    - Inclusão de funcionalidade de carregar profissional associado ao produto/servico no pedido gerado pela agenda.
    - Melhorias nas regras de permissões  de acesso 
 
- ##[1.4.0] - Em Desenvolvimento
+ ##[1.3.4] - 2026-07-27
  - Remoção de trecho de código do arquivo server.ts que fazia insert na tabela grupo de usuários, habilitando todos os módulos indevidamente.
  - Corregido Falha ao lançar multiplos produtos e serviços na agenda.
  - Criar Grupo de pessoas
  - Criar Novo campo de Observação no cadastro de pessoas
- * Redesenhar o layout da agenda por profissional com espacamento de 15min.
- * Incluir Filtro por cliente na tela de agenda
- * Criar Rotina de Encaixe
  - Criar Funcionalidade de Recalcular toda vez que clicar para editar um Pedido/ Orçamento
 
+##[1.3.5] - Em Desenvolvimento
+ - Incluisão do Módulo Relatório na tela de Cadastro de planos.
+ - Redesenho completo do Front-end da Agenda com modo tela cheia, z-index corrigido sobre menu lateral em desktop e botão Voltar redirecionando para Início.
+ - Estruturação nativa de colunas por profissional na agenda utilizando `@fullcalendar/resource-timegrid` (layout com horário/dia inteiro no eixo e colunas individuais com foto do avatar e nome para cada profissional).
+ - Inclusão de suporte a foto do perfil/profissional nos cadastros de usuários e carregamento do avatar nas colunas da agenda.
+ - Filtragem estrita para exibição na agenda de apenas usuários marcados como profissionais (`is_profissional = true`).
+ - Adição do filtro de clientes com componente de pesquisa inteligente (combobox com autocompletar e busca em tempo real por nome, telefone, e-mail ou código) ao lado do filtro de profissionais na agenda.
+ - Correção do cálculo do valor total dos produtos e serviços nos agendamentos (armazenamento e soma automática no salvamento, listagem e detalhamento do agendamento, assim como na geração da venda).
+ - Redesenho dos cards de agendamento na agenda para exibir o nome do profissional na cor destacada do horário e o cliente na mesma linha (`"Nome do Profissional" | "Nome do Cliente"`), e remoção do valor financeiro do card para otimizar o espaço visual do calendário.
+ - Remoção da frase "Gestão integrada por profissional" do cabeçalho da Agenda de Atendimentos.
+ - Tratativa contra agendamentos duplicados com estado de submissão (`isSaving`), desabilitação do botão de salvar com spinner indicador, sintaxe SQL compatível com PostgreSQL (`IS NOT DISTINCT FROM` e `CURRENT_TIMESTAMP - INTERVAL '15 seconds'`) e suporte ao parâmetro de busca por profissional (`usuario_id`) na rota GET de agenda.
+ - Vínculo dos hooks de renderização de rótulo do recurso (`resourceLabelContent`) no FullCalendar para garantir a exibição da foto do avatar e nome no cabeçalho das colunas.
+ - Configuração do `schedulerLicenseKey` e ocultação do aviso de licença do calendário.
+ - Abertura da agenda padronizada no dia atual com slots de 15 minutos e navegação rápida "Hoje".
+ - Omissão do botão de notificação via WhatsApp quando o plano do cliente não contemplar a funcionalidade.
+ - Reorganização e redistribuição visual dos modais de agendamento e slide-over de detalhes.
+ - Otimização do layout responsivo do cabeçalho da Agenda: ocultação do nome do módulo em dispositivos móveis e tablets (mantendo máxima área útil para os filtros), e exibição simplificada com ícone do calendário e título "Agenda" no desktop.
+ - Otimização do layout para dispositivos móveis com repositionamento do filtro de Profissional na linha superior ao lado dos botões de ação e filtro de Cliente ocupando 100% da largura da linha inferior do cabeçalho; redução da altura da linha de cabeçalho dos profissionais no calendário, remoção da linha 'dia inteiro' (allDaySlot) e remoção dos botões redundantes de alternância de visualização ("Dia", "Semana", "Mês") do cabeçalho superior.
+ - Criar Rotina de Encaixe
+ - Melhorar deslocamento automatico de horario final de agendamento em 1 hora
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*

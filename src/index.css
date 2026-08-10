@@ -67,3 +67,19 @@
     background: #cbd5e1;
   }
 }
+
+/* Hide FullCalendar trial / license key notice banner */
+.fc-license-message {
+  display: none !important;
+}
+
+/* FullCalendar Resource Header Styling */
+.fc-theme-standard .fc-scrollgrid-sync-inner,
+.fc-col-header-cell-cushion {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  padding: 4px 2px !important;
+  text-decoration: none !important;
+}

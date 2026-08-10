@@ -45,6 +45,7 @@ export const SuperAdmin = () => {
     { id: 'home', label: 'Início (Tela Inicial)' },
     { id: 'dashboard', label: 'Dashboard (Indicadores e Gráficos)' },
     { id: 'financeiro', label: 'Financeiro' },
+    { id: 'relatorios', label: 'Relatórios' },
     { id: 'estoque', label: 'Estoque' },
     { id: 'cadastros', label: 'Cadastros (Pessoas)' },
     { id: 'configuracoes', label: 'Configurações' },
