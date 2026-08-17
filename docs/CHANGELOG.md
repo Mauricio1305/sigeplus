@@ -113,7 +113,7 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Criar Novo campo de Observação no cadastro de pessoas
  - Criar Funcionalidade de Recalcular toda vez que clicar para editar um Pedido/ Orçamento
 
-##[1.3.5] - Em Desenvolvimento
+##[1.3.5] - 2026-08-10
  - Incluisão do Módulo Relatório na tela de Cadastro de planos.
  - Redesenho completo do Front-end da Agenda com modo tela cheia, z-index corrigido sobre menu lateral em desktop e botão Voltar redirecionando para Início.
  - Estruturação nativa de colunas por profissional na agenda utilizando `@fullcalendar/resource-timegrid` (layout com horário/dia inteiro no eixo e colunas individuais com foto do avatar e nome para cada profissional).
@@ -133,5 +133,9 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Otimização do layout para dispositivos móveis com repositionamento do filtro de Profissional na linha superior ao lado dos botões de ação e filtro de Cliente ocupando 100% da largura da linha inferior do cabeçalho; redução da altura da linha de cabeçalho dos profissionais no calendário, remoção da linha 'dia inteiro' (allDaySlot) e remoção dos botões redundantes de alternância de visualização ("Dia", "Semana", "Mês") do cabeçalho superior.
  - Criar Rotina de Encaixe
  - Melhorar deslocamento automatico de horario final de agendamento em 1 hora
+
+ ##[1.3.6] - Em Desenvolvimento
+  - Correcao digitacao de numero de pedido e nome de cliente na pesquisa do módulo financeiro
+  
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*

@@ -316,7 +316,7 @@ export const Finance = () => {
     });
   };
 
-  const FilterSection = () => (
+  const renderFilterSection = () => (
     <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex flex-wrap gap-4 items-end mb-4">
       <div>
         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Período</label>
@@ -377,7 +377,7 @@ export const Finance = () => {
             </button>
           </div>
 
-          <FilterSection />
+          {renderFilterSection()}
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
@@ -432,7 +432,7 @@ export const Finance = () => {
               </button>
             </div>
           </div>
-          <FilterSection />
+          {renderFilterSection()}
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
@@ -491,7 +491,7 @@ export const Finance = () => {
               </button>
             </div>
           </div>
-          <FilterSection />
+          {renderFilterSection()}
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
@@ -545,7 +545,7 @@ export const Finance = () => {
               <Plus className="w-4 h-4" /> Novo Pagamento
             </button>
           </div>
-          <FilterSection />
+          {renderFilterSection()}
 
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-visible">
             <table className="w-full text-left">
@@ -610,7 +610,7 @@ export const Finance = () => {
             )}
           </div>
           
-          <FilterSection />
+          {renderFilterSection()}
           
           {currentCashier ? (
             <>
