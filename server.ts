@@ -396,6 +396,9 @@ async function initDB() {
           if (!columns.includes('cancelado_em')) await pool.query(`ALTER TABLE ${table} ADD COLUMN cancelado_em TIMESTAMP NULL DEFAULT NULL`);
           if (!columns.includes('cancelado_por')) await pool.query(`ALTER TABLE ${table} ADD COLUMN cancelado_por INTEGER`);
           if (!columns.includes('motivo_cancelamento')) await pool.query(`ALTER TABLE ${table} ADD COLUMN motivo_cancelamento TEXT`);
+          if (!columns.includes('estornado_em')) await pool.query(`ALTER TABLE ${table} ADD COLUMN estornado_em TIMESTAMP NULL DEFAULT NULL`);
+          if (!columns.includes('estornado_por')) await pool.query(`ALTER TABLE ${table} ADD COLUMN estornado_por INTEGER`);
+          if (!columns.includes('motivo_estorno')) await pool.query(`ALTER TABLE ${table} ADD COLUMN motivo_estorno TEXT`);
         }
         if (table === 'empresas') {
           if (!columns.includes('logo')) await pool.query("ALTER TABLE empresas ADD COLUMN logo LONGTEXT");

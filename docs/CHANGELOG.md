@@ -134,8 +134,10 @@ Todos os marcos importantes e mudanças notáveis neste projeto serão documenta
  - Criar Rotina de Encaixe
  - Melhorar deslocamento automatico de horario final de agendamento em 1 hora
 
- ##[1.3.6] - Em Desenvolvimento
+ ##[1.3.6] - 2026-08-17
   - Correcao digitacao de numero de pedido e nome de cliente na pesquisa do módulo financeiro
-  
+
+##[1.3.7] -   2026-08-17
+ - Correcao squema db financeiro (nao tinha tabela data de estorno)
 ---
 *Este projeto adere ao [Semantic Versioning](https://semver.org/spec/v2.0.0.html).*
